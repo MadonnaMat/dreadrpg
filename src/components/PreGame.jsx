@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { usePeer } from "../providers/PeerProvider";
 
 function generateGameId() {
@@ -34,7 +34,7 @@ function CreateSection({
         max={100}
         placeholder="Number of Wedges"
         value={numWedges}
-        onChange={e => setNumWedges(Number(e.target.value) || 25)}
+        onChange={(e) => setNumWedges(Number(e.target.value) || 25)}
         style={{ marginLeft: 8 }}
       />
       <button
@@ -108,6 +108,22 @@ export default function PreGame() {
   const [mode, setMode] = useState("");
   const [inputGameId, setInputGameId] = useState("");
 
+  // On mount, check for gameId in query params
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlGameId = params.get("gameId");
+    if (urlGameId) {
+      setMode("join");
+      setInputGameId(urlGameId);
+    }
+  }, []);
+
+  // Helper for sharable URL
+  const getShareUrl = () => {
+    const base = window.location.origin + window.location.pathname;
+    return `${base}?gameId=${gameId}`;
+  };
+
   return (
     <div className="App">
       <h1>Dread RPG PeerJS (React + PixiJS)</h1>
@@ -119,14 +135,36 @@ export default function PreGame() {
           </>
         )}
         {mode === "create" && (
-          <CreateSection
-            gameId={gameId}
-            setGameId={setGameId}
-            hostName={hostName}
-            setHostName={setHostName}
-            createGame={createGame}
-            connectionStatus={connectionStatus}
-          />
+          <>
+            <CreateSection
+              gameId={gameId}
+              setGameId={setGameId}
+              hostName={hostName}
+              setHostName={setHostName}
+              createGame={createGame}
+              connectionStatus={connectionStatus}
+            />
+            {gameId && (
+              <div style={{ marginTop: 12 }}>
+                <strong>Sharable URL:</strong>
+                <input
+                  type="text"
+                  value={getShareUrl()}
+                  readOnly
+                  style={{ width: "80%", marginLeft: 8 }}
+                  onClick={(e) => e.target.select()}
+                />
+                <button
+                  style={{ marginLeft: 8 }}
+                  onClick={() => {
+                    navigator.clipboard.writeText(getShareUrl());
+                  }}
+                >
+                  Copy
+                </button>
+              </div>
+            )}
+          </>
         )}
         {mode === "join" && (
           <JoinSection
