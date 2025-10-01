@@ -59,6 +59,8 @@ export const PeerProvider = ({ children }) => {
     users: {},
     hostName: "",
     numWedges: 25,
+    isGM: false,
+    initialWheelState: [],
   });
 
   // Register wheel event handler
@@ -88,6 +90,8 @@ export const PeerProvider = ({ children }) => {
       users,
       hostName,
       numWedges,
+      isGM,
+      initialWheelState,
     };
   }, [
     scenario,
@@ -97,6 +101,8 @@ export const PeerProvider = ({ children }) => {
     users,
     hostName,
     numWedges,
+    isGM,
+    initialWheelState,
   ]);
 
   // Store all connections for GM
@@ -104,8 +110,13 @@ export const PeerProvider = ({ children }) => {
 
   // Method for sending messages
   const sendToPeers = (msg) => {
-    console.log(`[${isGM ? "GM" : "Player"}] Broadcasting:`, msg.type, msg);
-    if (isGM) {
+    const currentIsGM = currentStateRef.current.isGM;
+    console.log(
+      `[${currentIsGM ? "GM" : "Player"}] Broadcasting:`,
+      msg.type,
+      msg
+    );
+    if (currentIsGM) {
       // GM: broadcast to all connections
       connectionsRef.current.forEach((c) => {
         c.send(msg);
@@ -134,6 +145,9 @@ export const PeerProvider = ({ children }) => {
     setUsers({});
     connectionsRef.current = [];
     peer.on("open", (pid) => {
+      // Add GM to users list
+      const gmUsers = { [normalizedId(newGameId)]: hostName || "GM" };
+      setUsers(gmUsers);
       setConnectionStatus(`Game created! Game ID: ${newGameId}`); // display original
     });
     peer.on("connection", (c) => {
@@ -166,6 +180,19 @@ export const PeerProvider = ({ children }) => {
           };
           console.log("[GM] Sending welcome message:", welcomeMsg);
           c.send(welcomeMsg);
+
+          // Broadcast updated user list to all existing connections
+          const userUpdateMsg = {
+            type: "user-list-update",
+            users: newUsers,
+          };
+          console.log("[GM] Broadcasting user list update:", userUpdateMsg);
+          connectionsRef.current.forEach((conn) => {
+            if (conn !== c) {
+              // Don't send to the new user, they already got the welcome message
+              conn.send(userUpdateMsg);
+            }
+          });
         }
         // Handle refetch requests from clients
         if (data && data.type === "refetch-request") {
@@ -293,8 +320,16 @@ export const PeerProvider = ({ children }) => {
           }
         }
         if (data && data.type === "welcome" && data.users) {
+          setUsers(data.users);
           setConnectionStatus(
             `Welcome! Players: ${Object.values(data.users).join(", ")}`
+          );
+        }
+        // Handle user list updates from host
+        if (data && data.type === "user-list-update") {
+          setUsers(data.users);
+          setConnectionStatus(
+            `Users updated! Players: ${Object.values(data.users).join(", ")}`
           );
         }
         // Sync spinner state from host

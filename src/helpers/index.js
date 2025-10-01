@@ -7,8 +7,6 @@ export function getNewWheelStateOnSpin(selectedIdx, wheelState) {
     newWheelState[selectedIdx] = "death";
   } else {
     newWheelState = Array(wedges).fill("success");
-    const deathIdx = Math.floor(Math.random() * wedges);
-    newWheelState[deathIdx] = "death";
   }
   return newWheelState;
 }

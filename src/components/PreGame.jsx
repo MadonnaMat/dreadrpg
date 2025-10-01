@@ -131,6 +131,36 @@ export default function PreGame() {
   return (
     <div className="App">
       <h1>Dread RPG</h1>
+
+      {/* About Dread RPG */}
+      <div className="dread-info">
+        <p>
+          <strong>Dread</strong> is a horror tabletop RPG that uses a Jenga
+          tower instead of dice. Players pull blocks to attempt actions,
+          creating escalating tension as the tower becomes more unstable. When
+          the tower falls, something terrible happens to your character.
+        </p>
+        <p>
+          <strong>This digital version</strong> simulates the Jenga tower
+          mechanic using a spinning wheel. Each spin represents pulling a block
+          - successful spins keep you safe, but landing on a "death" wedge means
+          something terrible happens to your character, just like when the tower
+          falls.
+        </p>
+        <p>
+          Learn more about Dread at the{" "}
+          <a
+            href="https://www.tiltingatwindmills.net/games/dread/"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: "#2196f3", textDecoration: "underline" }}
+          >
+            official website
+          </a>
+          .
+        </p>
+      </div>
+
       <div id="pregame-section">
         {!mode && (
           <>

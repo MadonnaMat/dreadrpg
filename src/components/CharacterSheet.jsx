@@ -18,6 +18,7 @@ export default function CharacterSheet() {
   const {
     isGM,
     userName,
+    hostName,
     sendToPeers,
     registerCharacterSheetEventHandler,
     characterSheets,
@@ -293,11 +294,13 @@ export default function CharacterSheet() {
                 className="player-select"
               >
                 <option value="">Select a player...</option>
-                {Object.keys(users).map((peerId) => (
-                  <option key={peerId} value={users[peerId]}>
-                    {users[peerId]}
-                  </option>
-                ))}
+                {Object.keys(users)
+                  .filter((peerId) => users[peerId] !== (hostName || "GM"))
+                  .map((peerId) => (
+                    <option key={peerId} value={users[peerId]}>
+                      {users[peerId]}
+                    </option>
+                  ))}
               </select>
             </div>
 
@@ -323,30 +326,36 @@ export default function CharacterSheet() {
       )}
 
       {/* Player Character Sheet */}
-      <div className="player-sheet-section">
-        <h2>{isGM ? "Your Character Sheet" : "Character Sheet"}</h2>
-        <div className="character-sheet-form">
-          {currentQuestions.map((question, index) => (
-            <div key={index} className="character-field">
-              <label className="question-label">{question}</label>
-              <textarea
-                value={mySheet[index] || ""}
-                onChange={(e) => handleAnswerChange(index, e.target.value)}
-                placeholder="Enter your answer..."
-                rows={question.includes("weaknesses") ? 4 : 2}
-                className="character-answer"
-              />
-            </div>
-          ))}
+      {!isGM && (
+        <div className="player-sheet-section">
+          <h2>{isGM ? "Your Character Sheet" : "Character Sheet"}</h2>
+          <div className="character-sheet-form">
+            {currentQuestions.map((question, index) => (
+              <div key={index} className="character-field">
+                <label className="question-label">{question}</label>
+                <textarea
+                  value={mySheet[index] || ""}
+                  onChange={(e) => handleAnswerChange(index, e.target.value)}
+                  placeholder="Enter your answer..."
+                  rows={question.includes("weaknesses") ? 4 : 2}
+                  className="character-answer"
+                />
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Other Players' Sheets (if GM allows) */}
       {!isGM && allowPlayersToViewSheets && (
         <div className="other-players-section">
           <h2>Other Players' Character Sheets</h2>
           {Object.keys(users)
-            .filter((peerId) => users[peerId] !== userName)
+            .filter(
+              (peerId) =>
+                users[peerId] !== userName &&
+                users[peerId] !== (hostName || "GM")
+            )
             .map((peerId) => {
               const playerName = users[peerId];
               const playerSheet =
