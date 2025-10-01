@@ -1,5 +1,47 @@
 import "@testing-library/jest-dom";
 
+// Polyfill Web APIs for Node.js environment
+if (typeof globalThis.TextEncoder === "undefined") {
+  const { TextEncoder, TextDecoder } = await import("util");
+  globalThis.TextEncoder = TextEncoder;
+  globalThis.TextDecoder = TextDecoder;
+}
+
+// Polyfill URLSearchParams if needed
+if (typeof globalThis.URLSearchParams === "undefined") {
+  globalThis.URLSearchParams = class URLSearchParams {
+    constructor(params = "") {
+      this.params = new Map();
+      if (typeof params === "string") {
+        params.split("&").forEach((param) => {
+          const [key, value] = param.split("=");
+          if (key) this.params.set(key, value || "");
+        });
+      }
+    }
+    get(key) { return this.params.get(key); }
+    set(key, value) { this.params.set(key, value); }
+    toString() {
+      return Array.from(this.params.entries())
+        .map(([k, v]) => `${k}=${v}`)
+        .join("&");
+    }
+  };
+}
+
+// Polyfill URL if needed
+if (typeof globalThis.URL === "undefined") {
+  globalThis.URL = class URL {
+    constructor(url, base) {
+      this.href = url;
+      this.origin = "http://localhost:3000";
+      this.pathname = "/";
+      this.search = "";
+      this.searchParams = new URLSearchParams();
+    }
+  };
+}
+
 // Mock PeerJS since it doesn't work well in test environment
 globalThis.Peer = class MockPeer {
   constructor(id) {
