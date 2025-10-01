@@ -126,7 +126,7 @@ export default function PreGame() {
 
   return (
     <div className="App">
-      <h1>Dread RPG PeerJS (React + PixiJS)</h1>
+      <h1>Dread RPG</h1>
       <div id="pregame-section">
         {!mode && (
           <>

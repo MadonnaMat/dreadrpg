@@ -3,6 +3,7 @@ import { WheelGraphics } from "./WheelGraphics";
 import Chat from "./Chat";
 import { usePeer } from "../providers/PeerProvider";
 import { useWheel } from "../providers/WheelProvider";
+import { useEffect, useState } from "react";
 
 export default function GameLoaded() {
   const { peerId, isGM, conn } = usePeer();
@@ -21,9 +22,17 @@ export default function GameLoaded() {
     handleSpin,
     handleSpinEnd,
   } = useWheel();
+
+  const [internalWheelState, setInternalWheelState] = useState(wheelState);
+  useEffect(() => {
+    setTimeout(() => {
+      setInternalWheelState(wheelState);
+    }, 10);
+  }, [wheelState]);
+
   return (
     <div className="App">
-      <h1>Dread RPG PeerJS (React + PixiJS)</h1>
+      <h1>Dread RPG</h1>
       <div
         style={{
           display: "flex",
@@ -34,7 +43,7 @@ export default function GameLoaded() {
         <div id="wheel-section">
           <Application width={300} height={300} backgroundAlpha={0}>
             <WheelGraphics
-              wheelState={wheelState}
+              wheelState={internalWheelState}
               spinning={spinning}
               spinAngle={spinAngle}
               pointerIdx={pointerIdx}

@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useState, useRef } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useRef,
+  useEffect,
+} from "react";
 import Peer from "peerjs";
 
 const PeerContext = createContext();
@@ -18,7 +24,7 @@ export const PeerProvider = ({ children }) => {
   const [users, setUsers] = useState({}); // { peerId: userName }
   const [numWedges, setNumWedges] = useState(25);
   const [initialWheelState, setInitialWheelState] = useState(
-    Array(25).fill("success")
+    Array(numWedges).fill("success")
   );
   const peerRef = useRef(null);
   const wheelEventHandlerRef = useRef(null); // callback for wheel events
@@ -81,7 +87,7 @@ export const PeerProvider = ({ children }) => {
             hostName,
             users: { ...users, [normalizedId(data.peerId)]: data.userName },
             numWedges: numWedgesArg,
-            wheelState: initialWheelState,
+            wheelState: Array(numWedgesArg).fill("success"),
           });
         }
         // Forward wheel-related actions to WheelProvider

@@ -88,7 +88,6 @@ export const WheelProvider = ({ children }) => {
   const handleHostSpin = (peerId) => {
     if (spinning) return;
     const wedges = wheelState.length;
-    const angle = (2 * Math.PI) / wedges;
     const currentAngle = spinAngle;
     spinStartRef.currentAngle = currentAngle;
     const minSpins = 3;

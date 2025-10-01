@@ -5,17 +5,12 @@ export function WheelGraphics({
   wheelState,
   spinning,
   spinAngle,
-  pointerIdx,
   setSpinAngle,
   setSpinning,
   setPointerIdx,
   spinStartRef,
   spinTargetAngleRef,
-  spinResultIdxRef,
   onSpinEnd,
-  conn,
-  isGM,
-  peerId,
 }) {
   const wedgeRefs = useRef([]);
   // Ensure animation runs when spinning is set to true
@@ -73,6 +68,7 @@ export function WheelGraphics({
   });
   const wedges = wheelState.length;
   const angle = (2 * Math.PI) / wedges;
+
   return (
     <>
       {/* Draw each wedge as a separate pixiGraphics */}
@@ -86,13 +82,16 @@ export function WheelGraphics({
           rotation={spinAngle}
           draw={(g) => {
             g.clear();
-            g.beginFill(state === "death" ? 0xcc0000 : 0x00cc00);
             g.moveTo(150, 150);
             g.arc(150, 150, 140, angle * i, angle * (i + 1));
             g.lineTo(150, 150);
-            g.endFill();
-            g.lineStyle(4, 0x000000);
-            g.drawCircle(150, 150, 140);
+            g.fill(state === "death" ? 0xcc0000 : 0x00cc00);
+            g.moveTo(150, 150);
+            g.arc(150, 150, 140, angle * i, angle * (i + 1));
+            g.lineTo(150, 150);
+            g.stroke({ color: 0xffffff, width: 1 });
+            g.circle(150, 150, 140);
+            g.stroke({ color: 0x000000, width: 4 });
           }}
         />
       ))}
@@ -102,12 +101,11 @@ export function WheelGraphics({
         y={20}
         draw={(g) => {
           g.clear();
-          g.beginFill(0xffd700);
           g.moveTo(0, 0);
           g.lineTo(-15, -30);
           g.lineTo(15, -30);
           g.lineTo(0, 0);
-          g.endFill();
+          g.fill(0xffd700);
         }}
       />
     </>

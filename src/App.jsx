@@ -1,8 +1,5 @@
-import { useEffect, useState, useRef } from "react";
-import Peer from "peerjs";
-import { Application, extend } from "@pixi/react";
+import { extend } from "@pixi/react";
 import { Graphics, Container } from "pixi.js";
-import { WheelGraphics } from "./components/WheelGraphics";
 import PreGame from "./components/PreGame";
 import GameLoaded from "./components/GameLoaded";
 import { PeerProvider, usePeer } from "./providers/PeerProvider";
