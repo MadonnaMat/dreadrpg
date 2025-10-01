@@ -40,7 +40,7 @@ export const WheelProvider = ({ children }) => {
 
   // Register wheel event handler with PeerProvider
   useEffect(() => {
-    registerWheelEventHandler((data, peerConn) => {
+    registerWheelEventHandler((data) => {
       // Host: handle spin requests and broadcast
       if (isGM) {
         if (data.type === "spin-request") {
@@ -85,9 +85,8 @@ export const WheelProvider = ({ children }) => {
   ]);
 
   // Host: handle spin request from player
-  const handleHostSpin = (peerId) => {
+  const handleHostSpin = () => {
     if (spinning) return;
-    const wedges = wheelState.length;
     const currentAngle = spinAngle;
     spinStartRef.currentAngle = currentAngle;
     const minSpins = 3;
@@ -117,7 +116,7 @@ export const WheelProvider = ({ children }) => {
   };
 
   // Host: broadcast spin result to all
-  const handleSpinEnd = (selectedIdx, wedges) => {
+  const handleSpinEnd = (selectedIdx) => {
     if (selectedIdx == null) return;
     const spinResult = wheelState[selectedIdx];
     setResult(spinResult === "death" ? "You Died!" : "Success!");

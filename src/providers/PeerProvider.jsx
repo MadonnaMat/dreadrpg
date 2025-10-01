@@ -144,7 +144,7 @@ export const PeerProvider = ({ children }) => {
     peerRef.current = peer;
     setUsers({});
     connectionsRef.current = [];
-    peer.on("open", (pid) => {
+    peer.on("open", () => {
       // Add GM to users list
       const gmUsers = { [normalizedId(newGameId)]: hostName || "GM" };
       setUsers(gmUsers);
