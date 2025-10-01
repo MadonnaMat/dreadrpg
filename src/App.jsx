@@ -2,8 +2,10 @@ import { extend } from "@pixi/react";
 import { Graphics, Container } from "pixi.js";
 import PreGame from "./components/PreGame";
 import GameLoaded from "./components/GameLoaded";
-import { PeerProvider, usePeer } from "./providers/PeerProvider";
-import { WheelProvider, useWheel } from "./providers/WheelProvider";
+import { PeerProvider } from "./providers/PeerProvider";
+import { WheelProvider } from "./providers/WheelProvider";
+import { usePeer } from "./hooks/usePeer";
+import { useWheel } from "./hooks/useWheel";
 import "./App.css";
 
 extend({ Graphics, Container });

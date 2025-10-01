@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { WheelProvider, useWheel } from "../providers/WheelProvider";
+import { WheelProvider } from "../providers/WheelProvider";
+import { useWheel } from "../hooks/useWheel";
 import { PeerProvider } from "../providers/PeerProvider";
 import React from "react";
 

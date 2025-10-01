@@ -3,8 +3,8 @@ import { WheelGraphics } from "./WheelGraphics";
 import Chat from "./Chat";
 import Scenario from "./Scenario";
 import CharacterSheet from "./CharacterSheet";
-import { usePeer } from "../providers/PeerProvider";
-import { useWheel } from "../providers/WheelProvider";
+import { usePeer } from "../hooks/usePeer";
+import { useWheel } from "../hooks/useWheel";
 import { useEffect, useState } from "react";
 
 export default function GameLoaded() {

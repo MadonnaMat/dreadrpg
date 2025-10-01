@@ -1,11 +1,6 @@
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useRef,
-  useEffect,
-} from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Peer from "peerjs";
+import { PeerContext } from "../contexts/PeerContext";
 
 const DEFAULT_QUESTIONS = [
   "What is your name?",
@@ -19,8 +14,6 @@ const DEFAULT_QUESTIONS = [
   "What gives you courage?",
   "Tell me 3 of your weaknesses",
 ];
-
-const PeerContext = createContext();
 
 // Normalize IDs by stripping '-' and trimming whitespace
 function normalizedId(id) {
@@ -402,7 +395,3 @@ export const PeerProvider = ({ children }) => {
     </PeerContext.Provider>
   );
 };
-
-export function usePeer() {
-  return useContext(PeerContext);
-}

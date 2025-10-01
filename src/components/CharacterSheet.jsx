@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { usePeer } from "../providers/PeerProvider";
+import { usePeer } from "../hooks/usePeer";
 
 const DEFAULT_QUESTIONS = [
   "What is your name?",

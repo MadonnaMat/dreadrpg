@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { PeerProvider, usePeer } from "../providers/PeerProvider";
+import { PeerProvider } from "../providers/PeerProvider";
+import { usePeer } from "../hooks/usePeer";
 import React from "react";
 
 // Test component to access PeerProvider context

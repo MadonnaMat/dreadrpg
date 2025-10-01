@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { usePeer } from "../providers/PeerProvider";
+import { usePeer } from "../hooks/usePeer";
 
 export default function Chat() {
   const {

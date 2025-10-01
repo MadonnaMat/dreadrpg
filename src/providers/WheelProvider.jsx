@@ -1,14 +1,7 @@
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useRef,
-  useEffect,
-} from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { getNewWheelStateOnSpin } from "../helpers";
-import { usePeer } from "./PeerProvider";
-
-const WheelContext = createContext();
+import { usePeer } from "../hooks/usePeer";
+import { WheelContext } from "../contexts/WheelContext";
 
 export const WheelProvider = ({ children }) => {
   const {
@@ -159,7 +152,3 @@ export const WheelProvider = ({ children }) => {
     </WheelContext.Provider>
   );
 };
-
-export function useWheel() {
-  return useContext(WheelContext);
-}
