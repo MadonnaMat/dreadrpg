@@ -19,8 +19,12 @@ if (typeof globalThis.URLSearchParams === "undefined") {
         });
       }
     }
-    get(key) { return this.params.get(key); }
-    set(key, value) { this.params.set(key, value); }
+    get(key) {
+      return this.params.get(key);
+    }
+    set(key, value) {
+      this.params.set(key, value);
+    }
     toString() {
       return Array.from(this.params.entries())
         .map(([k, v]) => `${k}=${v}`)
@@ -32,7 +36,7 @@ if (typeof globalThis.URLSearchParams === "undefined") {
 // Polyfill URL if needed
 if (typeof globalThis.URL === "undefined") {
   globalThis.URL = class URL {
-    constructor(url, base) {
+    constructor(url) {
       this.href = url;
       this.origin = "http://localhost:3000";
       this.pathname = "/";
