@@ -57,52 +57,45 @@ export default function Chat() {
   };
 
   return (
-    <div
-      className="chat-container"
-      style={{ minWidth: 250, maxWidth: 350, marginLeft: 24 }}
-    >
+    <div className="chat-container">
       <h2>Chat</h2>
-      <div>
-        <strong>Connected Users:</strong>
+
+      <div className="chat-users-section">
+        <div className="chat-users-title">Connected Users:</div>
+        <ul className="chat-users-list">
+          {Object.values(users).map((name, idx) => (
+            <li key={idx}>
+              {name}
+              {name === userName ? " (You)" : ""}
+            </li>
+          ))}
+        </ul>
       </div>
-      <ul>
-        {Object.values(users).map((name, idx) => (
-          <li key={idx}>
-            {name}
-            {name === userName ? " (You)" : ""}
-          </li>
-        ))}
-      </ul>
-      <div
-        className="chat-messages"
-        style={{
-          height: 200,
-          overflowY: "auto",
-          border: "1px solid #ccc",
-          marginBottom: 8,
-          padding: 8,
-        }}
-      >
+
+      <div className="chat-messages">
         {messages.map((msg, idx) => (
-          <div key={idx}>
+          <div key={idx} className="chat-message">
             <strong>{msg.from}:</strong> {msg.text}
           </div>
         ))}
         <div ref={messagesEndRef} />
       </div>
-      <input
-        type="text"
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        placeholder="Type a message..."
-        style={{ width: "80%" }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") handleSend();
-        }}
-      />
-      <button onClick={handleSend} style={{ width: "18%", marginLeft: 4 }}>
-        Send
-      </button>
+
+      <div className="chat-input-container">
+        <input
+          type="text"
+          className="chat-input"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="Type a message..."
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleSend();
+          }}
+        />
+        <button onClick={handleSend} className="chat-send-button">
+          Send
+        </button>
+      </div>
     </div>
   );
 }

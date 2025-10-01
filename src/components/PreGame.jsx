@@ -26,18 +26,19 @@ function CreateSection({
   return (
     <div id="create-game">
       <input
+        className="pregame-input"
         placeholder="Your Name"
         value={hostName}
         onChange={(e) => setHostName(e.target.value)}
       />
       <input
+        className="pregame-input"
         type="number"
         min={1}
         max={100}
         placeholder="Number of Wedges"
         value={numWedges}
         onChange={(e) => setNumWedges(Number(e.target.value) || 25)}
-        style={{ marginLeft: 8 }}
       />
       <button
         onClick={() => {
@@ -72,11 +73,13 @@ function JoinSection({
   return (
     <div id="join-game">
       <input
+        className="pregame-input"
         placeholder="Game ID"
         value={inputGameId}
         onChange={(e) => setInputGameId(e.target.value)}
       />
       <input
+        className="pregame-input"
         placeholder="Your Name"
         value={userName}
         onChange={(e) => setUserName(e.target.value)}
