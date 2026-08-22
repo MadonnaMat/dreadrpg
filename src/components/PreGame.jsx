@@ -3,6 +3,7 @@ import { usePeer } from "../hooks/usePeer";
 import Scenario from "./Scenario";
 import AdminPanel from "./AdminPanel";
 import PlayerLobby from "./PlayerLobby";
+import Chat from "./Chat";
 import {
   loadMyGames,
   deleteGameState,
@@ -100,54 +101,64 @@ function HostLobbyPanel({ gameId, connectionStatus, users, getShareUrl }) {
         ))}
       </div>
 
+      {/* All three panels stay mounted regardless of which tab is active,
+          only visibility toggles - Chat/Scenario each register a handler for
+          their own live network messages only while mounted, so
+          conditionally unmounting one on every tab switch would silently
+          drop any chat message or scenario update that arrives while the GM
+          isn't looking at that tab (e.g. while setting up characters in
+          Admin). Mirrors GameLoaded.jsx's identical reasoning post-start. */}
       <div className="tab-content">
-        {activeTab === "lobby" && (
-          <div>
-            <div className="lobby-info">
-              <div style={{ marginBottom: 12 }}>
-                <strong>Game ID:</strong> {gameId}
-                <br />
-                <span>Share this ID with players to join.</span>
+        <div style={{ display: activeTab === "lobby" ? "block" : "none" }}>
+          <div className="lobby-info">
+            <div style={{ marginBottom: 12 }}>
+              <strong>Game ID:</strong> {gameId}
+              <br />
+              <span>Share this ID with players to join.</span>
+            </div>
+            <div>
+              <strong>Sharable URL:</strong>
+              <div className="url-input-container">
+                <input
+                  type="text"
+                  value={getShareUrl()}
+                  readOnly
+                  onClick={(e) => e.target.select()}
+                />
+                <button
+                  onClick={() => navigator.clipboard.writeText(getShareUrl())}
+                >
+                  Copy
+                </button>
               </div>
-              <div>
-                <strong>Sharable URL:</strong>
-                <div className="url-input-container">
-                  <input
-                    type="text"
-                    value={getShareUrl()}
-                    readOnly
-                    onClick={(e) => e.target.select()}
-                  />
-                  <button
-                    onClick={() => navigator.clipboard.writeText(getShareUrl())}
-                  >
-                    Copy
-                  </button>
-                </div>
-              </div>
-            </div>
-            <div
-              id="connection-status"
-              style={{ padding: 8, fontWeight: "bold" }}
-            >
-              {connectionStatus}
-            </div>
-            <div className="lobby-tip">
-              <p>
-                <strong>Tip:</strong> While waiting for players to join, you can
-                use the "Setup Scenario" tab to prepare your Dread RPG scenario.
-                This will help you get the session ready and will be
-                automatically shared with players when they join.
-              </p>
-            </div>
-            <div style={{ marginTop: 16 }}>
-              <strong>Players joined:</strong>{" "}
-              {Math.max(0, Object.keys(users || {}).length - 1)}
             </div>
           </div>
-        )}
-        {activeTab === "scenario" && <Scenario />}
-        {activeTab === "admin" && <AdminPanel />}
+          <div
+            id="connection-status"
+            style={{ padding: 8, fontWeight: "bold" }}
+          >
+            {connectionStatus}
+          </div>
+          <div className="lobby-tip">
+            <p>
+              <strong>Tip:</strong> While waiting for players to join, you can
+              use the "Setup Scenario" tab to prepare your Dread RPG scenario.
+              This will help you get the session ready and will be automatically
+              shared with players when they join.
+            </p>
+          </div>
+          <div style={{ marginTop: 16 }}>
+            <strong>Players joined:</strong>{" "}
+            {Math.max(0, Object.keys(users || {}).length - 1)}
+          </div>
+          <Chat />
+        </div>
+        <div style={{ display: activeTab === "scenario" ? "block" : "none" }}>
+          <Scenario />
+        </div>
+        <div style={{ display: activeTab === "admin" ? "block" : "none" }}>
+          <AdminPanel />
+        </div>
       </div>
     </>
   );

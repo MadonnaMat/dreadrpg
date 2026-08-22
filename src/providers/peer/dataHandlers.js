@@ -48,6 +48,16 @@ export function createHostDataHandler({
         [data.userName]: { connected: true },
       };
       setPresence(newPresence);
+      // currentStateRef only mirrors state via an effect, which hasn't run
+      // yet at this point in the same synchronous JOIN handler - without
+      // this, the snapshot built one line below would still read the *old*
+      // users/presence (missing the very player it's being sent to) until
+      // the next render/effect cycle catches up.
+      currentStateRef.current = {
+        ...currentStateRef.current,
+        users: newUsers,
+        presence: newPresence,
+      };
       c.send(buildGameSnapshot(MESSAGE_TYPES.WELCOME, currentStateRef));
 
       // Broadcast updated user list/presence to everyone except the new

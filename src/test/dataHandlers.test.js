@@ -77,6 +77,46 @@ describe("createHostDataHandler - join handling", () => {
     expect(sendToPeers).not.toHaveBeenCalled();
   });
 
+  it("sends the new joiner a welcome snapshot that already includes themselves, not the stale pre-join state", () => {
+    // currentStateRef only mirrors real state via a post-render effect, so
+    // without the fix this regresses to reflecting `current` from *before*
+    // this join - i.e. missing the very player the snapshot is being sent
+    // to (see the comment above the fix in dataHandlers.js).
+    const currentStateRef = {
+      current: {
+        users: { existingPeer: "Alice" },
+        presence: { Alice: { connected: true } },
+      },
+    };
+    const setUsers = vi.fn();
+    const setPresence = vi.fn();
+    const handler = createHostDataHandler({
+      currentStateRef,
+      setUsers,
+      setPresence,
+      handlerRefs: makeHandlerRefs(),
+      sendToPeers: vi.fn(),
+    });
+    const c = makeConnection("new-peer");
+
+    handler(
+      { type: MESSAGE_TYPES.JOIN, peerId: "new-peer", userName: "Bob" },
+      c
+    );
+
+    const welcomeMessage = c.send.mock.calls
+      .map(([msg]) => msg)
+      .find((msg) => msg.type === MESSAGE_TYPES.WELCOME);
+    expect(welcomeMessage.users).toEqual({
+      existingPeer: "Alice",
+      [normalizedId("new-peer")]: "Bob",
+    });
+    expect(welcomeMessage.presence).toEqual({
+      Alice: { connected: true },
+      Bob: { connected: true },
+    });
+  });
+
   it("allows a disconnected player's name to be reclaimed and flips their presence back to connected", () => {
     const currentStateRef = {
       current: { users: {}, presence: { Alice: { connected: false } } },

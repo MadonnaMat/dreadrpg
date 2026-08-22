@@ -2,7 +2,10 @@ import { test, expect } from "@playwright/test";
 import {
   createGameAsGM,
   joinGameAsPlayer,
+  waitForPlayerLobby,
   waitForGameLoaded,
+  startGame,
+  assignSpinner,
   sendChat,
 } from "./helpers";
 
@@ -24,11 +27,15 @@ test.describe("P2P connection hardening (real WebRTC)", () => {
     const gameId = await createGameAsGM(gm, "GM Alice");
     await joinGameAsPlayer(player, gameId, "Player Bob");
 
-    // Both sides transition from the lobby/join screen to the wheel screen
-    // once the join handshake + welcome snapshot round-trip completes.
+    // Both sides transition from the lobby/join screen to the pre-game
+    // lobby once the join handshake + welcome snapshot round-trip
+    // completes, and on to the wheel screen once the GM starts the game.
+    await waitForPlayerLobby(player);
+    await startGame(gm);
     await waitForGameLoaded(gm);
     await waitForGameLoaded(player);
 
+    await assignSpinner(gm, "GM Alice");
     await gm.locator("#spin-btn").click();
     await expect(gm.locator("#spin-btn")).toBeDisabled();
 
@@ -36,7 +43,7 @@ test.describe("P2P connection hardening (real WebRTC)", () => {
     // to resolve/receive the outcome.
     await expect(gm.locator("#result")).not.toHaveText("", { timeout: 8000 });
     const gmResult = await gm.locator("#result").textContent();
-    expect(["Success!", "You Died!"]).toContain(gmResult);
+    expect(["Success!", "GM Alice Died!"]).toContain(gmResult);
 
     // The player must show the SAME result - it comes from the GM's
     // broadcast, not the player's own (untrusted) local resolution.
@@ -59,6 +66,8 @@ test.describe("P2P connection hardening (real WebRTC)", () => {
     const gameId = await createGameAsGM(gm, "GM Carol");
     await joinGameAsPlayer(player, gameId, "Player Dave");
 
+    await waitForPlayerLobby(player);
+    await startGame(gm);
     await waitForGameLoaded(gm);
     await waitForGameLoaded(player);
 
@@ -102,6 +111,8 @@ test.describe("P2P connection hardening (real WebRTC)", () => {
     const gameId = await createGameAsGM(gm, "GM Erin");
     await joinGameAsPlayer(player, gameId, "Player Frank");
 
+    await waitForPlayerLobby(player);
+    await startGame(gm);
     await waitForGameLoaded(gm);
     await waitForGameLoaded(player);
 
