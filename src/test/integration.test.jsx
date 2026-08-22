@@ -60,9 +60,9 @@ describe("Integration Tests", () => {
     const nameInput = screen.getByPlaceholderText("Your Name");
     await user.type(nameInput, "Test Host");
 
-    const wedgesInput = screen.getByPlaceholderText("Number of Wedges");
-    await user.clear(wedgesInput);
-    await user.type(wedgesInput, "20");
+    const towerSizeInput = screen.getByPlaceholderText("Tower Size");
+    await user.clear(towerSizeInput);
+    await user.type(towerSizeInput, "20");
 
     // Create the game
     await user.click(screen.getByRole("button", { name: "Create" }));

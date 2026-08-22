@@ -17,10 +17,9 @@ export const PeerProvider = ({ children }) => {
   const [isGM, setIsGM] = useState(false);
   const [conn, setConn] = useState(null);
   const [users, setUsers] = useState({}); // { peerId: userName }
-  const [numWedges, setNumWedges] = useState(25);
-  const [initialWheelState, setInitialWheelState] = useState(
-    Array(numWedges).fill("success")
-  );
+  const [towerSize, setTowerSize] = useState(25);
+  const [dangerProbability, setDangerProbability] = useState(0);
+  const [awaitingReset, setAwaitingReset] = useState(false);
   const [scenario, setScenario] = useState(null);
   const [characterSheets, setCharacterSheets] = useState({}); // { playerName: { questionIndex: answer } }
   const [questions, setQuestions] = useState(null); // Array of questions
@@ -40,9 +39,10 @@ export const PeerProvider = ({ children }) => {
     allowPlayersToViewSheets: false,
     users: {},
     hostName: "",
-    numWedges: 25,
+    towerSize: 25,
     isGM: false,
-    initialWheelState: [],
+    dangerProbability: 0,
+    awaitingReset: false,
   });
 
   // Register wheel event handler
@@ -71,9 +71,10 @@ export const PeerProvider = ({ children }) => {
       allowPlayersToViewSheets,
       users,
       hostName,
-      numWedges,
+      towerSize,
       isGM,
-      initialWheelState,
+      dangerProbability,
+      awaitingReset,
     };
   }, [
     scenario,
@@ -82,9 +83,10 @@ export const PeerProvider = ({ children }) => {
     allowPlayersToViewSheets,
     users,
     hostName,
-    numWedges,
+    towerSize,
     isGM,
-    initialWheelState,
+    dangerProbability,
+    awaitingReset,
   ]);
 
   // Store all connections for GM
@@ -133,8 +135,9 @@ export const PeerProvider = ({ children }) => {
     type,
     hostName: currentStateRef.current.hostName,
     users: currentStateRef.current.users,
-    numWedges: currentStateRef.current.numWedges,
-    wheelState: Array(currentStateRef.current.numWedges).fill("success"),
+    towerSize: currentStateRef.current.towerSize,
+    dangerProbability: currentStateRef.current.dangerProbability,
+    awaitingReset: currentStateRef.current.awaitingReset,
     scenario: currentStateRef.current.scenario,
     characterSheets: currentStateRef.current.characterSheets,
     questions: currentStateRef.current.questions,
@@ -142,12 +145,13 @@ export const PeerProvider = ({ children }) => {
   });
 
   // Host: create game
-  const createGame = (newGameId, hostName, numWedgesArg = 25) => {
+  const createGame = (newGameId, hostName, towerSizeArg = 25) => {
     setGameId(newGameId);
     setHostName(hostName);
     setIsGM(true);
-    setNumWedges(numWedgesArg);
-    setInitialWheelState(Array(numWedgesArg).fill("success"));
+    setTowerSize(towerSizeArg);
+    setDangerProbability(0);
+    setAwaitingReset(false);
     setScenario(null); // Reset scenario for new game
     setCharacterSheets({}); // Reset character sheets for new game
     setQuestions(null); // Reset questions for new game
@@ -234,11 +238,14 @@ export const PeerProvider = ({ children }) => {
                 : `Synced! Players: ${Object.values(data.users).join(", ")}`
             );
           }
-          if (data.numWedges) {
-            setNumWedges(data.numWedges);
-            setInitialWheelState(
-              data.wheelState || Array(data.numWedges).fill("success")
-            );
+          if (data.towerSize !== undefined) {
+            setTowerSize(data.towerSize);
+          }
+          if (data.dangerProbability !== undefined) {
+            setDangerProbability(data.dangerProbability);
+          }
+          if (data.awaitingReset !== undefined) {
+            setAwaitingReset(data.awaitingReset);
           }
           if (data.scenario) {
             setScenario(data.scenario);
@@ -288,10 +295,12 @@ export const PeerProvider = ({ children }) => {
         registerWheelEventHandler,
         registerChatEventHandler,
         sendToPeers,
-        numWedges,
-        setNumWedges,
-        initialWheelState,
-        setInitialWheelState,
+        towerSize,
+        setTowerSize,
+        dangerProbability,
+        setDangerProbability,
+        awaitingReset,
+        setAwaitingReset,
         scenario,
         setScenario,
         registerScenarioEventHandler,

@@ -10,7 +10,9 @@ import { useEffect, useState } from "react";
 export default function GameLoaded() {
   const { peerId, isGM, conn, sendToPeers } = usePeer();
   const {
-    wheelState,
+    wedges,
+    dangerProbability,
+    awaitingReset,
     result,
     spinning,
     spinAngle,
@@ -23,16 +25,17 @@ export default function GameLoaded() {
     spinResultIdxRef,
     handleSpin,
     handleSpinEnd,
+    handleRestack,
   } = useWheel();
 
-  const [internalWheelState, setInternalWheelState] = useState(wheelState);
+  const [internalWedges, setInternalWedges] = useState(wedges);
   const [activeTab, setActiveTab] = useState("game");
 
   useEffect(() => {
     setTimeout(() => {
-      setInternalWheelState(wheelState);
+      setInternalWedges(wedges);
     }, 10);
-  }, [wheelState]);
+  }, [wedges]);
 
   const [sendOnce, setSendOnce] = useState(false);
 
@@ -90,7 +93,8 @@ export default function GameLoaded() {
             <div id="wheel-section">
               <Application width={300} height={300} backgroundAlpha={0}>
                 <WheelGraphics
-                  wheelState={internalWheelState}
+                  wedges={internalWedges}
+                  dangerProbability={dangerProbability}
                   spinning={spinning}
                   spinAngle={spinAngle}
                   pointerIdx={pointerIdx}
@@ -101,14 +105,23 @@ export default function GameLoaded() {
                   spinTargetAngleRef={spinTargetAngleRef}
                   spinResultIdxRef={spinResultIdxRef}
                   onSpinEnd={handleSpinEnd}
+                  result={result}
+                  awaitingReset={awaitingReset}
                   conn={conn}
                   isGM={isGM}
                   peerId={peerId}
                 />
               </Application>
-              <button id="spin-btn" onClick={handleSpin} disabled={spinning}>
-                Spin the Wheel!
-              </button>
+              {!awaitingReset && (
+                <button id="spin-btn" onClick={handleSpin} disabled={spinning}>
+                  Spin the Wheel!
+                </button>
+              )}
+              {isGM && awaitingReset && (
+                <button id="restack-btn" onClick={handleRestack}>
+                  Re-stack Tower
+                </button>
+              )}
               <div id="result">{result}</div>
             </div>
             <Chat />

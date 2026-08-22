@@ -19,7 +19,9 @@ const TestComponent = () => {
     users,
     createGame,
     joinGame,
-    numWedges,
+    towerSize,
+    dangerProbability,
+    awaitingReset,
     scenario,
     characterSheets,
     questions,
@@ -34,7 +36,9 @@ const TestComponent = () => {
       <div data-testid="connection-status">{connectionStatus}</div>
       <div data-testid="is-gm">{isGM.toString()}</div>
       <div data-testid="users">{JSON.stringify(users)}</div>
-      <div data-testid="num-wedges">{numWedges}</div>
+      <div data-testid="tower-size">{towerSize}</div>
+      <div data-testid="danger-probability">{dangerProbability}</div>
+      <div data-testid="awaiting-reset">{awaitingReset.toString()}</div>
       <div data-testid="scenario">{JSON.stringify(scenario)}</div>
       <div data-testid="character-sheets">
         {JSON.stringify(characterSheets)}
@@ -84,7 +88,9 @@ describe("PeerProvider", () => {
     expect(screen.getByTestId("connection-status")).toHaveTextContent("");
     expect(screen.getByTestId("is-gm")).toHaveTextContent("false");
     expect(screen.getByTestId("users")).toHaveTextContent("{}");
-    expect(screen.getByTestId("num-wedges")).toHaveTextContent("25");
+    expect(screen.getByTestId("tower-size")).toHaveTextContent("25");
+    expect(screen.getByTestId("danger-probability")).toHaveTextContent("0");
+    expect(screen.getByTestId("awaiting-reset")).toHaveTextContent("false");
     expect(screen.getByTestId("scenario")).toHaveTextContent("null");
     expect(screen.getByTestId("character-sheets")).toHaveTextContent("{}");
     expect(screen.getByTestId("questions")).toHaveTextContent("null");
@@ -121,7 +127,7 @@ describe("PeerProvider", () => {
     expect(screen.getByTestId("is-gm")).toHaveTextContent("true");
     expect(screen.getByTestId("game-id")).toHaveTextContent("test-game");
     expect(screen.getByTestId("host-name")).toHaveTextContent("Host");
-    expect(screen.getByTestId("num-wedges")).toHaveTextContent("20");
+    expect(screen.getByTestId("tower-size")).toHaveTextContent("20");
   });
 
   it("should join game and set player state", async () => {

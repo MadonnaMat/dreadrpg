@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render } from "@testing-library/react";
+import { render, act } from "@testing-library/react";
 import { WheelGraphics } from "../components/WheelGraphics";
 
 let tickCallback;
@@ -12,7 +12,12 @@ vi.mock("@pixi/react", () => ({
 
 function renderWheel(overrides = {}) {
   const props = {
-    wheelState: ["success", "death", "success"],
+    wedges: [
+      { type: "success", angleFraction: 0.5 },
+      { type: "death", angleFraction: 0.2 },
+      { type: "success", angleFraction: 0.3 },
+    ],
+    dangerProbability: 0.2,
     spinning: false,
     spinAngle: 0,
     setSpinAngle: vi.fn(),
@@ -21,6 +26,8 @@ function renderWheel(overrides = {}) {
     spinStartRef: { current: null },
     spinTargetAngleRef: { current: 0 },
     onSpinEnd: vi.fn(),
+    result: "",
+    awaitingReset: false,
     ...overrides,
   };
   const utils = render(<WheelGraphics {...props} />);
@@ -41,7 +48,7 @@ describe("WheelGraphics Component", () => {
     expect(tickCallback).toBeInstanceOf(Function);
   });
 
-  it("does nothing on tick while not spinning", () => {
+  it("does nothing on tick while not spinning and no result change", () => {
     const { props } = renderWheel({ spinning: false });
 
     tickCallback();
@@ -84,6 +91,61 @@ describe("WheelGraphics Component", () => {
     expect(props.setPointerIdx).toHaveBeenCalled();
     // The test refs are plain DOM nodes with no `containsPoint`, so hit-testing
     // never finds a wedge and onSpinEnd is called with a null selection.
-    expect(props.onSpinEnd).toHaveBeenCalledWith(null, props.wheelState.length);
+    expect(props.onSpinEnd).toHaveBeenCalledWith(null, props.wedges.length);
+  });
+
+  it("does not touch the main spin state while playing a post-success shake", () => {
+    const { rerender, props } = renderWheel({ result: "" });
+
+    act(() => {
+      rerender(<WheelGraphics {...props} result="Success!" spinning={false} />);
+    });
+    act(() => {
+      tickCallback();
+    });
+
+    // The shake is a purely local visual effect on top of the idle wheel -
+    // it must never call the main spin-state setters.
+    expect(props.setSpinAngle).not.toHaveBeenCalled();
+    expect(props.setSpinning).not.toHaveBeenCalled();
+  });
+
+  it("does not touch the main spin state while holding the death overlay", () => {
+    const { rerender, props } = renderWheel({ result: "" });
+
+    act(() => {
+      rerender(
+        <WheelGraphics
+          {...props}
+          result="You Died!"
+          awaitingReset={true}
+          spinning={false}
+        />
+      );
+    });
+    act(() => {
+      tickCallback();
+    });
+
+    expect(props.setSpinAngle).not.toHaveBeenCalled();
+    expect(props.setSpinning).not.toHaveBeenCalled();
+  });
+
+  it("tolerates repeated ticks across a full death -> re-stack cycle without throwing", () => {
+    const { rerender, props } = renderWheel({ result: "" });
+
+    act(() => {
+      rerender(
+        <WheelGraphics {...props} result="You Died!" awaitingReset={true} />
+      );
+    });
+    expect(() => act(() => tickCallback())).not.toThrow();
+
+    act(() => {
+      rerender(
+        <WheelGraphics {...props} result="You Died!" awaitingReset={false} />
+      );
+    });
+    expect(() => act(() => tickCallback())).not.toThrow();
   });
 });

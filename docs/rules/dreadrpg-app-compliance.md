@@ -29,28 +29,45 @@ the rule's actual escalation logic where practical (see next item).
 
 ## Escalating danger after a collapse
 
-**🔧 Fixed this pass.** The rule: "re-stack it and pre-pull, as at the
-start, but with three additional blocks for every character removed from
-the game" — escalation is cumulative and never decreases.
+**🔧 Fixed this pass (twice now).** The rule: "re-stack it and pre-pull, as
+at the start, but with three additional blocks for every character removed
+from the game" — escalation is cumulative and never decreases.
 
-Before this pass, `getNewWheelStateOnSpin` (`src/helpers/index.js`) reset
-the _entire_ wheel back to all-`success` every time a `death` wedge was
-hit — every re-stack was exactly as easy as the very first one, contradicting
-the rule.
+Originally, `getNewWheelStateOnSpin` reset the _entire_ wheel back to
+all-`success` every time a `death` wedge was hit — every re-stack was
+exactly as easy as the very first one, contradicting the rule. A first fix
+made danger scale with `charactersRemoved` but did so as a flat, linear
+count of pre-marked wedges — every safe spin converted exactly one more
+wedge to `death`, a hazard curve that rose by a constant amount every pull.
+That's nothing like a real Jenga tower, which stays comfortably stable
+through most of its pulls and then gets sharply, suddenly dangerous near the
+end; the rules themselves never quantify a numeric pull-by-pull curve, only
+the cross-collapse "+3 blocks per removed character" escalation, so the
+within-a-life hazard _shape_ was a legitimate design gap to close.
 
-Now: `WheelProvider.jsx` tracks a local `charactersRemoved` count
-(`src/providers/WheelProvider.jsx:27`), increments it on every `death` spin
-inside `handleSpinEnd` (`src/providers/WheelProvider.jsx:115-135`), and
-passes it into `getNewWheelStateOnSpin(selectedIdx, wheelState,
-charactersRemoved)`. The helper now pre-sets `min(wedgeCount, 3 *
-charactersRemoved)` random wedges to `death` on every reset
-(`src/helpers/index.js:1-39`) — mirroring the "+3 blocks per removed
-character" rule, scaled to the wheel's own wedge count instead of a fixed
-54-block tower (there's no rule-mandated wedge count to match against, so
-scaling relative to the current wheel size is the closest equivalent).
-Verified in `src/test/helpers.test.js` (escalation, cumulative escalation,
-capping at wheel size, and the original all-`success` default when no count
-is passed).
+Now: collapse probability is computed directly by a logistic (S-curve)
+hazard function, `computeDangerProbability(pullsSinceReset, charactersRemoved,
+towerSize)` (`src/helpers/index.js`) — flat and low for an early "safe"
+stretch of pulls, then a sharp rise toward near-certain collapse.
+`WheelProvider.jsx` tracks a local `pullsSinceReset` counter (successful
+spins since the tower was last stacked) and the existing cumulative
+`charactersRemoved` count; `charactersRemoved` folds into the same curve as
+`BLOCKS_PER_REMOVED_CHARACTER * charactersRemoved` extra "virtual" pulls —
+mirroring the "+3 blocks per removed character" rule the same way the old
+implementation did, just applied to a continuous curve instead of a discrete
+wedge count, and still with no rule-mandated block count to match against
+(scaling relative to the GM-configured `towerSize` remains the closest
+equivalent). The wheel itself renders as a "pinwheel" of alternating
+success/death wedges (`getWheelWedges`) whose angular size is proportional
+to that probability, so danger is visibly continuous rather than jumping by
+a fixed count. After a collapse the wheel freezes (`awaitingReset`) instead
+of auto-resetting, until the GM clicks "Re-stack Tower" — giving the table a
+beat to narrate the character's removal, closer to the rule's own two-step
+"tower falls, then re-stack" sequencing than an instant auto-reset. Verified
+in `src/test/helpers.test.js` (monotonicity, the `charactersRemoved` offset
+behaving as extra virtual pulls, and the curve never reaching a hard 0 or 1)
+and `src/test/WheelProvider.test.jsx` (the death → `awaitingReset` → GM
+re-stack round trip).
 
 ## Declining a pull vs. a tower collapse (two different severities)
 

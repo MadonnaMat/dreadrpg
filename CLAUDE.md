@@ -80,12 +80,23 @@ main.jsx
   wheel size, etc., and exposes it via `PeerContext` (consumed through
   `usePeer()`).
 - `src/providers/WheelProvider.jsx` owns spin-in-progress state and exposes
-  it via `useWheel()`. It also tracks a local `charactersRemoved` count and
-  passes it to `getNewWheelStateOnSpin` (`src/helpers/index.js`) on every
-  "death" spin, so each wheel reset pre-sets more `death` wedges than the
-  last (`3 * charactersRemoved`, capped at wheel size) — this mirrors
-  Dread's rule that a re-stacked tower is always pre-pulled further than
-  before, never resets to the easiest state. See `docs/rules/`.
+  it via `useWheel()`. Collapse probability is not linear — it follows a
+  logistic (S-curve) hazard function, `computeDangerProbability`
+  (`src/helpers/index.js`): flat and low for an early "safe" stretch of
+  pulls, then a sharp rise toward near-certain collapse, closer to how a
+  real Jenga tower actually feels than a flat per-pull increase. A local
+  `pullsSinceReset` counter and a cumulative `charactersRemoved` count both
+  feed the curve — `charactersRemoved` folds in as extra "virtual" pulls
+  (`3 * charactersRemoved`, Dread's re-stack rule), so a re-stacked tower is
+  always at least as dangerous as the last one, never resetting to the
+  easiest state. The wheel itself is a "pinwheel" of `WEDGE_PAIRS` alternating
+  success/death wedges (`getWheelWedges`) whose angular size — not their
+  count — is proportional to the current danger probability, so death wedges
+  visibly grow/shrink in place as danger changes. After a death spin the
+  wheel freezes (`awaitingReset`) until the GM clicks "Re-stack Tower"
+  (`WheelProvider.handleRestack`), which re-rolls the danger probability from
+  the incremented `charactersRemoved` and unfreezes it for everyone. See
+  `docs/rules/`.
 - Components that care about specific inbound network messages **register a
   handler** with `PeerProvider` (`registerWheelEventHandler`,
   `registerChatEventHandler`, `registerScenarioEventHandler`,
