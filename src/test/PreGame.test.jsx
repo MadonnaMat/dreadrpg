@@ -269,6 +269,29 @@ describe("PreGame Component", () => {
     );
   });
 
+  it("should prefill both game ID and player name from a rejoin link's query params", () => {
+    mockURLSearchParams.mockImplementation(() => ({
+      get: vi.fn().mockImplementation((key) => {
+        if (key === "gameId") return "auto-join-game-123";
+        if (key === "userName") return "Bob";
+        return null;
+      }),
+    }));
+
+    render(
+      <PeerProvider>
+        <WheelProvider>
+          <PreGame />
+        </WheelProvider>
+      </PeerProvider>
+    );
+
+    expect(screen.getByPlaceholderText("Game ID")).toHaveValue(
+      "auto-join-game-123"
+    );
+    expect(screen.getByPlaceholderText("Your Name")).toHaveValue("Bob");
+  });
+
   it("should handle copy share URL functionality", async () => {
     render(
       <PeerProvider>

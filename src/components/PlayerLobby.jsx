@@ -1,5 +1,6 @@
 import { usePeer } from "../hooks/usePeer";
 import { MESSAGE_TYPES } from "../constants/messageTypes";
+import { buildRejoinUrl } from "../helpers/rejoinLink";
 import Chat from "./Chat";
 
 // Shown to a player who has joined but whom the GM hasn't started the game
@@ -11,6 +12,7 @@ export default function PlayerLobby() {
   const {
     connectionStatus,
     userName,
+    gameId,
     characters,
     setCharacters,
     sendToPeers,
@@ -40,6 +42,20 @@ export default function PlayerLobby() {
         {connectionStatus}
       </div>
       <p>Waiting for the GM to start the game...</p>
+
+      <div className="rejoin-link-section">
+        <button
+          onClick={() =>
+            navigator.clipboard.writeText(buildRejoinUrl(gameId, userName))
+          }
+        >
+          Copy my rejoin link
+        </button>
+        <span className="rejoin-link-hint">
+          Use this link if you get disconnected - it'll bring you back as{" "}
+          {userName}.
+        </span>
+      </div>
 
       {myCharacter ? (
         <p>

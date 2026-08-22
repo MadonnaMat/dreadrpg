@@ -217,6 +217,59 @@ describe("GameLoaded Component", () => {
     vi.useRealTimers();
   });
 
+  it("shows a rejoin-link copy button for a player, but not for the GM", () => {
+    const { rerender } = render(
+      <TestWrapper>
+        <GameLoaded />
+      </TestWrapper>
+    );
+    expect(
+      screen.getByRole("button", { name: "Copy my rejoin link" })
+    ).toBeInTheDocument();
+
+    rerender(
+      <TestWrapper isGM={true}>
+        <GmSelfAssigned>
+          <GameLoaded />
+        </GmSelfAssigned>
+      </TestWrapper>
+    );
+    expect(
+      screen.queryByRole("button", { name: "Copy my rejoin link" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("copies a rejoin link containing the game id and player's own name", async () => {
+    const writeText = vi
+      .spyOn(navigator.clipboard, "writeText")
+      .mockResolvedValue();
+
+    function PlayerSeeded({ children }) {
+      const { setUserName, setGameId } = usePeer();
+      useEffect(() => {
+        setUserName("Bob");
+        setGameId("game-abc");
+      }, [setUserName, setGameId]);
+      return children;
+    }
+
+    render(
+      <TestWrapper>
+        <PlayerSeeded>
+          <GameLoaded />
+        </PlayerSeeded>
+      </TestWrapper>
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Copy my rejoin link" })
+    );
+
+    expect(writeText).toHaveBeenCalledWith(
+      expect.stringMatching(/gameId=game-abc.*userName=Bob/)
+    );
+  });
+
   it("should apply active tab styling", async () => {
     render(
       <TestWrapper>

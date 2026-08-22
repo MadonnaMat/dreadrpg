@@ -241,15 +241,21 @@ export default function PreGame() {
   const [mode, setMode] = useState("");
   const [inputGameId, setInputGameId] = useState("");
 
-  // On mount, check for gameId in query params
+  // On mount, check for gameId/userName in query params - the latter comes
+  // from a player's own "Copy my rejoin link" (see GameLoaded.jsx/
+  // PlayerLobby.jsx), letting them rejoin without retyping their name.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const urlGameId = params.get("gameId");
+    const urlUserName = params.get("userName");
     if (urlGameId) {
       setMode("join");
       setInputGameId(urlGameId);
     }
-  }, []);
+    if (urlUserName) {
+      setUserName(urlUserName);
+    }
+  }, [setUserName]);
 
   // Helper for sharable URL
   const getShareUrl = () => {

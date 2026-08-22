@@ -7,6 +7,7 @@ import AdminPanel from "./AdminPanel";
 import { usePeer } from "../hooks/usePeer";
 import { useWheel } from "../hooks/useWheel";
 import { characterNameFor } from "../helpers/characters";
+import { buildRejoinUrl } from "../helpers/rejoinLink";
 import { useEffect, useRef, useState } from "react";
 import { MESSAGE_TYPES } from "../constants/messageTypes";
 
@@ -95,6 +96,23 @@ function SpinControls({
   );
 }
 
+// Lets a joined player (never the GM, who resumes via the homepage list
+// instead - see gamePersistence.js) copy a link that logs them back in as
+// themselves. Split out purely to keep GameLoaded's own complexity down.
+function RejoinLinkButton({ isGM, gameId, userName }) {
+  if (isGM) return null;
+  return (
+    <button
+      className="rejoin-link-btn"
+      onClick={() =>
+        navigator.clipboard.writeText(buildRejoinUrl(gameId, userName))
+      }
+    >
+      Copy my rejoin link
+    </button>
+  );
+}
+
 export default function GameLoaded() {
   const {
     peerId,
@@ -102,6 +120,7 @@ export default function GameLoaded() {
     conn,
     sendToPeers,
     gameName,
+    gameId,
     userName,
     hostName,
     users,
@@ -172,6 +191,7 @@ export default function GameLoaded() {
     <div className="App">
       <h1>Dread RPG</h1>
       {gameName && <h2>{gameName}</h2>}
+      <RejoinLinkButton isGM={isGM} gameId={gameId} userName={userName} />
 
       {/* Tab Navigation */}
       <div className="tab-navigation">

@@ -129,7 +129,15 @@ connectionManager.js`), so recreating a game with the same `gameId`
     name) with Resume/Delete.
 13. **Per-player shareable rejoin link** — extends the existing `?gameId=`
     URL convention with `&userName=` so a player's own link logs them back
-    in without retyping anything.
+    in without retyping anything. A "Copy my rejoin link" button is
+    available to a joined (non-GM) player in both `PlayerLobby.jsx` (pre-
+    start) and `GameLoaded.jsx` (mid-game), building the link via the new
+    `src/helpers/rejoinLink.js`; `PreGame.jsx`'s existing `?gameId=`-parsing
+    effect also reads `&userName=` and prefills the join form's name field.
+
+## Status
+
+All 14 items (0-13) above are implemented. This plan is complete.
 
 ## Verification
 

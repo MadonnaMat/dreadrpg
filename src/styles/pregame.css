@@ -170,6 +170,19 @@
   gap: 4px;
 }
 
+.rejoin-link-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0;
+  flex-wrap: wrap;
+}
+
+.rejoin-link-hint {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
 /* Homepage "Your Games" list */
 #my-games-list {
   max-width: 400px;

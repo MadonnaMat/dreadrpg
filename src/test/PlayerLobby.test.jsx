@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useEffect } from "react";
@@ -22,13 +22,14 @@ function makeCharacter(overrides = {}) {
 // before rendering PlayerLobby, the same way CharacterSheet.test.jsx seeds
 // state for a component that expects to be mounted mid-game rather than
 // driven through the full join flow.
-function Seeded({ userName = "Bob", characters = {} }) {
-  const { setUserName, setCharacters } = usePeer();
+function Seeded({ userName = "Bob", gameId = "game-abc", characters = {} }) {
+  const { setUserName, setGameId, setCharacters } = usePeer();
   useEffect(() => {
     setUserName(userName);
+    setGameId(gameId);
     setCharacters(characters);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setUserName, setCharacters]);
+  }, [setUserName, setGameId, setCharacters]);
   return <PlayerLobby />;
 }
 
@@ -94,5 +95,25 @@ describe("PlayerLobby Component", () => {
     );
 
     expect(screen.getByText("Chat")).toBeInTheDocument();
+  });
+
+  it("copies a rejoin link containing the game id and the player's own name", async () => {
+    const writeText = vi
+      .spyOn(navigator.clipboard, "writeText")
+      .mockResolvedValue();
+
+    render(
+      <PeerProvider>
+        <Seeded userName="Bob" gameId="game-abc" />
+      </PeerProvider>
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Copy my rejoin link" })
+    );
+
+    expect(writeText).toHaveBeenCalledWith(
+      expect.stringMatching(/gameId=game-abc.*userName=Bob/)
+    );
   });
 });
