@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import PreGame from "../components/PreGame";
 import { PeerProvider } from "../providers/PeerProvider";
 import { WheelProvider } from "../providers/WheelProvider";
+import { upsertMyGame, loadGameState } from "../providers/peer/gamePersistence";
 import React from "react";
 
 // Mock the Scenario and CharacterSheet components
@@ -32,6 +33,7 @@ describe("PreGame Component", () => {
       skipPointerEventsCheck: true,
     });
     vi.clearAllMocks();
+    localStorage.clear();
 
     // Reset URL search params mock
     mockURLSearchParams.mockImplementation(() => ({
@@ -285,5 +287,67 @@ describe("PreGame Component", () => {
 
     // Basic functionality test - verify form is filled
     expect(nameInput).toHaveValue("Test Host");
+  });
+
+  describe("homepage games list", () => {
+    it("does not show a games list when none have been saved", () => {
+      render(
+        <PeerProvider>
+          <WheelProvider>
+            <PreGame />
+          </WheelProvider>
+        </PeerProvider>
+      );
+
+      expect(screen.queryByText("Your Games")).not.toBeInTheDocument();
+    });
+
+    it("lists a previously-saved game by its campaign name", () => {
+      upsertMyGame("saved-game-1", "Old Host", "The Lost Expedition");
+
+      render(
+        <PeerProvider>
+          <WheelProvider>
+            <PreGame />
+          </WheelProvider>
+        </PeerProvider>
+      );
+
+      expect(screen.getByText("Your Games")).toBeInTheDocument();
+      expect(screen.getByText("The Lost Expedition")).toBeInTheDocument();
+    });
+
+    it("resuming a saved game re-creates it and switches into the GM lobby view", async () => {
+      upsertMyGame("saved-game-1", "Old Host", "The Lost Expedition");
+
+      render(
+        <PeerProvider>
+          <WheelProvider>
+            <PreGame />
+          </WheelProvider>
+        </PeerProvider>
+      );
+
+      await user.click(screen.getByRole("button", { name: "Resume" }));
+
+      expect(await screen.findByText("saved-game-1")).toBeInTheDocument();
+    });
+
+    it("deleting a saved game removes it from the list and from storage", async () => {
+      upsertMyGame("saved-game-1", "Old Host", "The Lost Expedition");
+
+      render(
+        <PeerProvider>
+          <WheelProvider>
+            <PreGame />
+          </WheelProvider>
+        </PeerProvider>
+      );
+
+      await user.click(screen.getByRole("button", { name: "Delete" }));
+
+      expect(screen.queryByText("The Lost Expedition")).not.toBeInTheDocument();
+      expect(loadGameState("saved-game-1", "Old Host")).toBeNull();
+    });
   });
 });

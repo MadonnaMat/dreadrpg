@@ -14,8 +14,32 @@ import { useGameState } from "./peer/useGameState";
 import { useRegisteredHandlers } from "./peer/useRegisteredHandlers";
 import { useCurrentStateRef } from "./peer/useCurrentStateRef";
 import { applyCharacterEvent } from "./peer/characterEvents";
+import {
+  saveGameState,
+  loadGameState,
+  upsertMyGame,
+} from "./peer/gamePersistence";
 import { MESSAGE_TYPES } from "../constants/messageTypes";
 import { DEFAULT_DEATH_FLAVOR_TEXT } from "../constants/wheelOutcomes";
+
+// Resolves the values createGame should seed its state with: a previously
+// saved game's fields when resuming, or the plain new-game defaults
+// otherwise. Pulled out of createGame itself purely to keep that function's
+// cyclomatic complexity within lint's limit - each `??` below is one branch.
+function deriveGameDefaults(restoredState, towerSizeArg, gameNameArg) {
+  const saved = restoredState || {};
+  return {
+    gameName: saved.gameName ?? gameNameArg,
+    towerSize: saved.towerSize ?? towerSizeArg,
+    gameStarted: saved.gameStarted ?? false,
+    scenario: saved.scenario ?? null,
+    characters: saved.characters ?? {},
+    allowPlayersToViewSheets: saved.allowPlayersToViewSheets ?? false,
+    theme: saved.theme ?? "default",
+    customColors: saved.customColors ?? null,
+    deathFlavorText: saved.deathFlavorText ?? DEFAULT_DEATH_FLAVOR_TEXT,
+  };
+}
 
 export const PeerProvider = ({ children }) => {
   const session = usePeerSession();
@@ -108,31 +132,37 @@ export const PeerProvider = ({ children }) => {
     sendToPeers,
   ]);
 
-  // Host: create game
+  // Host: create game. `restoredState` (from gamePersistence.js), when
+  // present, seeds fields from a previously-saved game instead of the
+  // hard-coded new-game defaults - used by resumeGame below.
   const createGame = (
     newGameId,
     hostNameArg,
     towerSizeArg = 25,
-    gameNameArg = "Untitled Campaign"
+    gameNameArg = "Untitled Campaign",
+    restoredState = null
   ) => {
+    const defaults = deriveGameDefaults(restoredState, towerSizeArg, gameNameArg);
     session.setGameId(newGameId);
     session.setHostName(hostNameArg);
     session.setIsGM(true);
-    gameState.setGameName(gameNameArg);
-    gameState.setTowerSize(towerSizeArg);
+    gameState.setGameName(defaults.gameName);
+    gameState.setTowerSize(defaults.towerSize);
     gameState.setDangerProbability(0);
     gameState.setAwaitingReset(false);
     gameState.setDesignatedSpinner(null);
-    gameState.setGameStarted(false); // New game always starts back in the lobby
-    gameState.setScenario(null); // Reset scenario for new game
-    gameState.setCharacters({}); // Reset characters for new game
-    gameState.setAllowPlayersToViewSheets(false); // Reset sheet visibility for new game
-    gameState.setTheme("default");
-    gameState.setCustomColors(null);
-    gameState.setDeathFlavorText(DEFAULT_DEATH_FLAVOR_TEXT);
+    gameState.setGameStarted(defaults.gameStarted);
+    gameState.setScenario(defaults.scenario);
+    gameState.setCharacters(defaults.characters);
+    gameState.setAllowPlayersToViewSheets(defaults.allowPlayersToViewSheets);
+    gameState.setTheme(defaults.theme);
+    gameState.setCustomColors(defaults.customColors);
+    gameState.setDeathFlavorText(defaults.deathFlavorText);
     // The GM never goes through the JOIN handshake that normally creates a
     // presence entry, so seed their own here - otherwise they'd never show
-    // up in the online/offline roster at all.
+    // up in the online/offline roster at all. A resumed game's saved
+    // presence map is stale (everyone was disconnected when it was saved),
+    // so always start fresh with just the GM online.
     gameState.setPresence({ [hostNameArg]: { connected: true } });
     session.setConnectionStatus("Waiting for players...");
     session.setUsers({});
@@ -189,6 +219,21 @@ export const PeerProvider = ({ children }) => {
     });
     managerRef.current = manager;
     peerRef.current = manager.peer;
+  };
+
+  // Host: resume a previously-created game from its saved localStorage
+  // state. Reuses createGame with the same gameId, which reproduces the
+  // same PeerJS pairing code (see connectionManager.js), plus the saved
+  // blob as `restoredState`.
+  const resumeGame = (gameIdArg, hostNameArg) => {
+    const saved = loadGameState(gameIdArg, hostNameArg);
+    createGame(
+      gameIdArg,
+      hostNameArg,
+      saved?.towerSize,
+      saved?.gameName,
+      saved
+    );
   };
 
   // Player: join game
@@ -251,6 +296,39 @@ export const PeerProvider = ({ children }) => {
     peerRef.current = manager.peer;
   };
 
+  // Keep the GM's saved game state up to date as the game progresses, so a
+  // page refresh or homepage "Resume" picks up where things left off. Only
+  // the GM persists - a player's own state is always derived from the GM's
+  // broadcasts, so there's nothing distinct to save on their side.
+  useEffect(() => {
+    if (!session.isGM || !session.gameId || !session.hostName) return;
+    saveGameState(session.gameId, session.hostName, {
+      gameName: gameState.gameName,
+      towerSize: gameState.towerSize,
+      scenario: gameState.scenario,
+      characters: gameState.characters,
+      allowPlayersToViewSheets: gameState.allowPlayersToViewSheets,
+      theme: gameState.theme,
+      customColors: gameState.customColors,
+      deathFlavorText: gameState.deathFlavorText,
+      gameStarted: gameState.gameStarted,
+    });
+    upsertMyGame(session.gameId, session.hostName, gameState.gameName);
+  }, [
+    session.isGM,
+    session.gameId,
+    session.hostName,
+    gameState.gameName,
+    gameState.towerSize,
+    gameState.scenario,
+    gameState.characters,
+    gameState.allowPlayersToViewSheets,
+    gameState.theme,
+    gameState.customColors,
+    gameState.deathFlavorText,
+    gameState.gameStarted,
+  ]);
+
   return (
     <PeerContext.Provider
       value={{
@@ -258,6 +336,7 @@ export const PeerProvider = ({ children }) => {
         ...gameState,
         peerRef,
         createGame,
+        resumeGame,
         joinGame,
         registerWheelEventHandler: handlers.registerWheelEventHandler,
         registerChatEventHandler: handlers.registerChatEventHandler,

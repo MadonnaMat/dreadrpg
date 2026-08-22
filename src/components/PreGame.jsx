@@ -3,6 +3,7 @@ import { usePeer } from "../hooks/usePeer";
 import Scenario from "./Scenario";
 import AdminPanel from "./AdminPanel";
 import PlayerLobby from "./PlayerLobby";
+import { loadMyGames, deleteGameState } from "../providers/peer/gamePersistence";
 
 function generateGameId() {
   return Array(3)
@@ -149,6 +150,39 @@ function HostLobbyPanel({ gameId, connectionStatus, users, getShareUrl }) {
   );
 }
 
+function HomepageGamesList({ resumeGame, onResume }) {
+  const [games, setGames] = useState(() => loadMyGames());
+
+  if (games.length === 0) return null;
+
+  const handleResume = (game) => {
+    resumeGame(game.gameId, game.hostName);
+    onResume();
+  };
+
+  const handleDelete = (game) => {
+    deleteGameState(game.gameId, game.hostName);
+    setGames(loadMyGames());
+  };
+
+  return (
+    <div id="my-games-list">
+      <h3>Your Games</h3>
+      <ul>
+        {[...games]
+          .sort((a, b) => b.lastPlayed - a.lastPlayed)
+          .map((game) => (
+            <li key={`${game.gameId}-${game.hostName}`}>
+              <span>{game.gameName}</span>
+              <button onClick={() => handleResume(game)}>Resume</button>
+              <button onClick={() => handleDelete(game)}>Delete</button>
+            </li>
+          ))}
+      </ul>
+    </div>
+  );
+}
+
 function JoinSection({
   inputGameId,
   setInputGameId,
@@ -191,6 +225,7 @@ export default function PreGame() {
   const {
     connectionStatus,
     createGame,
+    resumeGame,
     joinGame,
     gameId,
     setGameId,
@@ -260,6 +295,10 @@ export default function PreGame() {
           <>
             <button onClick={() => setMode("create")}>Create Game</button>
             <button onClick={() => setMode("join")}>Join Game</button>
+            <HomepageGamesList
+              resumeGame={resumeGame}
+              onResume={() => setMode("create")}
+            />
           </>
         )}
         {mode === "create" && !gameId && (
