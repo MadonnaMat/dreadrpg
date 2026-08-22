@@ -25,9 +25,22 @@ export function createHostDataHandler({
       data.peerId &&
       data.userName
     ) {
+      const joiningPeerId = normalizedId(data.peerId);
+      const nameInUse = Object.entries(currentStateRef.current.users).some(
+        ([existingPeerId, existingName]) =>
+          existingName === data.userName && existingPeerId !== joiningPeerId
+      );
+      if (nameInUse) {
+        c.send({
+          type: MESSAGE_TYPES.JOIN_REJECTED,
+          reason: "name-in-use",
+        });
+        return;
+      }
+
       const newUsers = {
         ...currentStateRef.current.users,
-        [normalizedId(data.peerId)]: data.userName,
+        [joiningPeerId]: data.userName,
       };
       setUsers(newUsers);
       c.send(buildGameSnapshot(MESSAGE_TYPES.WELCOME, currentStateRef));
@@ -87,7 +100,8 @@ function applySnapshotToPlayerState(data, setters) {
 // - full-state snapshots (welcome/game-data-sync), user-list updates, and
 // forwarding everything else to whichever component registered interest.
 export function createPlayerDataHandler(setters) {
-  const { handlerRefs, setUsers, setConnectionStatus } = setters;
+  const { handlerRefs, setUsers, setConnectionStatus, setConn, setJoinError } =
+    setters;
 
   return (data, connection) => {
     dispatchToRegisteredHandlers(data, connection, handlerRefs);
@@ -104,6 +118,13 @@ export function createPlayerDataHandler(setters) {
       setConnectionStatus(
         `Users updated! Players: ${Object.values(data.users).join(", ")}`
       );
+    }
+    if (data && data.type === MESSAGE_TYPES.JOIN_REJECTED) {
+      setJoinError(
+        "That name is already in use in this game - pick another one."
+      );
+      setConnectionStatus("");
+      setConn(null);
     }
   };
 }

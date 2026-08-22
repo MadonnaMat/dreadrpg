@@ -3,6 +3,7 @@
 // one file's sender/receiver can't silently break a match in another.
 export const MESSAGE_TYPES = {
   JOIN: "join",
+  JOIN_REJECTED: "join-rejected",
   WELCOME: "welcome",
   USER_LIST_UPDATE: "user-list-update",
   REFETCH_REQUEST: "refetch-request",

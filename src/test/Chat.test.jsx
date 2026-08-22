@@ -15,6 +15,27 @@ function GmChat() {
   return <Chat />;
 }
 
+// Renders Chat as a named sender with a character already assigned to them,
+// to exercise the "<name> <CharacterName>" display-name decoration.
+function ChatWithCharacter() {
+  const { setIsGM, setUserName, setCharacters } = usePeer();
+  useEffect(() => {
+    setIsGM(true);
+    setUserName("Alice");
+    setCharacters({
+      "char-1": {
+        id: "char-1",
+        name: "The Detective",
+        defaultName: "The Detective",
+        assignedTo: "Alice",
+        questions: [],
+        answers: {},
+      },
+    });
+  }, [setIsGM, setUserName, setCharacters]);
+  return <Chat />;
+}
+
 describe("Chat Component", () => {
   let user;
 
@@ -90,5 +111,19 @@ describe("Chat Component", () => {
     expect(
       screen.getByText("Welcome players", { exact: false })
     ).toBeInTheDocument();
+  });
+
+  it("decorates the sender's name with their assigned character", async () => {
+    render(
+      <PeerProvider>
+        <ChatWithCharacter />
+      </PeerProvider>
+    );
+
+    const input = screen.getByPlaceholderText("Type a message...");
+    await user.type(input, "Found a clue");
+    await user.click(screen.getByText("Send"));
+
+    expect(screen.getByText("Alice <The Detective>:")).toBeInTheDocument();
   });
 });

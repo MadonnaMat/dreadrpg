@@ -11,6 +11,7 @@ export default function Chat() {
     sendToPeers,
     registerChatEventHandler,
     gameId,
+    characters,
   } = usePeer();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -41,8 +42,18 @@ export default function Chat() {
     }
   }, [messages]);
 
-  const userDisplayName =
-    userName || (isGM ? `GM (${hostName || gameId})` : "Player");
+  // Show "<name> <CharacterName>" once the player has claimed a character,
+  // so other players can tell who's speaking as whom in the transcript.
+  const myCharacter = Object.values(characters || {}).find(
+    (c) => c.assignedTo === userName
+  );
+  const userDisplayName = userName
+    ? myCharacter
+      ? `${userName} <${myCharacter.name}>`
+      : userName
+    : isGM
+      ? `GM (${hostName || gameId})`
+      : "Player";
 
   const handleSend = () => {
     if (!input.trim()) return;

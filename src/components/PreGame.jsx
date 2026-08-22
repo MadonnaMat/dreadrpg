@@ -151,6 +151,7 @@ function JoinSection({
   setUserName,
   joinGame,
   connectionStatus,
+  joinError,
 }) {
   return (
     <div id="join-game">
@@ -175,6 +176,7 @@ function JoinSection({
       >
         Join
       </button>
+      {joinError && <div className="join-error">{joinError}</div>}
       <div id="connection-status">{connectionStatus}</div>
     </div>
   );
@@ -194,6 +196,7 @@ export default function PreGame() {
     isGM,
     users,
     conn,
+    joinError,
   } = usePeer();
   const [mode, setMode] = useState("");
   const [inputGameId, setInputGameId] = useState("");
@@ -280,6 +283,7 @@ export default function PreGame() {
             setUserName={setUserName}
             joinGame={joinGame}
             connectionStatus={connectionStatus}
+            joinError={joinError}
           />
         )}
         {mode === "join" && conn && <PlayerLobby />}

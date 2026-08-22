@@ -141,6 +141,7 @@ export const PeerProvider = ({ children }) => {
     session.setGameId(gameIdArg);
     session.setUserName(userNameArg);
     session.setConnectionStatus("Connecting to game...");
+    session.setJoinError(null);
     let resolvedPeerId = peerIdArg;
 
     const manager = createPlayerConnectionManager({
@@ -173,6 +174,8 @@ export const PeerProvider = ({ children }) => {
         handlerRefs: handlers.handlerRefs,
         setUsers: session.setUsers,
         setConnectionStatus: session.setConnectionStatus,
+        setConn: session.setConn,
+        setJoinError: session.setJoinError,
         setTowerSize: gameState.setTowerSize,
         setDangerProbability: gameState.setDangerProbability,
         setAwaitingReset: gameState.setAwaitingReset,
