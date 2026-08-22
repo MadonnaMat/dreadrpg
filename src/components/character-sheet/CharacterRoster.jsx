@@ -50,6 +50,7 @@ export default function CharacterRoster({
             {renamingId === character.id ? (
               <input
                 type="text"
+                className="pregame-input"
                 value={renameDraft}
                 autoFocus
                 onChange={(e) => setRenameDraft(e.target.value)}

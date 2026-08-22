@@ -1,18 +1,21 @@
 /* PreGame input styling */
 .pregame-input {
   padding: 8px;
-  border: 1px solid #ccc;
+  border: 1px solid color-mix(in srgb, var(--color-text, #ccc) 25%, transparent);
   border-radius: 4px;
   font-family: inherit;
   font-size: 14px;
   margin: 4px;
   min-width: 180px;
+  background-color: var(--color-bg, #fff);
+  color: var(--color-text, #000);
 }
 
 .pregame-input:focus {
-  border-color: #2196f3;
+  border-color: var(--color-accent, #2196f3);
   outline: none;
-  box-shadow: 0 0 3px rgba(33, 150, 243, 0.3);
+  box-shadow: 0 0 3px
+    color-mix(in srgb, var(--color-accent, #2196f3) 30%, transparent);
 }
 
 /* Dread RPG Info styling */
@@ -76,29 +79,36 @@
 
 /* PreGame lobby styling */
 .lobby-info {
-  background-color: #f9f9f9;
-  border: 1px solid #ddd;
+  background-color: color-mix(in srgb, var(--color-bg, #f9f9f9) 90%, white 10%);
+  border: 1px solid color-mix(in srgb, var(--color-text, #ddd) 20%, transparent);
   border-radius: 8px;
   padding: 16px;
   margin-bottom: 16px;
   text-align: left;
+  color: var(--color-text, inherit);
 }
 
 .lobby-info strong {
-  color: #333;
+  color: var(--color-text, #333);
 }
 
 .lobby-tip {
-  background-color: #e8f4fd;
-  border: 1px solid #b3d9ff;
+  background-color: color-mix(
+    in srgb,
+    var(--color-accent, #2196f3) 12%,
+    transparent
+  );
+  border: 1px solid
+    color-mix(in srgb, var(--color-accent, #2196f3) 35%, transparent);
   border-radius: 8px;
   padding: 16px;
   margin-top: 16px;
   text-align: left;
+  color: var(--color-text, inherit);
 }
 
 .lobby-tip strong {
-  color: #1976d2;
+  color: var(--color-accent, #1976d2);
 }
 
 .url-input-container {
@@ -111,10 +121,12 @@
 .url-input-container input {
   flex: 1;
   padding: 8px;
-  border: 1px solid #ccc;
+  border: 1px solid color-mix(in srgb, var(--color-text, #ccc) 25%, transparent);
   border-radius: 4px;
   font-family: monospace;
   font-size: 14px;
+  background-color: var(--color-bg, #fff);
+  color: var(--color-text, #000);
 }
 
 .url-input-container button {
@@ -202,7 +214,16 @@
   justify-content: space-between;
   gap: 8px;
   padding: 8px 12px;
-  border: 1px solid #ddd;
+  border: 1px solid color-mix(in srgb, var(--color-text, #ddd) 20%, transparent);
   border-radius: 4px;
   margin-bottom: 6px;
+}
+
+#my-games-list li > span {
+  flex: 1;
+  text-align: left;
+}
+
+#my-games-list li .btn-danger-small {
+  margin-left: 8px;
 }

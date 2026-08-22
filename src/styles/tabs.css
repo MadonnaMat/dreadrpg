@@ -1,23 +1,32 @@
 .tab-navigation {
   display: flex;
   margin-bottom: 16px;
-  border-bottom: 1px solid #ccc;
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--color-text, #ccc) 25%, transparent);
 }
 
 .tab-button {
   padding: 8px 16px;
   margin: 0 2px;
-  border: 1px solid #ccc;
+  border: 1px solid color-mix(in srgb, var(--color-text, #ccc) 25%, transparent);
   border-bottom: none;
   cursor: pointer;
   border-radius: 4px 4px 0 0;
-  background-color: #f0f0f0;
-  color: #333;
+  background-color: color-mix(
+    in srgb,
+    var(--color-bg, #f0f0f0) 85%,
+    var(--color-text, black) 15%
+  );
+  color: var(--color-text, #333);
   transition: all 0.2s ease;
 }
 
 .tab-button:hover {
-  background-color: #e0e0e0;
+  background-color: color-mix(
+    in srgb,
+    var(--color-bg, #e0e0e0) 75%,
+    var(--color-text, black) 25%
+  );
 }
 
 .tab-button.active {

@@ -199,9 +199,7 @@ describe("GameLoaded Component", () => {
       </TestWrapper>
     );
 
-    const options = screen
-      .getAllByRole("option")
-      .map((opt) => opt.textContent);
+    const options = screen.getAllByRole("option").map((opt) => opt.textContent);
     expect(options).toContain("Alice <The Drifter>");
     expect(options).not.toContain("Bob <The Ghost>");
     expect(options).not.toContain("Bob");

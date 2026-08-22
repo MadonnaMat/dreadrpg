@@ -96,11 +96,7 @@ function SpinControls({
           <button id="spin-btn" onClick={handleSpin} disabled={spinning}>
             Spin the Wheel!
           </button>
-          <button
-            id="decline-btn"
-            onClick={handleDecline}
-            disabled={spinning}
-          >
+          <button id="decline-btn" onClick={handleDecline} disabled={spinning}>
             Decline
           </button>
           {pullsRequired > 1 && (
@@ -121,7 +117,7 @@ function RejoinLinkButton({ isGM, gameId, userName }) {
   if (isGM) return null;
   return (
     <button
-      className="rejoin-link-btn"
+      className="btn-secondary btn-small rejoin-link-btn"
       onClick={() =>
         navigator.clipboard.writeText(buildRejoinUrl(gameId, userName))
       }
@@ -251,7 +247,9 @@ export default function GameLoaded() {
           style={{
             display: activeTab === "game" ? "flex" : "none",
             flexDirection: "row",
+            flexWrap: "wrap",
             alignItems: "flex-start",
+            gap: "24px",
           }}
         >
           <div id="wheel-section">

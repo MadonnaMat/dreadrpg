@@ -252,9 +252,7 @@ describe("WheelProvider", () => {
     await user.click(screen.getByText("Assign Alice"));
     await user.click(screen.getByText("End Spin Death"));
 
-    const characters = JSON.parse(
-      screen.getByTestId("characters").textContent
-    );
+    const characters = JSON.parse(screen.getByTestId("characters").textContent);
     expect(characters["char-1"].alive).toBe(false);
   });
 

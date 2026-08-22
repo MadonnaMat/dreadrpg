@@ -65,6 +65,8 @@ export function deleteGameState(gameId, hostName) {
     // non-fatal
   }
   saveMyGames(
-    loadMyGames().filter((g) => !(g.gameId === gameId && g.hostName === hostName))
+    loadMyGames().filter(
+      (g) => !(g.gameId === gameId && g.hostName === hostName)
+    )
   );
 }

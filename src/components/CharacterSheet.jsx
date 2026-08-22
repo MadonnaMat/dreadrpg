@@ -317,8 +317,8 @@ function PlayerCharacterPanel({
         <>
           {myDeadCharacter && (
             <p className="character-died-notice">
-              Your character, <strong>{myDeadCharacter.name}</strong>, has
-              died. Choose a new character to keep playing.
+              Your character, <strong>{myDeadCharacter.name}</strong>, has died.
+              Choose a new character to keep playing.
             </p>
           )}
           <CharacterPicker />

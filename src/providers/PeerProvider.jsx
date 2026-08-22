@@ -142,7 +142,11 @@ export const PeerProvider = ({ children }) => {
     gameNameArg = "Untitled Campaign",
     restoredState = null
   ) => {
-    const defaults = deriveGameDefaults(restoredState, towerSizeArg, gameNameArg);
+    const defaults = deriveGameDefaults(
+      restoredState,
+      towerSizeArg,
+      gameNameArg
+    );
     session.setGameId(newGameId);
     session.setHostName(hostNameArg);
     session.setIsGM(true);

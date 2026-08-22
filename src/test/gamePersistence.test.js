@@ -37,10 +37,7 @@ describe("gamePersistence", () => {
     });
 
     it("returns null instead of throwing on corrupted stored JSON", () => {
-      localStorage.setItem(
-        "dread-rpg-game-state-broken-GM",
-        "{not valid json"
-      );
+      localStorage.setItem("dread-rpg-game-state-broken-GM", "{not valid json");
       expect(loadGameState("broken", "GM")).toBeNull();
     });
   });

@@ -3,7 +3,10 @@ import { usePeer } from "../hooks/usePeer";
 import Scenario from "./Scenario";
 import AdminPanel from "./AdminPanel";
 import PlayerLobby from "./PlayerLobby";
-import { loadMyGames, deleteGameState } from "../providers/peer/gamePersistence";
+import {
+  loadMyGames,
+  deleteGameState,
+} from "../providers/peer/gamePersistence";
 
 function generateGameId() {
   return Array(3)
@@ -174,8 +177,18 @@ function HomepageGamesList({ resumeGame, onResume }) {
           .map((game) => (
             <li key={`${game.gameId}-${game.hostName}`}>
               <span>{game.gameName}</span>
-              <button onClick={() => handleResume(game)}>Resume</button>
-              <button onClick={() => handleDelete(game)}>Delete</button>
+              <button
+                className="btn-primary"
+                onClick={() => handleResume(game)}
+              >
+                Resume
+              </button>
+              <button
+                className="btn-danger-small"
+                onClick={() => handleDelete(game)}
+              >
+                Delete
+              </button>
             </li>
           ))}
       </ul>
