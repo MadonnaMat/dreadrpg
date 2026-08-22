@@ -2,8 +2,10 @@ import { useState, useEffect } from "react";
 import { usePeer } from "../hooks/usePeer";
 import { DEFAULT_QUESTIONS } from "../constants/questions";
 import { MESSAGE_TYPES } from "../constants/messageTypes";
+import { isCharacterAlive } from "../helpers/characters";
 import QuestionEditor from "./character-sheet/QuestionEditor";
 import CharacterRoster from "./character-sheet/CharacterRoster";
+import CharacterPicker from "./character-sheet/CharacterPicker";
 import MyCharacterSheet from "./character-sheet/MyCharacterSheet";
 import OtherPlayersSheets from "./character-sheet/OtherPlayersSheets";
 
@@ -41,8 +43,11 @@ export default function CharacterSheet() {
   const [editQuestions, setEditQuestions] = useState(DEFAULT_QUESTIONS);
 
   const selectedCharacter = characters?.[selectedCharacterId];
+  const myDeadCharacter = Object.values(characters || {}).find(
+    (c) => c.assignedTo === userName && !isCharacterAlive(c)
+  );
   const myCharacter = Object.values(characters || {}).find(
-    (c) => c.assignedTo === userName
+    (c) => c.assignedTo === userName && isCharacterAlive(c)
   );
 
   // Keep the question-editor draft in sync with whichever character is
@@ -60,6 +65,7 @@ export default function CharacterSheet() {
       name: "New Character",
       defaultName: "New Character",
       assignedTo: null,
+      alive: true,
       questions: [...DEFAULT_QUESTIONS],
       answers: {},
     };
@@ -78,6 +84,7 @@ export default function CharacterSheet() {
       name: `${source.name} (copy)`,
       defaultName: `${source.defaultName} (copy)`,
       assignedTo: null,
+      alive: true,
       answers: {},
     };
     setCharacters((prev) => ({ ...prev, [id]: clone }));
@@ -215,6 +222,7 @@ export default function CharacterSheet() {
       ) : (
         <PlayerCharacterPanel
           myCharacter={myCharacter}
+          myDeadCharacter={myDeadCharacter}
           characters={characters || {}}
           allowPlayersToViewSheets={allowPlayersToViewSheets}
           onAnswerChange={handleAnswerChange}
@@ -290,6 +298,7 @@ function GMCharacterPanel({
 
 function PlayerCharacterPanel({
   myCharacter,
+  myDeadCharacter,
   characters,
   allowPlayersToViewSheets,
   onAnswerChange,
@@ -305,9 +314,15 @@ function PlayerCharacterPanel({
           }
         />
       ) : (
-        <p className="no-character-assigned">
-          You haven't been assigned a character yet.
-        </p>
+        <>
+          {myDeadCharacter && (
+            <p className="character-died-notice">
+              Your character, <strong>{myDeadCharacter.name}</strong>, has
+              died. Choose a new character to keep playing.
+            </p>
+          )}
+          <CharacterPicker />
+        </>
       )}
 
       {allowPlayersToViewSheets && (

@@ -68,6 +68,33 @@ function GmSelfAssigned({ children }) {
   return children;
 }
 
+// GM with two players - one whose character has died, one still alive -
+// used to test that the spin-assign dropdown excludes a dead character's
+// player and labels the alive one with their character's name.
+function GmWithMixedRoster({ children }) {
+  const { setIsGM, setHostName, setUsers, setCharacters } = usePeer();
+  useEffect(() => {
+    setIsGM(true);
+    setHostName("Host");
+    setUsers({ "peer-gm": "Host", "peer-1": "Alice", "peer-2": "Bob" });
+    setCharacters({
+      "char-1": {
+        id: "char-1",
+        name: "The Drifter",
+        assignedTo: "Alice",
+        alive: true,
+      },
+      "char-2": {
+        id: "char-2",
+        name: "The Ghost",
+        assignedTo: "Bob",
+        alive: false,
+      },
+    });
+  }, [setIsGM, setHostName, setUsers, setCharacters]);
+  return children;
+}
+
 describe("GameLoaded Component", () => {
   let user;
 
@@ -161,6 +188,42 @@ describe("GameLoaded Component", () => {
 
     await user.click(spinButton);
     // The spin logic is handled by WheelProvider, so we just verify the button exists and is clickable
+  });
+
+  it("excludes a dead character's player from the spin-assign dropdown, and labels the alive one with their character name", () => {
+    render(
+      <TestWrapper isGM={true}>
+        <GmWithMixedRoster>
+          <GameLoaded />
+        </GmWithMixedRoster>
+      </TestWrapper>
+    );
+
+    const options = screen
+      .getAllByRole("option")
+      .map((opt) => opt.textContent);
+    expect(options).toContain("Alice <The Drifter>");
+    expect(options).not.toContain("Bob <The Ghost>");
+    expect(options).not.toContain("Bob");
+  });
+
+  it("disables the Decline button while a spin is in progress", async () => {
+    render(
+      <TestWrapper isGM={true}>
+        <GmSelfAssigned>
+          <GameLoaded />
+        </GmSelfAssigned>
+      </TestWrapper>
+    );
+
+    await user.selectOptions(screen.getByRole("combobox"), "Host");
+    await user.click(screen.getByRole("button", { name: "Request Pull" }));
+
+    const declineButton = screen.getByRole("button", { name: "Decline" });
+    expect(declineButton).not.toBeDisabled();
+
+    await user.click(screen.getByText("Spin the Wheel!"));
+    expect(declineButton).toBeDisabled();
   });
 
   it("shows the assign picker instead of a Spin button before anyone is designated", () => {

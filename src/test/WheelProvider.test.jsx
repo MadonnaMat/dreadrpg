@@ -52,9 +52,11 @@ const TestWheelComponent = () => {
     handleRestack,
     startGame,
   } = useWheel();
+  const { characters } = usePeer();
 
   return (
     <div>
+      <div data-testid="characters">{JSON.stringify(characters)}</div>
       <div data-testid="wedges">{JSON.stringify(wedges)}</div>
       <div data-testid="danger-probability">{dangerProbability}</div>
       <div data-testid="awaiting-reset">{awaitingReset.toString()}</div>
@@ -104,6 +106,23 @@ const TestWrapper = ({ children, isGM = false }) => {
       <WheelProvider>{isGM ? <AsGM>{children}</AsGM> : children}</WheelProvider>
     </PeerProvider>
   );
+};
+
+// Seeds one character assigned to "Alice", alive by default - used to test
+// that a death spin marks the assigned character no-longer-alive.
+const WithAliceCharacter = ({ children }) => {
+  const { setCharacters } = usePeer();
+  useEffect(() => {
+    setCharacters({
+      "char-1": {
+        id: "char-1",
+        name: "The Wanderer",
+        assignedTo: "Alice",
+        alive: true,
+      },
+    });
+  }, [setCharacters]);
+  return children;
 };
 
 describe("WheelProvider", () => {
@@ -219,6 +238,24 @@ describe("WheelProvider", () => {
     );
     expect(screen.getByTestId("awaiting-reset")).toHaveTextContent("true");
     expect(computeDangerProbability).not.toHaveBeenCalled();
+  });
+
+  it("marks the designated spinner's character no-longer-alive on a death spin", async () => {
+    render(
+      <TestWrapper isGM={true}>
+        <WithAliceCharacter>
+          <TestWheelComponent />
+        </WithAliceCharacter>
+      </TestWrapper>
+    );
+
+    await user.click(screen.getByText("Assign Alice"));
+    await user.click(screen.getByText("End Spin Death"));
+
+    const characters = JSON.parse(
+      screen.getByTestId("characters").textContent
+    );
+    expect(characters["char-1"].alive).toBe(false);
   });
 
   it("should not start a new spin while awaitingReset is true", async () => {

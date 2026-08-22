@@ -12,3 +12,24 @@ export function characterNameFor(characters, targetUserName) {
   );
   return character?.name || targetUserName;
 }
+
+// "<userName> <CharacterName>" when the user has claimed a character, else
+// just the userName - the exact format Chat.jsx's message transcript already
+// uses for a sender's name, reused here so the spin-assign dropdown and the
+// chat "Players:" roster show the same identity a message from that person
+// would.
+export function formatUserWithCharacter(characters, targetUserName) {
+  if (!targetUserName) return targetUserName;
+  const character = Object.values(characters || {}).find(
+    (c) => c.assignedTo === targetUserName
+  );
+  return character ? `${targetUserName} <${character.name}>` : targetUserName;
+}
+
+// A character is eligible to spin (or be freshly assigned to a player) only
+// while it's alive - `alive` defaults to true for any character predating
+// this field, so `!== false` is the correct "is this one still in play"
+// check everywhere, not `=== true`.
+export function isCharacterAlive(character) {
+  return character?.alive !== false;
+}

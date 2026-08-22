@@ -1,6 +1,7 @@
 import { usePeer } from "../hooks/usePeer";
-import { MESSAGE_TYPES } from "../constants/messageTypes";
 import { buildRejoinUrl } from "../helpers/rejoinLink";
+import { isCharacterAlive } from "../helpers/characters";
+import CharacterPicker from "./character-sheet/CharacterPicker";
 import Chat from "./Chat";
 
 // Shown to a player who has joined but whom the GM hasn't started the game
@@ -9,31 +10,12 @@ import Chat from "./Chat";
 // thrown straight into GameLoaded the instant they connected. Lets them
 // chat and claim one of the GM's unassigned characters while waiting.
 export default function PlayerLobby() {
-  const {
-    connectionStatus,
-    userName,
-    gameId,
-    characters,
-    setCharacters,
-    sendToPeers,
-    gameName,
-  } = usePeer();
+  const { connectionStatus, userName, gameId, characters, gameName } =
+    usePeer();
 
-  const characterList = Object.values(characters || {});
-  const myCharacter = characterList.find((c) => c.assignedTo === userName);
-  const unassignedCharacters = characterList.filter((c) => !c.assignedTo);
-
-  const chooseCharacter = (id) => {
-    setCharacters((prev) => ({
-      ...prev,
-      [id]: { ...prev[id], assignedTo: userName },
-    }));
-    sendToPeers({
-      type: MESSAGE_TYPES.CHARACTER_UPDATE,
-      id,
-      assignedTo: userName,
-    });
-  };
+  const myCharacter = Object.values(characters || {}).find(
+    (c) => c.assignedTo === userName && isCharacterAlive(c)
+  );
 
   return (
     <div id="player-lobby">
@@ -45,6 +27,7 @@ export default function PlayerLobby() {
 
       <div className="rejoin-link-section">
         <button
+          className="btn-primary"
           onClick={() =>
             navigator.clipboard.writeText(buildRejoinUrl(gameId, userName))
           }
@@ -62,36 +45,7 @@ export default function PlayerLobby() {
           You're playing as <strong>{myCharacter.name}</strong>.
         </p>
       ) : (
-        <div className="lobby-character-picker">
-          <h3>Choose a Character</h3>
-          {unassignedCharacters.length === 0 && (
-            <p className="no-character-assigned">
-              The GM hasn't added any characters yet.
-            </p>
-          )}
-          <ul className="character-roster-list">
-            {unassignedCharacters.map((character) => (
-              <li key={character.id} className="character-roster-row">
-                <span className="character-roster-name">{character.name}</span>
-                <button
-                  className="btn-primary"
-                  onClick={() => chooseCharacter(character.id)}
-                >
-                  Choose
-                </button>
-              </li>
-            ))}
-          </ul>
-          {characterList.some((c) => c.assignedTo) && (
-            <p>
-              Already chosen:{" "}
-              {characterList
-                .filter((c) => c.assignedTo)
-                .map((c) => `${c.name} (${c.assignedTo})`)
-                .join(", ")}
-            </p>
-          )}
-        </div>
+        <CharacterPicker />
       )}
 
       <Chat />

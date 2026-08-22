@@ -30,6 +30,7 @@ export const WheelProvider = ({ children }) => {
     hostName,
     users,
     characters,
+    setCharacters,
     registerWheelEventHandler,
     sendToPeers,
     sendSystemChatMessage,
@@ -340,7 +341,24 @@ export const WheelProvider = ({ children }) => {
 
     if (isDeath) {
       // Death ends a multi-pull action early, no matter how many successful
-      // pulls came before it - the character is removed either way.
+      // pulls came before it - the character is removed either way, and is
+      // marked no-longer-alive so it can't be selected to spin again (see
+      // GameLoaded.jsx's SpinControls) and its player can pick a new
+      // character (see CharacterPicker).
+      const deadCharacter = Object.values(characters || {}).find(
+        (c) => c.assignedTo === designatedSpinner && c.alive !== false
+      );
+      if (deadCharacter) {
+        setCharacters((prev) => ({
+          ...prev,
+          [deadCharacter.id]: { ...prev[deadCharacter.id], alive: false },
+        }));
+        sendToPeers({
+          type: MESSAGE_TYPES.CHARACTER_UPDATE,
+          id: deadCharacter.id,
+          alive: false,
+        });
+      }
       sendSystemChatMessage(resultText);
       setDesignatedSpinner(null);
       setPeerDesignatedSpinner(null);

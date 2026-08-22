@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { usePeer } from "../hooks/usePeer";
 import { MESSAGE_TYPES } from "../constants/messageTypes";
+import { formatUserWithCharacter } from "../helpers/characters";
 
 export default function Chat() {
   const {
@@ -44,13 +45,8 @@ export default function Chat() {
 
   // Show "<name> <CharacterName>" once the player has claimed a character,
   // so other players can tell who's speaking as whom in the transcript.
-  const myCharacter = Object.values(characters || {}).find(
-    (c) => c.assignedTo === userName
-  );
   const userDisplayName = userName
-    ? myCharacter
-      ? `${userName} <${myCharacter.name}>`
-      : userName
+    ? formatUserWithCharacter(characters, userName)
     : isGM
       ? `GM (${hostName || gameId})`
       : "Player";
@@ -77,7 +73,8 @@ export default function Chat() {
         <ul className="chat-users-list">
           {Object.entries(presence || {}).map(([name, info]) => (
             <li key={name}>
-              {name} ({info.connected ? "online" : "offline"})
+              {formatUserWithCharacter(characters, name)} (
+              {info.connected ? "online" : "offline"})
               {name === userName ? " (You)" : ""}
             </li>
           ))}

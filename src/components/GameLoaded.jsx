@@ -6,7 +6,11 @@ import CharacterSheet from "./CharacterSheet";
 import AdminPanel from "./AdminPanel";
 import { usePeer } from "../hooks/usePeer";
 import { useWheel } from "../hooks/useWheel";
-import { characterNameFor } from "../helpers/characters";
+import {
+  characterNameFor,
+  formatUserWithCharacter,
+  isCharacterAlive,
+} from "../helpers/characters";
 import { buildRejoinUrl } from "../helpers/rejoinLink";
 import { useEffect, useRef, useState } from "react";
 import { MESSAGE_TYPES } from "../constants/messageTypes";
@@ -32,18 +36,28 @@ function SpinControls({
   const [requiredPulls, setRequiredPulls] = useState(1);
   const isMyTurn = designatedSpinner && myName === designatedSpinner;
 
+  // A dead character can't be asked to spin again - someone with no
+  // character assigned at all (or an alive one) remains selectable.
+  const eligibleNames = Object.values(users || {}).filter((name) => {
+    const character = Object.values(characters || {}).find(
+      (c) => c.assignedTo === name
+    );
+    return !character || isCharacterAlive(character);
+  });
+
   return (
     <div id="spin-controls">
       {isGM && !awaitingReset && !designatedSpinner && (
         <div id="spin-assign-section">
           <select
+            className="pregame-input"
             value={selectedName}
             onChange={(e) => setSelectedName(e.target.value)}
           >
             <option value="">Choose a player...</option>
-            {Object.values(users || {}).map((name) => (
+            {eligibleNames.map((name) => (
               <option key={name} value={name}>
-                {name}
+                {formatUserWithCharacter(characters, name)}
               </option>
             ))}
           </select>
@@ -82,7 +96,11 @@ function SpinControls({
           <button id="spin-btn" onClick={handleSpin} disabled={spinning}>
             Spin the Wheel!
           </button>
-          <button id="decline-btn" onClick={handleDecline}>
+          <button
+            id="decline-btn"
+            onClick={handleDecline}
+            disabled={spinning}
+          >
             Decline
           </button>
           {pullsRequired > 1 && (

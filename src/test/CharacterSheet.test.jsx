@@ -76,16 +76,14 @@ describe("CharacterSheet Component", () => {
     user = userEvent.setup({ skipPointerEventsCheck: true });
   });
 
-  it("tells a player they have no character yet when none is assigned", () => {
+  it("offers the character picker when no character is assigned yet", () => {
     render(
       <PeerProvider>
         <PlayerCharacterSheet />
       </PeerProvider>
     );
 
-    expect(
-      screen.getByText("You haven't been assigned a character yet.")
-    ).toBeInTheDocument();
+    expect(screen.getByText("Choose a Character")).toBeInTheDocument();
   });
 
   it("renders the player's assigned character sheet", () => {
@@ -100,6 +98,24 @@ describe("CharacterSheet Component", () => {
     expect(screen.getAllByPlaceholderText("Enter your answer...")).toHaveLength(
       DEFAULT_QUESTIONS.length
     );
+  });
+
+  it("offers a new character picker (with a death notice) once the player's character has died", () => {
+    render(
+      <PeerProvider>
+        <PlayerCharacterSheet
+          assignedCharacter={makeCharacter({ alive: false })}
+        />
+      </PeerProvider>
+    );
+
+    expect(
+      screen.getByText(
+        (_, el) => el?.tagName === "P" && el.textContent.includes("has died")
+      )
+    ).toBeInTheDocument();
+    expect(screen.getByText("Choose a Character")).toBeInTheDocument();
+    expect(screen.queryByText("Character Sheet")).not.toBeInTheDocument();
   });
 
   it("lets a player type an answer without crashing", async () => {
