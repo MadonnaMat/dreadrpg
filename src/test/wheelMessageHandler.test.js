@@ -28,7 +28,6 @@ describe("createWheelMessageHandler", () => {
     handler({ type: "spin-request", peerId: "abc" });
 
     expect(setters.handleHostSpin).toHaveBeenCalledWith("abc");
-    expect(setters.setShowWheel).toHaveBeenCalledWith(true);
   });
 
   it("GM: ignores non spin-request messages", () => {
@@ -100,5 +99,27 @@ describe("createWheelMessageHandler", () => {
     expect(setters.setDangerProbability).toHaveBeenCalledWith(0.3);
     expect(setters.setAwaitingReset).toHaveBeenCalledWith(true);
     expect(setters.setResult).not.toHaveBeenCalled();
+    expect(setters.setShowWheel).not.toHaveBeenCalled();
+  });
+
+  it("player: a game-started broadcast reveals the wheel", () => {
+    const handler = createWheelMessageHandler({ isGM: false, ...setters });
+    handler({ type: "game-started" });
+
+    expect(setters.setShowWheel).toHaveBeenCalledWith(true);
+  });
+
+  it("player: a welcome/game-data-sync snapshot with gameStarted reveals the wheel", () => {
+    const handler = createWheelMessageHandler({ isGM: false, ...setters });
+    handler({ type: "game-data-sync", gameStarted: true });
+
+    expect(setters.setShowWheel).toHaveBeenCalledWith(true);
+  });
+
+  it("player: a snapshot without gameStarted does not reveal the wheel", () => {
+    const handler = createWheelMessageHandler({ isGM: false, ...setters });
+    handler({ type: "game-data-sync", gameStarted: false });
+
+    expect(setters.setShowWheel).not.toHaveBeenCalled();
   });
 });

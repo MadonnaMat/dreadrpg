@@ -36,6 +36,7 @@ const TestWheelComponent = () => {
     handleSpin,
     handleSpinEnd,
     handleRestack,
+    startGame,
   } = useWheel();
 
   return (
@@ -53,6 +54,7 @@ const TestWheelComponent = () => {
       <button onClick={() => handleSpinEnd(0)}>End Spin Success</button>
       <button onClick={() => handleSpinEnd(1)}>End Spin Death</button>
       <button onClick={handleRestack}>Restack</button>
+      <button onClick={startGame}>Start Game</button>
     </div>
   );
 };
@@ -218,5 +220,42 @@ describe("WheelProvider", () => {
     expect(computeDangerProbability).not.toHaveBeenCalled();
     expect(screen.getByTestId("result")).toHaveTextContent("");
     expect(screen.getByTestId("awaiting-reset")).toHaveTextContent("false");
+  });
+
+  // Replaces the old "first connection flips showWheel for everyone"
+  // behavior (docs/rules/compliance-fix-plan.md item 1) - nothing should
+  // reveal the wheel until the GM explicitly starts the game.
+  it("should stay in the lobby (showWheel false) until the GM starts the game", () => {
+    render(
+      <TestWrapper isGM={true}>
+        <TestWheelComponent />
+      </TestWrapper>
+    );
+
+    expect(screen.getByTestId("show-wheel")).toHaveTextContent("false");
+  });
+
+  it("GM: startGame reveals the wheel", async () => {
+    render(
+      <TestWrapper isGM={true}>
+        <TestWheelComponent />
+      </TestWrapper>
+    );
+
+    await user.click(screen.getByText("Start Game"));
+
+    expect(screen.getByTestId("show-wheel")).toHaveTextContent("true");
+  });
+
+  it("non-GM: startGame is a no-op", async () => {
+    render(
+      <TestWrapper isGM={false}>
+        <TestWheelComponent />
+      </TestWrapper>
+    );
+
+    await user.click(screen.getByText("Start Game"));
+
+    expect(screen.getByTestId("show-wheel")).toHaveTextContent("false");
   });
 });

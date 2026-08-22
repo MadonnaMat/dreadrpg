@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { usePeer } from "../hooks/usePeer";
+import { useWheel } from "../hooks/useWheel";
 import Scenario from "./Scenario";
 import CharacterSheet from "./CharacterSheet";
 
@@ -110,7 +111,9 @@ export default function PreGame() {
     hostName,
     setHostName,
     isGM,
+    users,
   } = usePeer();
+  const { startGame } = useWheel();
   const [mode, setMode] = useState("");
   const [inputGameId, setInputGameId] = useState("");
   const [activeTab, setActiveTab] = useState("lobby");
@@ -253,6 +256,15 @@ export default function PreGame() {
                       RPG scenario. This will help you get the session ready and
                       will be automatically shared with players when they join.
                     </p>
+                  </div>
+                  <div id="start-game-section" style={{ marginTop: 16 }}>
+                    <div style={{ marginBottom: 8 }}>
+                      <strong>Players joined:</strong>{" "}
+                      {Math.max(0, Object.keys(users || {}).length - 1)}
+                    </div>
+                    <button id="start-game-btn" onClick={startGame}>
+                      Start Game
+                    </button>
                   </div>
                 </div>
               )}

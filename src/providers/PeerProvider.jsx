@@ -31,6 +31,7 @@ export const PeerProvider = ({ children }) => {
     isGM: session.isGM,
     dangerProbability: gameState.dangerProbability,
     awaitingReset: gameState.awaitingReset,
+    gameStarted: gameState.gameStarted,
   });
 
   const peerRef = useRef(null);
@@ -65,6 +66,7 @@ export const PeerProvider = ({ children }) => {
     gameState.setTowerSize(towerSizeArg);
     gameState.setDangerProbability(0);
     gameState.setAwaitingReset(false);
+    gameState.setGameStarted(false); // New game always starts back in the lobby
     gameState.setScenario(null); // Reset scenario for new game
     gameState.setCharacterSheets({}); // Reset character sheets for new game
     gameState.setQuestions(null); // Reset questions for new game
@@ -150,6 +152,7 @@ export const PeerProvider = ({ children }) => {
         setTowerSize: gameState.setTowerSize,
         setDangerProbability: gameState.setDangerProbability,
         setAwaitingReset: gameState.setAwaitingReset,
+        setGameStarted: gameState.setGameStarted,
         setScenario: gameState.setScenario,
         setCharacterSheets: gameState.setCharacterSheets,
         setQuestions: gameState.setQuestions,

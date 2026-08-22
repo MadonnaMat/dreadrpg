@@ -12,6 +12,7 @@ function makeStateRef(overrides = {}) {
       towerSize: 25,
       dangerProbability: 0.2,
       awaitingReset: false,
+      gameStarted: false,
       scenario: null,
       characterSheets: {},
       questions: null,
@@ -32,11 +33,21 @@ describe("buildGameSnapshot", () => {
       towerSize: 25,
       dangerProbability: 0.2,
       awaitingReset: false,
+      gameStarted: false,
       scenario: null,
       characterSheets: {},
       questions: null,
       allowPlayersToViewSheets: false,
     });
+  });
+
+  it("includes gameStarted so a late joiner can skip the lobby", () => {
+    const snapshot = buildGameSnapshot(
+      "game-data-sync",
+      makeStateRef({ gameStarted: true })
+    );
+
+    expect(snapshot.gameStarted).toBe(true);
   });
 
   it("reflects whatever is currently in the ref, not a stale copy", () => {

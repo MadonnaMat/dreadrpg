@@ -9,6 +9,10 @@ citations are from [`example-scenario-metal-sky.md`](./example-scenario-metal-sk
 
 Verdict legend: ✅ Matches · 🟡 Intentional simplification (by design, not a bug) · 🔧 Fixed this pass · 🔷 Gap — needs a product decision
 
+See [`compliance-fix-plan.md`](./compliance-fix-plan.md) for the ordered,
+in-progress plan closing out the remaining 🔷 items below (plus related
+character/admin/persistence features built on the same foundation).
+
 ## GM / host model
 
 **✅ Matches.** The rules' "Host" (creates the framework, adjudicates

@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import PreGame from "../components/PreGame";
 import { PeerProvider } from "../providers/PeerProvider";
+import { WheelProvider } from "../providers/WheelProvider";
 import React from "react";
 
 // Mock the Scenario and CharacterSheet components
@@ -41,7 +42,9 @@ describe("PreGame Component", () => {
   it("should render initial state with create and join buttons", () => {
     render(
       <PeerProvider>
-        <PreGame />
+        <WheelProvider>
+          <PreGame />
+        </WheelProvider>
       </PeerProvider>
     );
 
@@ -56,7 +59,9 @@ describe("PreGame Component", () => {
   it("should show create game form when create button is clicked", async () => {
     render(
       <PeerProvider>
-        <PreGame />
+        <WheelProvider>
+          <PreGame />
+        </WheelProvider>
       </PeerProvider>
     );
 
@@ -70,7 +75,9 @@ describe("PreGame Component", () => {
   it("should show join game form when join button is clicked", async () => {
     render(
       <PeerProvider>
-        <PreGame />
+        <WheelProvider>
+          <PreGame />
+        </WheelProvider>
       </PeerProvider>
     );
 
@@ -84,7 +91,9 @@ describe("PreGame Component", () => {
   it("should validate create game form inputs", async () => {
     render(
       <PeerProvider>
-        <PreGame />
+        <WheelProvider>
+          <PreGame />
+        </WheelProvider>
       </PeerProvider>
     );
 
@@ -103,7 +112,9 @@ describe("PreGame Component", () => {
   it("should validate join game form inputs", async () => {
     render(
       <PeerProvider>
-        <PreGame />
+        <WheelProvider>
+          <PreGame />
+        </WheelProvider>
       </PeerProvider>
     );
 
@@ -127,7 +138,9 @@ describe("PreGame Component", () => {
   it("should handle tower size input", async () => {
     render(
       <PeerProvider>
-        <PreGame />
+        <WheelProvider>
+          <PreGame />
+        </WheelProvider>
       </PeerProvider>
     );
 
@@ -145,7 +158,9 @@ describe("PreGame Component", () => {
   it("should show game ID and share URL after creating game", async () => {
     render(
       <PeerProvider>
-        <PreGame />
+        <WheelProvider>
+          <PreGame />
+        </WheelProvider>
       </PeerProvider>
     );
 
@@ -164,7 +179,9 @@ describe("PreGame Component", () => {
   it("should show tabs for GM after creating game", async () => {
     render(
       <PeerProvider>
-        <PreGame />
+        <WheelProvider>
+          <PreGame />
+        </WheelProvider>
       </PeerProvider>
     );
 
@@ -182,7 +199,9 @@ describe("PreGame Component", () => {
   it("should handle tab switching for GM", async () => {
     render(
       <PeerProvider>
-        <PreGame />
+        <WheelProvider>
+          <PreGame />
+        </WheelProvider>
       </PeerProvider>
     );
 
@@ -207,7 +226,9 @@ describe("PreGame Component", () => {
 
     render(
       <PeerProvider>
-        <PreGame />
+        <WheelProvider>
+          <PreGame />
+        </WheelProvider>
       </PeerProvider>
     );
 
@@ -220,7 +241,9 @@ describe("PreGame Component", () => {
   it("should handle copy share URL functionality", async () => {
     render(
       <PeerProvider>
-        <PreGame />
+        <WheelProvider>
+          <PreGame />
+        </WheelProvider>
       </PeerProvider>
     );
 

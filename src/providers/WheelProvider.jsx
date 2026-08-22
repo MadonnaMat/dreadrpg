@@ -15,7 +15,6 @@ import { WEDGE_TYPES, RESULT_TEXT } from "../constants/wheelOutcomes";
 
 export const WheelProvider = ({ children }) => {
   const {
-    conn,
     isGM,
     gameId,
     registerWheelEventHandler,
@@ -23,8 +22,10 @@ export const WheelProvider = ({ children }) => {
     towerSize,
     dangerProbability: peerDangerProbability,
     awaitingReset: peerAwaitingReset,
+    gameStarted: peerGameStarted,
     setDangerProbability: setPeerDangerProbability,
     setAwaitingReset: setPeerAwaitingReset,
+    setGameStarted: setPeerGameStarted,
   } = usePeer();
   const [dangerProbability, setDangerProbability] = useState(
     peerDangerProbability ?? 0
@@ -73,6 +74,14 @@ export const WheelProvider = ({ children }) => {
   useEffect(() => {
     setAwaitingReset(peerAwaitingReset ?? false);
   }, [peerAwaitingReset]);
+
+  // A late joiner's welcome/game-data-sync snapshot may already say the game
+  // started (see PeerProvider's buildGameSnapshot) - skip the lobby in that
+  // case instead of waiting for a live "game-started" broadcast that already
+  // happened before this client connected.
+  useEffect(() => {
+    if (peerGameStarted) setShowWheel(true);
+  }, [peerGameStarted]);
 
   // GM only: restore a previous session's danger-state on refresh instead of
   // silently resetting tower danger to a fresh tower.
@@ -146,9 +155,17 @@ export const WheelProvider = ({ children }) => {
         setShowWheel,
       })
     );
-    // Show wheel if already connected
-    if (conn) setShowWheel(true);
-  }, [conn, isGM, registerWheelEventHandler, handleHostSpin]);
+  }, [isGM, registerWheelEventHandler, handleHostSpin]);
+
+  // GM only: explicitly move everyone from the lobby into the game. Replaces
+  // the old behavior where the first player connecting silently flipped
+  // showWheel for everyone - see docs/rules/compliance-fix-plan.md item 1.
+  const startGame = useCallback(() => {
+    if (!isGM) return;
+    setShowWheel(true);
+    setPeerGameStarted(true);
+    sendToPeers({ type: MESSAGE_TYPES.GAME_STARTED });
+  }, [isGM, sendToPeers, setPeerGameStarted]);
 
   // Player: request spin from host
   const handleSpin = () => {
@@ -237,6 +254,7 @@ export const WheelProvider = ({ children }) => {
         setResult,
         showWheel,
         setShowWheel,
+        startGame,
         spinning,
         setSpinning,
         spinAngle,
