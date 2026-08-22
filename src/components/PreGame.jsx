@@ -22,7 +22,7 @@ function CreateSection({
   createGame,
   connectionStatus,
 }) {
-  const [numWedges, setNumWedges] = useState(25);
+  const [towerSize, setTowerSize] = useState(25);
   return (
     <div id="create-game">
       <input
@@ -36,15 +36,15 @@ function CreateSection({
         type="number"
         min={1}
         max={100}
-        placeholder="Number of Wedges"
-        value={numWedges}
-        onChange={(e) => setNumWedges(Number(e.target.value) || 25)}
+        placeholder="Tower Size"
+        value={towerSize}
+        onChange={(e) => setTowerSize(Number(e.target.value) || 25)}
       />
       <button
         onClick={() => {
           const newGameId = generateGameId();
           setGameId(newGameId);
-          createGame(newGameId, hostName || "Host", numWedges);
+          createGame(newGameId, hostName || "Host", towerSize);
         }}
         disabled={!hostName}
       >

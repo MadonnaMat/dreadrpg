@@ -63,7 +63,7 @@ describe("PreGame Component", () => {
     await user.click(screen.getByText("Create Game"));
 
     expect(screen.getByPlaceholderText("Your Name")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("Number of Wedges")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Tower Size")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create" })).toBeInTheDocument();
   });
 
@@ -124,7 +124,7 @@ describe("PreGame Component", () => {
     expect(joinButton).not.toBeDisabled();
   });
 
-  it("should handle number of wedges input", async () => {
+  it("should handle tower size input", async () => {
     render(
       <PeerProvider>
         <PreGame />
@@ -133,13 +133,13 @@ describe("PreGame Component", () => {
 
     await user.click(screen.getByText("Create Game"));
 
-    const wedgesInput = screen.getByPlaceholderText("Number of Wedges");
-    expect(wedgesInput).toHaveValue(25);
+    const towerSizeInput = screen.getByPlaceholderText("Tower Size");
+    expect(towerSizeInput).toHaveValue(25);
 
-    await user.tripleClick(wedgesInput);
+    await user.tripleClick(towerSizeInput);
     await user.keyboard("30");
 
-    expect(wedgesInput).toHaveValue(30);
+    expect(towerSizeInput).toHaveValue(30);
   });
 
   it("should show game ID and share URL after creating game", async () => {

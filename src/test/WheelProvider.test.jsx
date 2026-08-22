@@ -6,23 +6,26 @@ import { useWheel } from "../hooks/useWheel";
 import { PeerProvider } from "../providers/PeerProvider";
 import React from "react";
 
-// Mock the helpers
+// Mock the helpers with a simple 2-wedge model: index 0 is always the
+// "success" wedge, index 1 is always the "death" wedge, regardless of the
+// current dangerProbability - this keeps handleSpinEnd(idx) calls in tests
+// deterministic without depending on the real WEDGE_PAIRS arrangement.
 vi.mock("../helpers", () => ({
-  getNewWheelStateOnSpin: vi.fn((selectedIdx, wheelState) => {
-    const newState = [...wheelState];
-    if (wheelState[selectedIdx] === "success") {
-      newState[selectedIdx] = "death";
-    } else {
-      return Array(wheelState.length).fill("success");
-    }
-    return newState;
-  }),
+  computeDangerProbability: vi.fn((pullsSinceReset, charactersRemoved) =>
+    pullsSinceReset === 0 && charactersRemoved === 0 ? 0 : 0.5
+  ),
+  getWheelWedges: vi.fn((dangerProbability) => [
+    { type: "success", angleFraction: 1 - dangerProbability },
+    { type: "death", angleFraction: dangerProbability },
+  ]),
 }));
 
 // Test component to access WheelProvider context
 const TestWheelComponent = () => {
   const {
-    wheelState,
+    wedges,
+    dangerProbability,
+    awaitingReset,
     result,
     showWheel,
     spinning,
@@ -30,11 +33,14 @@ const TestWheelComponent = () => {
     pointerIdx,
     handleSpin,
     handleSpinEnd,
+    handleRestack,
   } = useWheel();
 
   return (
     <div>
-      <div data-testid="wheel-state">{JSON.stringify(wheelState)}</div>
+      <div data-testid="wedges">{JSON.stringify(wedges)}</div>
+      <div data-testid="danger-probability">{dangerProbability}</div>
+      <div data-testid="awaiting-reset">{awaitingReset.toString()}</div>
       <div data-testid="result">{result}</div>
       <div data-testid="show-wheel">{showWheel.toString()}</div>
       <div data-testid="spinning">{spinning.toString()}</div>
@@ -42,9 +48,9 @@ const TestWheelComponent = () => {
       <div data-testid="pointer-idx">{JSON.stringify(pointerIdx)}</div>
 
       <button onClick={handleSpin}>Spin Wheel</button>
-      <button onClick={() => handleSpinEnd(0, wheelState.length)}>
-        End Spin
-      </button>
+      <button onClick={() => handleSpinEnd(0)}>End Spin Success</button>
+      <button onClick={() => handleSpinEnd(1)}>End Spin Death</button>
+      <button onClick={handleRestack}>Restack</button>
     </div>
   );
 };
@@ -77,9 +83,8 @@ describe("WheelProvider", () => {
       </TestWrapper>
     );
 
-    expect(screen.getByTestId("wheel-state")).toHaveTextContent(
-      JSON.stringify(Array(25).fill("success"))
-    );
+    expect(screen.getByTestId("danger-probability")).toHaveTextContent("0");
+    expect(screen.getByTestId("awaiting-reset")).toHaveTextContent("false");
     expect(screen.getByTestId("result")).toHaveTextContent("");
     expect(screen.getByTestId("show-wheel")).toHaveTextContent("false");
     expect(screen.getByTestId("spinning")).toHaveTextContent("false");
@@ -96,12 +101,11 @@ describe("WheelProvider", () => {
 
     await user.click(screen.getByText("Spin Wheel"));
 
-    // The spin function should be called (check that we're no longer in initial state)
     expect(screen.getByTestId("spinning")).toBeInTheDocument();
   });
 
-  it("should handle spin end and update wheel state", async () => {
-    const { getNewWheelStateOnSpin } = await import("../helpers");
+  it("should increment pullsSinceReset and recompute dangerProbability on a success spin", async () => {
+    const { computeDangerProbability } = await import("../helpers");
 
     render(
       <TestWrapper isGM={true}>
@@ -109,57 +113,73 @@ describe("WheelProvider", () => {
       </TestWrapper>
     );
 
-    await user.click(screen.getByText("End Spin"));
+    await user.click(screen.getByText("End Spin Success"));
 
-    expect(getNewWheelStateOnSpin).toHaveBeenCalledWith(0, expect.any(Array));
+    expect(computeDangerProbability).toHaveBeenCalledWith(1, 0, 25);
     expect(screen.getByTestId("result")).toHaveTextContent("Success!");
+    expect(screen.getByTestId("awaiting-reset")).toHaveTextContent("false");
   });
 
-  it("should show death result when death wedge is hit", async () => {
-    // This test checks the death result logic
-    const TestComponentWithDeathWedge = () => {
-      const { result, handleSpinEnd } = useWheel();
-
-      return (
-        <div>
-          <div data-testid="result">{result}</div>
-          <button
-            onClick={() => {
-              // Simulate hitting a death wedge
-              handleSpinEnd(0, 3);
-            }}
-          >
-            End Spin Death
-          </button>
-        </div>
-      );
-    };
+  it("should freeze the wheel (awaitingReset) on a death spin without recomputing dangerProbability", async () => {
+    const { computeDangerProbability } = await import("../helpers");
 
     render(
       <TestWrapper isGM={true}>
-        <TestComponentWithDeathWedge />
+        <TestWheelComponent />
       </TestWrapper>
     );
 
     await user.click(screen.getByText("End Spin Death"));
 
-    // Should show some result (success or death depending on wheel state)
-    expect(screen.getByTestId("result")).not.toHaveTextContent("");
+    expect(screen.getByTestId("result")).toHaveTextContent("You Died!");
+    expect(screen.getByTestId("awaiting-reset")).toHaveTextContent("true");
+    expect(computeDangerProbability).not.toHaveBeenCalled();
   });
 
-  it("should update wheel state when initialWheelState changes", () => {
+  it("should not start a new spin while awaitingReset is true", async () => {
     render(
-      <TestWrapper>
+      <TestWrapper isGM={true}>
         <TestWheelComponent />
       </TestWrapper>
     );
 
-    // Initial state should be 25 success wedges
-    expect(screen.getByTestId("wheel-state")).toHaveTextContent(
-      JSON.stringify(Array(25).fill("success"))
+    await user.click(screen.getByText("End Spin Death"));
+    expect(screen.getByTestId("awaiting-reset")).toHaveTextContent("true");
+
+    await user.click(screen.getByText("Spin Wheel"));
+    expect(screen.getByTestId("spinning")).toHaveTextContent("false");
+  });
+
+  it("should re-stack the tower on handleRestack, escalating from the incremented charactersRemoved", async () => {
+    const { computeDangerProbability } = await import("../helpers");
+
+    render(
+      <TestWrapper isGM={true}>
+        <TestWheelComponent />
+      </TestWrapper>
     );
 
-    // This test would need more complex setup to properly test prop changes
-    // In practice, this is tested through integration with PeerProvider
+    await user.click(screen.getByText("End Spin Death"));
+    computeDangerProbability.mockClear();
+
+    await user.click(screen.getByText("Restack"));
+
+    expect(computeDangerProbability).toHaveBeenCalledWith(0, 1, 25);
+    expect(screen.getByTestId("awaiting-reset")).toHaveTextContent("false");
+  });
+
+  it("should do nothing when restacking while not awaiting a reset", async () => {
+    const { computeDangerProbability } = await import("../helpers");
+
+    render(
+      <TestWrapper isGM={true}>
+        <TestWheelComponent />
+      </TestWrapper>
+    );
+
+    await user.click(screen.getByText("Restack"));
+
+    expect(computeDangerProbability).not.toHaveBeenCalled();
+    expect(screen.getByTestId("awaiting-reset")).toHaveTextContent("false");
   });
 });

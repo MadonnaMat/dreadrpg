@@ -10,8 +10,6 @@ import "./App.css";
 
 extend({ Graphics, Container });
 
-// ...existing code...
-
 function AppInner() {
   const { showWheel } = useWheel();
   return showWheel ? <GameLoaded /> : <PreGame />;

@@ -1,0 +1,57 @@
+.scenario-container {
+  text-align: left;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.scenario-container h2 {
+  color: #333;
+  border-bottom: 2px solid #2196f3;
+  padding-bottom: 8px;
+}
+
+.scenario-container h3 {
+  color: #555;
+  margin-top: 20px;
+  margin-bottom: 8px;
+}
+
+.scenario-field {
+  margin-bottom: 16px;
+}
+
+.scenario-field label {
+  display: block;
+  font-weight: bold;
+  margin-bottom: 4px;
+  color: #333;
+}
+
+.scenario-field input,
+.scenario-field textarea {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 14px;
+}
+
+.scenario-field textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+.scenario-buttons {
+  margin-top: 20px;
+}
+
+.scenario-buttons button {
+  padding: 8px 16px;
+  margin-right: 8px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background-color 0.2s ease;
+}

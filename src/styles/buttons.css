@@ -1,0 +1,75 @@
+.btn-primary {
+  background-color: #2196f3;
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: #1976d2;
+}
+
+.btn-success {
+  background-color: #4caf50;
+  color: white;
+}
+
+.btn-success:hover {
+  background-color: #45a049;
+}
+
+.btn-danger {
+  background-color: #f44336;
+  color: white;
+}
+
+.btn-danger:hover {
+  background-color: #da190b;
+}
+
+.btn-secondary {
+  background-color: #6c757d;
+  color: white;
+}
+
+.btn-secondary:hover {
+  background-color: #545b62;
+}
+
+.btn-danger-small {
+  padding: 4px 8px;
+  background-color: #f44336;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.btn-danger-small:hover {
+  background-color: #da190b;
+}
+
+.btn-danger-small:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+.btn-toggle {
+  padding: 8px 16px;
+  border: 2px solid #ccc;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: all 0.2s ease;
+  background-color: white;
+  color: #666;
+}
+
+.btn-toggle:hover {
+  border-color: #999;
+}
+
+.btn-toggle.active {
+  background-color: #4caf50;
+  color: white;
+  border-color: #4caf50;
+}

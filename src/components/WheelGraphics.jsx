@@ -1,8 +1,24 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { useTick } from "@pixi/react";
 
+const CENTER = 150;
+const RADIUS = 140;
+const SHAKE_DURATION = 0.5; // seconds
+const SHAKE_MAX_AMPLITUDE = 10; // pixels, at dangerProbability === 1
+const DEATH_FLASH_DURATION = 1.2; // seconds, flicker window before holding solid
+const DEATH_FLASH_CYCLES = 4;
+
+// Lerp an RGB color from neutral white towards red as danger rises.
+function dangerTintColor(dangerProbability) {
+  const t = Math.max(0, Math.min(1, dangerProbability));
+  const g = Math.round(0xff * (1 - t));
+  const b = Math.round(0xff * (1 - t));
+  return (0xff << 16) | (g << 8) | b;
+}
+
 export function WheelGraphics({
-  wheelState,
+  wedges,
+  dangerProbability = 0,
   spinning,
   spinAngle,
   setSpinAngle,
@@ -11,8 +27,19 @@ export function WheelGraphics({
   spinStartRef,
   spinTargetAngleRef,
   onSpinEnd,
+  result,
+  awaitingReset,
 }) {
   const wedgeRefs = useRef([]);
+  const lastResultRef = useRef(result);
+  const shakeStartRef = useRef(null);
+  const shakeOffsetRef = useRef({ x: 0, y: 0 });
+  const deathFlashStartRef = useRef(null);
+  // These two only exist to force a re-render on frames where the shake or
+  // death-flash overlay needs to visually update; their value is unused.
+  const [, forceShakeRerender] = useState(0);
+  const [, forceFlashRerender] = useState(0);
+
   // Ensure animation runs when spinning is set to true
   useEffect(() => {
     if (spinning && spinStartRef.current == null) {
@@ -20,7 +47,48 @@ export function WheelGraphics({
     }
   }, [spinning]);
 
+  // Trigger a shake whenever a fresh "Success!" result comes in, and a
+  // death-flash sequence whenever a fresh "You Died!" result comes in.
+  useEffect(() => {
+    if (result && result !== lastResultRef.current) {
+      if (result === "Success!") {
+        shakeStartRef.current = performance.now();
+      } else if (result === "You Died!") {
+        deathFlashStartRef.current = performance.now();
+      }
+    }
+    lastResultRef.current = result;
+  }, [result]);
+
   useTick(() => {
+    if (shakeStartRef.current != null) {
+      const shakeElapsed = (performance.now() - shakeStartRef.current) / 1000;
+      if (shakeElapsed >= SHAKE_DURATION) {
+        shakeStartRef.current = null;
+        shakeOffsetRef.current = { x: 0, y: 0 };
+      } else {
+        const decay = 1 - shakeElapsed / SHAKE_DURATION;
+        const amplitude = SHAKE_MAX_AMPLITUDE * dangerProbability * decay;
+        const wobble = shakeElapsed * 40;
+        shakeOffsetRef.current = {
+          x: Math.sin(wobble) * amplitude,
+          y: Math.cos(wobble * 1.3) * amplitude,
+        };
+      }
+      forceShakeRerender((n) => n + 1);
+    }
+
+    if (deathFlashStartRef.current != null) {
+      const flashElapsed =
+        (performance.now() - deathFlashStartRef.current) / 1000;
+      if (flashElapsed >= DEATH_FLASH_DURATION) {
+        // Flicker window is over; the overlay now just tracks awaitingReset
+        // directly (a normal prop), so no more forced re-renders are needed.
+        deathFlashStartRef.current = null;
+      }
+      forceFlashRerender((n) => n + 1);
+    }
+
     if (!spinning) return;
     const duration = 5; // seconds
     // Ensure spinStartRef.current is set
@@ -30,6 +98,11 @@ export function WheelGraphics({
     const now = performance.now();
     const elapsed = (now - spinStartRef.current) / 1000;
     if (elapsed >= duration) {
+      // Null this out immediately: the ticker can fire again on the very
+      // next animation frame before React commits setSpinning(false), and
+      // without this guard that second tick would re-enter this branch and
+      // call onSpinEnd a second time for the same spin.
+      spinStartRef.current = null;
       setSpinning(false);
       setSpinAngle(spinTargetAngleRef.current);
       // Use PixiJS hit testing to find which wedge contains the pointer
@@ -55,7 +128,7 @@ export function WheelGraphics({
         }
       }
       setPointerIdx(selectedIdx);
-      if (onSpinEnd) onSpinEnd(selectedIdx, wheelState.length);
+      if (onSpinEnd) onSpinEnd(selectedIdx, wedges.length);
       return;
     }
     // Ease out cubic
@@ -66,35 +139,73 @@ export function WheelGraphics({
     const target = spinTargetAngleRef.current;
     setSpinAngle(currentAngle * (1 - ease) + target * ease);
   });
-  const wedges = wheelState.length;
-  const angle = (2 * Math.PI) / wedges;
+
+  // Cumulative start angle for each wedge, built from its own angleFraction
+  // rather than an equal division - this is what makes death wedges visibly
+  // grow/shrink in place as dangerProbability changes.
+  const wedgeAngles = [];
+  let cursor = 0;
+  for (const wedge of wedges) {
+    const start = cursor;
+    const end = cursor + wedge.angleFraction * 2 * Math.PI;
+    wedgeAngles.push({ start, end });
+    cursor = end;
+  }
+
+  const ringColor = dangerTintColor(dangerProbability);
+  const shakeOffset = shakeOffsetRef.current;
+
+  let deathFlashOn = false;
+  if (awaitingReset) {
+    if (deathFlashStartRef.current == null) {
+      deathFlashOn = true; // flicker window finished, hold solid
+    } else {
+      const flashElapsed =
+        (performance.now() - deathFlashStartRef.current) / 1000;
+      const cyclePos = (flashElapsed / DEATH_FLASH_DURATION) * DEATH_FLASH_CYCLES;
+      deathFlashOn = Math.floor(cyclePos) % 2 === 0;
+    }
+  }
 
   return (
     <>
       {/* Draw each wedge as a separate pixiGraphics */}
-      {wheelState.map((state, i) => (
+      {wedges.map((wedge, i) => (
         <pixiGraphics
           key={i}
           ref={(el) => (wedgeRefs.current[i] = el)}
-          x={150}
-          y={150}
-          pivot={{ x: 150, y: 150 }}
+          x={CENTER + shakeOffset.x}
+          y={CENTER + shakeOffset.y}
+          pivot={{ x: CENTER, y: CENTER }}
           rotation={spinAngle}
           draw={(g) => {
             g.clear();
-            g.moveTo(150, 150);
-            g.arc(150, 150, 140, angle * i, angle * (i + 1));
-            g.lineTo(150, 150);
-            g.fill(state === "death" ? 0xcc0000 : 0x00cc00);
-            g.moveTo(150, 150);
-            g.arc(150, 150, 140, angle * i, angle * (i + 1));
-            g.lineTo(150, 150);
+            const { start, end } = wedgeAngles[i];
+            g.moveTo(CENTER, CENTER);
+            g.arc(CENTER, CENTER, RADIUS, start, end);
+            g.lineTo(CENTER, CENTER);
+            g.fill(wedge.type === "death" ? 0xcc0000 : 0x00cc00);
+            g.moveTo(CENTER, CENTER);
+            g.arc(CENTER, CENTER, RADIUS, start, end);
+            g.lineTo(CENTER, CENTER);
             g.stroke({ color: 0xffffff, width: 1 });
-            g.circle(150, 150, 140);
-            g.stroke({ color: 0x000000, width: 4 });
+            g.circle(CENTER, CENTER, RADIUS);
+            g.stroke({ color: ringColor, width: 4 });
           }}
         />
       ))}
+      {/* Death-collapse overlay: flickers, then holds until the GM re-stacks */}
+      {deathFlashOn && (
+        <pixiGraphics
+          x={CENTER + shakeOffset.x}
+          y={CENTER + shakeOffset.y}
+          draw={(g) => {
+            g.clear();
+            g.circle(0, 0, RADIUS);
+            g.fill({ color: 0x990000, alpha: 0.55 });
+          }}
+        />
+      )}
       {/* Pointer indicator */}
       <pixiGraphics
         x={150}
