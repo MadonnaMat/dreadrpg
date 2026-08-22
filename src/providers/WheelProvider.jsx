@@ -48,6 +48,15 @@ export const WheelProvider = ({ children }) => {
   const [designatedSpinner, setDesignatedSpinner] = useState(
     peerDesignatedSpinner ?? null
   );
+  // How many pulls the current assignment needs in total, and how many are
+  // still outstanding - a complex/difficult action can require more than
+  // one success before it's actually done (see
+  // docs/rules/compliance-fix-plan.md item 9). Local only (not peer-synced
+  // via useGameState): only the GM ever reads or decrements these, and
+  // everyone else just sees designatedSpinner stay set across every step
+  // plus the GM's own "Step X of N" chat narration.
+  const [pullsRequired, setPullsRequired] = useState(1);
+  const [pullsRemaining, setPullsRemaining] = useState(0);
   // Pulls since the tower was last (re-)stacked; only meaningful for the GM,
   // who is the only one who ever computes the next dangerProbability.
   const [pullsSinceReset, setPullsSinceReset] = useState(0);
@@ -166,21 +175,34 @@ export const WheelProvider = ({ children }) => {
     (chatText) => {
       setDesignatedSpinner(null);
       setPeerDesignatedSpinner(null);
+      setPullsRequired(1);
+      setPullsRemaining(0);
       sendToPeers({ type: MESSAGE_TYPES.SPIN_ASSIGN, targetUserName: null });
       if (chatText) sendSystemChatMessage(chatText);
     },
     [sendToPeers, setPeerDesignatedSpinner, sendSystemChatMessage]
   );
 
-  // GM only: designate who spins next.
+  // GM only: designate who spins next, optionally requiring more than one
+  // successful pull to complete a complex/difficult action.
   const assignSpinner = useCallback(
-    (targetUserName) => {
+    (targetUserName, requiredPulls = 1) => {
       if (!isGM || !targetUserName) return;
+      const pullsNeeded = Math.max(1, requiredPulls);
       setDesignatedSpinner(targetUserName);
       setPeerDesignatedSpinner(targetUserName);
-      sendToPeers({ type: MESSAGE_TYPES.SPIN_ASSIGN, targetUserName });
+      setPullsRequired(pullsNeeded);
+      setPullsRemaining(pullsNeeded);
+      sendToPeers({
+        type: MESSAGE_TYPES.SPIN_ASSIGN,
+        targetUserName,
+        pullsRequired: pullsNeeded,
+      });
+      const characterName = characterNameFor(characters, targetUserName);
       sendSystemChatMessage(
-        `${characterNameFor(characters, targetUserName)} is asked to spin the wheel.`
+        pullsNeeded > 1
+          ? `${characterName} is asked to spin the wheel (${pullsNeeded} pulls needed).`
+          : `${characterName} is asked to spin the wheel.`
       );
     },
     [
@@ -215,6 +237,8 @@ export const WheelProvider = ({ children }) => {
         setDangerProbability,
         setAwaitingReset,
         setDesignatedSpinner,
+        setPullsRequired,
+        setPullsRemaining,
         setShowWheel,
       })
     );
@@ -274,18 +298,15 @@ export const WheelProvider = ({ children }) => {
     );
     const resultText = isDeath ? deathText(spinnerCharacterName) : SUCCESS_TEXT;
     setResult(resultText);
-    sendSystemChatMessage(
-      isDeath
-        ? `${spinnerCharacterName} Died!`
-        : `${spinnerCharacterName} survives.`
-    );
-
-    // The turn is over either way - clear the assignment so the GM can pick
-    // the next spinner (item 9 will extend this with a multi-pull count).
-    setDesignatedSpinner(null);
-    setPeerDesignatedSpinner(null);
 
     if (isDeath) {
+      // Death ends a multi-pull action early, no matter how many successful
+      // pulls came before it - the character is removed either way.
+      sendSystemChatMessage(`${spinnerCharacterName} Died!`);
+      setDesignatedSpinner(null);
+      setPeerDesignatedSpinner(null);
+      setPullsRequired(1);
+      setPullsRemaining(0);
       setCharactersRemoved((c) => c + 1);
       setAwaitingReset(true);
       setPeerAwaitingReset(true);
@@ -295,6 +316,7 @@ export const WheelProvider = ({ children }) => {
         resultText,
         awaitingReset: true,
         designatedSpinner: null,
+        pullsRemaining: 0,
       });
     } else {
       const nextPullsSinceReset = pullsSinceReset + 1;
@@ -306,13 +328,35 @@ export const WheelProvider = ({ children }) => {
       setPullsSinceReset(nextPullsSinceReset);
       setDangerProbability(nextDangerProbability);
       setPeerDangerProbability(nextDangerProbability);
-      sendToPeers({
+
+      const remaining = Math.max(0, pullsRemaining - 1);
+      const stepNumber = pullsRequired - remaining;
+      const actionComplete = remaining === 0;
+      sendSystemChatMessage(
+        pullsRequired > 1
+          ? `${spinnerCharacterName} succeeds (step ${stepNumber} of ${pullsRequired})${
+              actionComplete ? " - action complete!" : "."
+            }`
+          : `${spinnerCharacterName} survives.`
+      );
+      setPullsRemaining(remaining);
+
+      const spinPayload = {
         type: MESSAGE_TYPES.SPIN,
         result: spinResult,
         resultText,
         dangerProbability: nextDangerProbability,
-        designatedSpinner: null,
-      });
+        pullsRemaining: remaining,
+      };
+      if (actionComplete) {
+        // Only clear the assignment once every required pull has succeeded -
+        // otherwise the same player stays designated for their next pull.
+        setDesignatedSpinner(null);
+        setPeerDesignatedSpinner(null);
+        setPullsRequired(1);
+        spinPayload.designatedSpinner = null;
+      }
+      sendToPeers(spinPayload);
     }
     sendToPeers({
       type: MESSAGE_TYPES.SPIN_FINAL,
@@ -348,6 +392,8 @@ export const WheelProvider = ({ children }) => {
         awaitingReset,
         designatedSpinner,
         assignSpinner,
+        pullsRequired,
+        pullsRemaining,
         result,
         setResult,
         showWheel,

@@ -30,6 +30,8 @@ const TestWheelComponent = () => {
     awaitingReset,
     designatedSpinner,
     assignSpinner,
+    pullsRequired,
+    pullsRemaining,
     result,
     showWheel,
     spinning,
@@ -50,6 +52,8 @@ const TestWheelComponent = () => {
       <div data-testid="designated-spinner">
         {JSON.stringify(designatedSpinner)}
       </div>
+      <div data-testid="pulls-required">{pullsRequired}</div>
+      <div data-testid="pulls-remaining">{pullsRemaining}</div>
       <div data-testid="result">{result}</div>
       <div data-testid="show-wheel">{showWheel.toString()}</div>
       <div data-testid="spinning">{spinning.toString()}</div>
@@ -58,6 +62,9 @@ const TestWheelComponent = () => {
 
       <button onClick={() => assignSpinner("Host")}>Assign Host</button>
       <button onClick={() => assignSpinner("Alice")}>Assign Alice</button>
+      <button onClick={() => assignSpinner("Host", 3)}>
+        Assign Host 3 Pulls
+      </button>
       <button onClick={handleSpin}>Spin Wheel</button>
       <button onClick={handleDecline}>Decline</button>
       <button onClick={() => handleSpinEnd(0)}>End Spin Success</button>
@@ -312,5 +319,65 @@ describe("WheelProvider", () => {
     await user.click(screen.getByText("Start Game"));
 
     expect(screen.getByTestId("show-wheel")).toHaveTextContent("false");
+  });
+
+  describe("multi-pull complex/difficult actions", () => {
+    it("keeps the same player designated after a partial success, decrementing pullsRemaining", async () => {
+      render(
+        <TestWrapper isGM={true}>
+          <TestWheelComponent />
+        </TestWrapper>
+      );
+
+      await user.click(screen.getByText("Assign Host 3 Pulls"));
+      expect(screen.getByTestId("pulls-remaining")).toHaveTextContent("3");
+
+      await user.click(screen.getByText("End Spin Success"));
+
+      expect(screen.getByTestId("designated-spinner")).toHaveTextContent(
+        "Host"
+      );
+      expect(screen.getByTestId("pulls-remaining")).toHaveTextContent("2");
+    });
+
+    it("only clears the designation once every required pull has succeeded", async () => {
+      render(
+        <TestWrapper isGM={true}>
+          <TestWheelComponent />
+        </TestWrapper>
+      );
+
+      await user.click(screen.getByText("Assign Host 3 Pulls"));
+      await user.click(screen.getByText("End Spin Success"));
+      await user.click(screen.getByText("End Spin Success"));
+      expect(screen.getByTestId("designated-spinner")).toHaveTextContent(
+        "Host"
+      );
+
+      await user.click(screen.getByText("End Spin Success"));
+
+      expect(screen.getByTestId("designated-spinner")).toHaveTextContent(
+        "null"
+      );
+      expect(screen.getByTestId("pulls-remaining")).toHaveTextContent("0");
+    });
+
+    it("a death mid-sequence ends the action early regardless of prior successes", async () => {
+      render(
+        <TestWrapper isGM={true}>
+          <TestWheelComponent />
+        </TestWrapper>
+      );
+
+      await user.click(screen.getByText("Assign Host 3 Pulls"));
+      await user.click(screen.getByText("End Spin Success"));
+
+      await user.click(screen.getByText("End Spin Death"));
+
+      expect(screen.getByTestId("designated-spinner")).toHaveTextContent(
+        "null"
+      );
+      expect(screen.getByTestId("awaiting-reset")).toHaveTextContent("true");
+    });
   });
 });

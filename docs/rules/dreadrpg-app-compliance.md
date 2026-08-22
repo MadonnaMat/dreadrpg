@@ -120,12 +120,20 @@ exchange for the decline-severity fix above.
 
 ## Multi-pull complex/difficult tasks
 
-**🔷 Gap.** The host can require several pulls for one complex action, each
-representing a distinct step. The app has no concept of chaining multiple
-spins to a single declared action — every spin is independent
-(`WheelGraphics.jsx` → `onSpinEnd` → `WheelProvider.handleSpinEnd`). Not
-fixed this pass: would need new state to track "this spin is step N of an
-in-progress multi-step action," plus GM-facing UI to declare step counts.
+**🔧 Fixed this pass.** The host can require several pulls for one complex
+action, each representing a distinct step. The GM's "Request Pull" control
+(`SpinControls` in `src/components/GameLoaded.jsx`) now takes an optional
+pull count; `WheelProvider.jsx` tracks `pullsRequired`/`pullsRemaining` and
+keeps the same player designated across every step (`handleSpinEnd`),
+decrementing on each success and only clearing the assignment once
+`pullsRemaining` reaches 0. A death at any step still ends the action
+immediately and removes the character, same as a single-pull action. Chat
+narrates progress ("step X of N"), and both the GM's assign panel and the
+designated player's own view show the current step count. Not peer-synced
+via the snapshot mechanism other wheel state uses (it's GM-local,
+recomputed and re-broadcast on every spin) — a late joiner mid-sequence
+sees that someone is designated but not the step count until the next spin
+resolves; a minor, acceptable display gap for this pass.
 
 ## Conflict between players' characters
 
@@ -216,19 +224,19 @@ either way.
 
 ## Summary
 
-| Area                                 | Verdict            |
-| ------------------------------------ | ------------------ |
-| GM/host model                        | ✅                 |
-| Tower → wheel                        | 🟡 by design       |
-| Escalating danger after a collapse   | 🔧 fixed this pass |
-| Decline-a-pull vs. collapse severity | 🔷 gap             |
-| "Ways to remove a character" flavor  | 🔷 gap (cosmetic)  |
-| Elective pulls                       | ✅                 |
-| Multi-pull complex tasks             | 🔷 gap             |
-| Conflict between characters          | 🔷 gap             |
-| Mismatched opponents                 | 🔷 gap             |
-| Initial pre-pull by player count     | 🔷 gap             |
-| Unique per-character questionnaires  | 🔧 fixed this pass |
-| Question count                       | ✅                 |
-| Host approval of answers             | 🔷 gap (minor)     |
-| Scenario structure                   | 🟡 by design       |
+| Area                                 | Verdict                                   |
+| ------------------------------------ | ----------------------------------------- |
+| GM/host model                        | ✅                                        |
+| Tower → wheel                        | 🟡 by design                              |
+| Escalating danger after a collapse   | 🔧 fixed this pass                        |
+| Decline-a-pull vs. collapse severity | 🔧 fixed this pass                        |
+| "Ways to remove a character" flavor  | 🔷 gap (partial - named death text fixed) |
+| Elective pulls                       | 🔷 deliberate trade-off (see notes)       |
+| Multi-pull complex tasks             | 🔧 fixed this pass                        |
+| Conflict between characters          | 🟡 by design                              |
+| Mismatched opponents                 | 🟡 by design                              |
+| Initial pre-pull by player count     | 🔷 gap                                    |
+| Unique per-character questionnaires  | 🔧 fixed this pass                        |
+| Question count                       | ✅                                        |
+| Host approval of answers             | 🔷 gap (minor)                            |
+| Scenario structure                   | 🟡 by design                              |

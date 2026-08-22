@@ -10,6 +10,7 @@ function applySpinMessage(data, setters) {
     setDangerProbability,
     setAwaitingReset,
     setDesignatedSpinner,
+    setPullsRemaining,
     setResult,
   } = setters;
 
@@ -19,6 +20,9 @@ function applySpinMessage(data, setters) {
   if (data.awaitingReset !== undefined) setAwaitingReset(data.awaitingReset);
   if (data.designatedSpinner !== undefined) {
     setDesignatedSpinner(data.designatedSpinner);
+  }
+  if (data.pullsRemaining !== undefined) {
+    setPullsRemaining(data.pullsRemaining);
   }
   // The GM is the sole authority on the outcome, including its display text
   // (it needs the spinner's character name) - a player never resolves or
@@ -54,6 +58,8 @@ function handlePlayerMessage(data, setters) {
     setDangerProbability,
     setAwaitingReset,
     setDesignatedSpinner,
+    setPullsRequired,
+    setPullsRemaining,
     setShowWheel,
   } = setters;
 
@@ -68,6 +74,9 @@ function handlePlayerMessage(data, setters) {
   if (data.type === MESSAGE_TYPES.SPIN) applySpinMessage(data, setters);
   if (data.type === MESSAGE_TYPES.SPIN_ASSIGN) {
     setDesignatedSpinner(data.targetUserName);
+    const pullsRequired = data.pullsRequired ?? 1;
+    setPullsRequired(pullsRequired);
+    setPullsRemaining(data.targetUserName ? pullsRequired : 0);
   }
   if (data.type === MESSAGE_TYPES.SPIN_FINAL) {
     setSpinAngle(data.finalAngle);

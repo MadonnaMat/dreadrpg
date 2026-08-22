@@ -14,6 +14,8 @@ function makeSetters() {
     setDangerProbability: vi.fn(),
     setAwaitingReset: vi.fn(),
     setDesignatedSpinner: vi.fn(),
+    setPullsRequired: vi.fn(),
+    setPullsRemaining: vi.fn(),
     setShowWheel: vi.fn(),
   };
 }
@@ -86,11 +88,43 @@ describe("createWheelMessageHandler", () => {
     expect(setters.setResult).toHaveBeenCalledWith("Success!");
   });
 
-  it("player: a spin-assign broadcast sets the designated spinner", () => {
+  it("player: an intermediate multi-pull success broadcast updates pullsRemaining without clearing the designation", () => {
+    const handler = createWheelMessageHandler({ isGM: false, ...setters });
+    handler({
+      type: "spin",
+      result: "success",
+      resultText: "Success!",
+      dangerProbability: 0.5,
+      pullsRemaining: 1,
+    });
+
+    expect(setters.setPullsRemaining).toHaveBeenCalledWith(1);
+    expect(setters.setDesignatedSpinner).not.toHaveBeenCalled();
+  });
+
+  it("player: a spin-assign broadcast sets the designated spinner (defaults to 1 pull)", () => {
     const handler = createWheelMessageHandler({ isGM: false, ...setters });
     handler({ type: "spin-assign", targetUserName: "Alice" });
 
     expect(setters.setDesignatedSpinner).toHaveBeenCalledWith("Alice");
+    expect(setters.setPullsRequired).toHaveBeenCalledWith(1);
+    expect(setters.setPullsRemaining).toHaveBeenCalledWith(1);
+  });
+
+  it("player: a spin-assign broadcast carries a multi-pull requirement", () => {
+    const handler = createWheelMessageHandler({ isGM: false, ...setters });
+    handler({ type: "spin-assign", targetUserName: "Alice", pullsRequired: 3 });
+
+    expect(setters.setPullsRequired).toHaveBeenCalledWith(3);
+    expect(setters.setPullsRemaining).toHaveBeenCalledWith(3);
+  });
+
+  it("player: a spin-assign clearing the designation zeroes pullsRemaining", () => {
+    const handler = createWheelMessageHandler({ isGM: false, ...setters });
+    handler({ type: "spin-assign", targetUserName: null });
+
+    expect(setters.setDesignatedSpinner).toHaveBeenCalledWith(null);
+    expect(setters.setPullsRemaining).toHaveBeenCalledWith(0);
   });
 
   it("player: spin-final snaps the angle and stops spinning", () => {

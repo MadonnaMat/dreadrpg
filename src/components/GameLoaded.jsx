@@ -20,12 +20,15 @@ function SpinControls({
   myName,
   designatedSpinner,
   assignSpinner,
+  pullsRequired,
+  pullsRemaining,
   handleSpin,
   handleDecline,
   spinning,
   awaitingReset,
 }) {
   const [selectedName, setSelectedName] = useState("");
+  const [requiredPulls, setRequiredPulls] = useState(1);
   const isMyTurn = designatedSpinner && myName === designatedSpinner;
 
   return (
@@ -43,11 +46,21 @@ function SpinControls({
               </option>
             ))}
           </select>
+          <input
+            id="pulls-required-input"
+            type="number"
+            min={1}
+            max={10}
+            value={requiredPulls}
+            onChange={(e) => setRequiredPulls(Number(e.target.value) || 1)}
+            title="Pulls required for this action"
+          />
           <button
             id="request-pull-btn"
             onClick={() => {
-              assignSpinner(selectedName);
+              assignSpinner(selectedName, requiredPulls);
               setSelectedName("");
+              setRequiredPulls(1);
             }}
             disabled={!selectedName}
           >
@@ -59,6 +72,8 @@ function SpinControls({
         <p>
           Waiting on {characterNameFor(characters, designatedSpinner)} to spin
           or decline...
+          {pullsRequired > 1 &&
+            ` (step ${pullsRequired - pullsRemaining + 1} of ${pullsRequired})`}
         </p>
       )}
       {!awaitingReset && isMyTurn && (
@@ -69,6 +84,11 @@ function SpinControls({
           <button id="decline-btn" onClick={handleDecline}>
             Decline
           </button>
+          {pullsRequired > 1 && (
+            <p>
+              Step {pullsRequired - pullsRemaining + 1} of {pullsRequired}
+            </p>
+          )}
         </>
       )}
     </div>
@@ -93,6 +113,8 @@ export default function GameLoaded() {
     awaitingReset,
     designatedSpinner,
     assignSpinner,
+    pullsRequired,
+    pullsRemaining,
     result,
     spinning,
     spinAngle,
@@ -223,6 +245,8 @@ export default function GameLoaded() {
               myName={myName}
               designatedSpinner={designatedSpinner}
               assignSpinner={assignSpinner}
+              pullsRequired={pullsRequired}
+              pullsRemaining={pullsRemaining}
               handleSpin={handleSpin}
               handleDecline={handleDecline}
               spinning={spinning}
