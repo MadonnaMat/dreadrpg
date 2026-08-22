@@ -28,12 +28,15 @@ const TestWheelComponent = () => {
     wedges,
     dangerProbability,
     awaitingReset,
+    designatedSpinner,
+    assignSpinner,
     result,
     showWheel,
     spinning,
     spinAngle,
     pointerIdx,
     handleSpin,
+    handleDecline,
     handleSpinEnd,
     handleRestack,
     startGame,
@@ -44,13 +47,19 @@ const TestWheelComponent = () => {
       <div data-testid="wedges">{JSON.stringify(wedges)}</div>
       <div data-testid="danger-probability">{dangerProbability}</div>
       <div data-testid="awaiting-reset">{awaitingReset.toString()}</div>
+      <div data-testid="designated-spinner">
+        {JSON.stringify(designatedSpinner)}
+      </div>
       <div data-testid="result">{result}</div>
       <div data-testid="show-wheel">{showWheel.toString()}</div>
       <div data-testid="spinning">{spinning.toString()}</div>
       <div data-testid="spin-angle">{spinAngle}</div>
       <div data-testid="pointer-idx">{JSON.stringify(pointerIdx)}</div>
 
+      <button onClick={() => assignSpinner("Host")}>Assign Host</button>
+      <button onClick={() => assignSpinner("Alice")}>Assign Alice</button>
       <button onClick={handleSpin}>Spin Wheel</button>
+      <button onClick={handleDecline}>Decline</button>
       <button onClick={() => handleSpinEnd(0)}>End Spin Success</button>
       <button onClick={() => handleSpinEnd(1)}>End Spin Death</button>
       <button onClick={handleRestack}>Restack</button>
@@ -64,10 +73,11 @@ const TestWheelComponent = () => {
 // straight to <WheelProvider> is silently ignored (mirrors the pattern in
 // CharacterSheet.test.jsx).
 const AsGM = ({ children }) => {
-  const { setIsGM } = usePeer();
+  const { setIsGM, setHostName } = usePeer();
   useEffect(() => {
     setIsGM(true);
-  }, [setIsGM]);
+    setHostName("Host");
+  }, [setIsGM, setHostName]);
   return children;
 };
 
@@ -106,7 +116,20 @@ describe("WheelProvider", () => {
     expect(screen.getByTestId("pointer-idx")).toHaveTextContent("null");
   });
 
-  it("should handle spin as GM", async () => {
+  it("should handle spin as GM once designated", async () => {
+    render(
+      <TestWrapper isGM={true}>
+        <TestWheelComponent />
+      </TestWrapper>
+    );
+
+    await user.click(screen.getByText("Assign Host"));
+    await user.click(screen.getByText("Spin Wheel"));
+
+    expect(screen.getByTestId("spinning")).toHaveTextContent("true");
+  });
+
+  it("ignores a spin attempt when nobody has been designated", async () => {
     render(
       <TestWrapper isGM={true}>
         <TestWheelComponent />
@@ -115,7 +138,35 @@ describe("WheelProvider", () => {
 
     await user.click(screen.getByText("Spin Wheel"));
 
-    expect(screen.getByTestId("spinning")).toBeInTheDocument();
+    expect(screen.getByTestId("spinning")).toHaveTextContent("false");
+  });
+
+  it("clears the designation and logs a decline when the assigned player declines", async () => {
+    render(
+      <TestWrapper isGM={true}>
+        <TestWheelComponent />
+      </TestWrapper>
+    );
+
+    await user.click(screen.getByText("Assign Host"));
+    expect(screen.getByTestId("designated-spinner")).toHaveTextContent("Host");
+
+    await user.click(screen.getByText("Decline"));
+
+    expect(screen.getByTestId("designated-spinner")).toHaveTextContent("null");
+  });
+
+  it("clears the designation after a spin resolves, win or lose", async () => {
+    render(
+      <TestWrapper isGM={true}>
+        <TestWheelComponent />
+      </TestWrapper>
+    );
+
+    await user.click(screen.getByText("Assign Host"));
+    await user.click(screen.getByText("End Spin Success"));
+
+    expect(screen.getByTestId("designated-spinner")).toHaveTextContent("null");
   });
 
   it("should increment pullsSinceReset and recompute dangerProbability on a success spin", async () => {
@@ -145,7 +196,11 @@ describe("WheelProvider", () => {
 
     await user.click(screen.getByText("End Spin Death"));
 
-    expect(screen.getByTestId("result")).toHaveTextContent("You Died!");
+    // No one was designated in this test, so the death text falls back to
+    // the generic placeholder rather than a real character/player name.
+    expect(screen.getByTestId("result")).toHaveTextContent(
+      "The character Died!"
+    );
     expect(screen.getByTestId("awaiting-reset")).toHaveTextContent("true");
     expect(computeDangerProbability).not.toHaveBeenCalled();
   });

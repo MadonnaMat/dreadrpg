@@ -15,6 +15,7 @@ export function buildGameSnapshot(type, currentStateRef) {
     towerSize: currentStateRef.current.towerSize,
     dangerProbability: currentStateRef.current.dangerProbability,
     awaitingReset: currentStateRef.current.awaitingReset,
+    designatedSpinner: currentStateRef.current.designatedSpinner,
     gameStarted: currentStateRef.current.gameStarted,
     scenario: currentStateRef.current.scenario,
     characters: currentStateRef.current.characters,

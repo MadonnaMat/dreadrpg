@@ -12,10 +12,14 @@ function makeStateRef(overrides = {}) {
       towerSize: 25,
       dangerProbability: 0.2,
       awaitingReset: false,
+      designatedSpinner: null,
       gameStarted: false,
       scenario: null,
+      gameName: "",
       characters: {},
       allowPlayersToViewSheets: false,
+      theme: "default",
+      customColors: null,
       ...overrides,
     },
   };
@@ -32,11 +36,24 @@ describe("buildGameSnapshot", () => {
       towerSize: 25,
       dangerProbability: 0.2,
       awaitingReset: false,
+      designatedSpinner: null,
       gameStarted: false,
       scenario: null,
+      gameName: "",
       characters: {},
       allowPlayersToViewSheets: false,
+      theme: "default",
+      customColors: null,
     });
+  });
+
+  it("includes designatedSpinner so a late joiner knows whose turn it is", () => {
+    const snapshot = buildGameSnapshot(
+      "game-data-sync",
+      makeStateRef({ designatedSpinner: "Alice" })
+    );
+
+    expect(snapshot.designatedSpinner).toBe("Alice");
   });
 
   it("includes gameStarted so a late joiner can skip the lobby", () => {

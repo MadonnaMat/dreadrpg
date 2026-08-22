@@ -18,6 +18,8 @@ export const MESSAGE_TYPES = {
   CHARACTER_DELETE: "character-delete",
   SHEET_VISIBILITY_UPDATE: "sheet-visibility-update",
   SPIN_REQUEST: "spin-request",
+  SPIN_ASSIGN: "spin-assign",
+  SPIN_DECLINE: "spin-decline",
   SPIN_START: "spin-start",
   SPIN: "spin",
   SPIN_FINAL: "spin-final",

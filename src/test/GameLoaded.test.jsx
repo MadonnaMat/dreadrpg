@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useEffect } from "react";
 import GameLoaded from "../components/GameLoaded";
 import { PeerProvider } from "../providers/PeerProvider";
 import { WheelProvider } from "../providers/WheelProvider";
+import { usePeer } from "../hooks/usePeer";
 import React from "react";
 
 // Mock PIXI Application and components
@@ -51,6 +53,21 @@ const TestWrapper = ({ children, isGM = false, conn = null }) => {
   );
 };
 
+// Flips the real PeerProvider context to a GM who has already designated
+// themselves as the spinner - "isGM"/"conn" props on WheelProvider above are
+// never actually consumed by it (it reads isGM from usePeer(), not props),
+// so exercising the GM-only spin/decline flow needs the real context setters
+// instead, the same way CharacterSheet.test.jsx's GmCharacterSheet does.
+function GmSelfAssigned({ children }) {
+  const { setIsGM, setHostName, setUsers } = usePeer();
+  useEffect(() => {
+    setIsGM(true);
+    setHostName("Host");
+    setUsers({ "peer-gm": "Host" });
+  }, [setIsGM, setHostName, setUsers]);
+  return children;
+}
+
 describe("GameLoaded Component", () => {
   let user;
 
@@ -84,7 +101,9 @@ describe("GameLoaded Component", () => {
     expect(screen.getByTestId("pixi-application")).toBeInTheDocument();
     expect(screen.getByTestId("wheel-graphics")).toBeInTheDocument();
     expect(screen.getByTestId("chat-component")).toBeInTheDocument();
-    expect(screen.getByText("Spin the Wheel!")).toBeInTheDocument();
+    // Nobody has been designated to spin yet, and this render isn't a GM, so
+    // neither the assign picker nor a Spin button should be showing.
+    expect(screen.queryByText("Spin the Wheel!")).not.toBeInTheDocument();
   });
 
   it("should handle tab switching", async () => {
@@ -125,12 +144,17 @@ describe("GameLoaded Component", () => {
     expect(pixiApp).toHaveAttribute("backgroundAlpha", "0");
   });
 
-  it("should handle spin button click", async () => {
+  it("should handle spin button click once the GM designates themself", async () => {
     render(
       <TestWrapper isGM={true}>
-        <GameLoaded />
+        <GmSelfAssigned>
+          <GameLoaded />
+        </GmSelfAssigned>
       </TestWrapper>
     );
+
+    await user.selectOptions(screen.getByRole("combobox"), "Host");
+    await user.click(screen.getByRole("button", { name: "Request Pull" }));
 
     const spinButton = screen.getByText("Spin the Wheel!");
     expect(spinButton).not.toBeDisabled();
@@ -139,16 +163,17 @@ describe("GameLoaded Component", () => {
     // The spin logic is handled by WheelProvider, so we just verify the button exists and is clickable
   });
 
-  it("should disable spin button when spinning", () => {
-    // This would require a more complex setup to mock the spinning state
-    // For now, we just verify the button exists
+  it("shows the assign picker instead of a Spin button before anyone is designated", () => {
     render(
-      <TestWrapper>
-        <GameLoaded />
+      <TestWrapper isGM={true}>
+        <GmSelfAssigned>
+          <GameLoaded />
+        </GmSelfAssigned>
       </TestWrapper>
     );
 
-    expect(screen.getByText("Spin the Wheel!")).toBeInTheDocument();
+    expect(screen.getByRole("combobox")).toBeInTheDocument();
+    expect(screen.queryByText("Spin the Wheel!")).not.toBeInTheDocument();
   });
 
   it("should show result area", () => {

@@ -6,15 +6,93 @@ import CharacterSheet from "./CharacterSheet";
 import AdminPanel from "./AdminPanel";
 import { usePeer } from "../hooks/usePeer";
 import { useWheel } from "../hooks/useWheel";
+import { characterNameFor } from "../helpers/characters";
 import { useEffect, useRef, useState } from "react";
 import { MESSAGE_TYPES } from "../constants/messageTypes";
 
+// GM's "who spins next" picker plus the Spin/Decline buttons, shown only to
+// whoever is currently designated - split out of GameLoaded purely to keep
+// that component's own branching complexity down.
+function SpinControls({
+  isGM,
+  users,
+  characters,
+  myName,
+  designatedSpinner,
+  assignSpinner,
+  handleSpin,
+  handleDecline,
+  spinning,
+  awaitingReset,
+}) {
+  const [selectedName, setSelectedName] = useState("");
+  const isMyTurn = designatedSpinner && myName === designatedSpinner;
+
+  return (
+    <div id="spin-controls">
+      {isGM && !awaitingReset && !designatedSpinner && (
+        <div id="spin-assign-section">
+          <select
+            value={selectedName}
+            onChange={(e) => setSelectedName(e.target.value)}
+          >
+            <option value="">Choose a player...</option>
+            {Object.values(users || {}).map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+          <button
+            id="request-pull-btn"
+            onClick={() => {
+              assignSpinner(selectedName);
+              setSelectedName("");
+            }}
+            disabled={!selectedName}
+          >
+            Request Pull
+          </button>
+        </div>
+      )}
+      {isGM && !awaitingReset && designatedSpinner && !isMyTurn && (
+        <p>
+          Waiting on {characterNameFor(characters, designatedSpinner)} to spin
+          or decline...
+        </p>
+      )}
+      {!awaitingReset && isMyTurn && (
+        <>
+          <button id="spin-btn" onClick={handleSpin} disabled={spinning}>
+            Spin the Wheel!
+          </button>
+          <button id="decline-btn" onClick={handleDecline}>
+            Decline
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function GameLoaded() {
-  const { peerId, isGM, conn, sendToPeers, gameName } = usePeer();
+  const {
+    peerId,
+    isGM,
+    conn,
+    sendToPeers,
+    gameName,
+    userName,
+    hostName,
+    users,
+    characters,
+  } = usePeer();
   const {
     wedges,
     dangerProbability,
     awaitingReset,
+    designatedSpinner,
+    assignSpinner,
     result,
     spinning,
     spinAngle,
@@ -26,9 +104,11 @@ export default function GameLoaded() {
     spinTargetAngleRef,
     spinResultIdxRef,
     handleSpin,
+    handleDecline,
     handleSpinEnd,
     handleRestack,
   } = useWheel();
+  const myName = userName || hostName;
 
   const [internalWedges, setInternalWedges] = useState(wedges);
   const [activeTab, setActiveTab] = useState("game");
@@ -136,11 +216,18 @@ export default function GameLoaded() {
                 peerId={peerId}
               />
             </Application>
-            {!awaitingReset && (
-              <button id="spin-btn" onClick={handleSpin} disabled={spinning}>
-                Spin the Wheel!
-              </button>
-            )}
+            <SpinControls
+              isGM={isGM}
+              users={users}
+              characters={characters}
+              myName={myName}
+              designatedSpinner={designatedSpinner}
+              assignSpinner={assignSpinner}
+              handleSpin={handleSpin}
+              handleDecline={handleDecline}
+              spinning={spinning}
+              awaitingReset={awaitingReset}
+            />
             {isGM && awaitingReset && (
               <button id="restack-btn" onClick={handleRestack}>
                 Re-stack Tower

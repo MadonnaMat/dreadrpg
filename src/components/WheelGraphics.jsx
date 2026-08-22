@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState } from "react";
 import { useTick } from "@pixi/react";
-import { WEDGE_TYPES, RESULT_TEXT } from "../constants/wheelOutcomes";
+import { WEDGE_TYPES, SUCCESS_TEXT } from "../constants/wheelOutcomes";
 
 const CENTER = 150;
 const RADIUS = 140;
@@ -49,12 +49,14 @@ export function WheelGraphics({
   }, [spinning, spinStartRef]);
 
   // Trigger a shake whenever a fresh "Success!" result comes in, and a
-  // death-flash sequence whenever a fresh "You Died!" result comes in.
+  // death-flash sequence for any other (non-empty) result - death text is
+  // now a per-character message ("<name> Died!"), not a fixed string, so
+  // "anything but success" is the only reliable death check here.
   useEffect(() => {
     if (result && result !== lastResultRef.current) {
-      if (result === RESULT_TEXT.SUCCESS) {
+      if (result === SUCCESS_TEXT) {
         shakeStartRef.current = performance.now();
-      } else if (result === RESULT_TEXT.DEATH) {
+      } else {
         deathFlashStartRef.current = performance.now();
       }
     }

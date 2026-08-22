@@ -6,32 +6,47 @@ import React, {
   useCallback,
 } from "react";
 import { computeDangerProbability, getWheelWedges } from "../helpers";
+import { characterNameFor } from "../helpers/characters";
 import { usePeer } from "../hooks/usePeer";
 import { WheelContext } from "../contexts/WheelContext";
 import { createWheelMessageHandler } from "./wheel/wheelMessageHandler";
 import { loadWheelState, saveWheelState } from "./wheel/wheelPersistence";
 import { MESSAGE_TYPES } from "../constants/messageTypes";
-import { WEDGE_TYPES, RESULT_TEXT } from "../constants/wheelOutcomes";
+import {
+  WEDGE_TYPES,
+  SUCCESS_TEXT,
+  deathText,
+} from "../constants/wheelOutcomes";
 
 export const WheelProvider = ({ children }) => {
   const {
     isGM,
     gameId,
+    userName,
+    hostName,
+    characters,
     registerWheelEventHandler,
     sendToPeers,
+    sendSystemChatMessage,
     towerSize,
     dangerProbability: peerDangerProbability,
     awaitingReset: peerAwaitingReset,
+    designatedSpinner: peerDesignatedSpinner,
     gameStarted: peerGameStarted,
     setDangerProbability: setPeerDangerProbability,
     setAwaitingReset: setPeerAwaitingReset,
+    setDesignatedSpinner: setPeerDesignatedSpinner,
     setGameStarted: setPeerGameStarted,
   } = usePeer();
+  const myName = userName || hostName;
   const [dangerProbability, setDangerProbability] = useState(
     peerDangerProbability ?? 0
   );
   const [awaitingReset, setAwaitingReset] = useState(
     peerAwaitingReset ?? false
+  );
+  const [designatedSpinner, setDesignatedSpinner] = useState(
+    peerDesignatedSpinner ?? null
   );
   // Pulls since the tower was last (re-)stacked; only meaningful for the GM,
   // who is the only one who ever computes the next dangerProbability.
@@ -74,6 +89,10 @@ export const WheelProvider = ({ children }) => {
   useEffect(() => {
     setAwaitingReset(peerAwaitingReset ?? false);
   }, [peerAwaitingReset]);
+
+  useEffect(() => {
+    setDesignatedSpinner(peerDesignatedSpinner ?? null);
+  }, [peerDesignatedSpinner]);
 
   // A late joiner's welcome/game-data-sync snapshot may already say the game
   // started (see PeerProvider's buildGameSnapshot) - skip the lobby in that
@@ -138,12 +157,53 @@ export const WheelProvider = ({ children }) => {
     sendToPeers({ type: MESSAGE_TYPES.SPIN_START, currentAngle, targetAngle });
   }, [sendToPeers]);
 
+  // GM only: clears the current assignment, broadcasts it, and narrates why
+  // in chat. Shared by the GM's own Decline click and by a remote player's
+  // decline message arriving via handleHostDecline below.
+  const clearAssignment = useCallback(
+    (chatText) => {
+      setDesignatedSpinner(null);
+      setPeerDesignatedSpinner(null);
+      sendToPeers({ type: MESSAGE_TYPES.SPIN_ASSIGN, targetUserName: null });
+      if (chatText) sendSystemChatMessage(chatText);
+    },
+    [sendToPeers, setPeerDesignatedSpinner, sendSystemChatMessage]
+  );
+
+  // GM only: designate who spins next.
+  const assignSpinner = useCallback(
+    (targetUserName) => {
+      if (!isGM || !targetUserName) return;
+      setDesignatedSpinner(targetUserName);
+      setPeerDesignatedSpinner(targetUserName);
+      sendToPeers({ type: MESSAGE_TYPES.SPIN_ASSIGN, targetUserName });
+      sendSystemChatMessage(
+        `${characterNameFor(characters, targetUserName)} is asked to spin the wheel.`
+      );
+    },
+    [
+      isGM,
+      sendToPeers,
+      setPeerDesignatedSpinner,
+      sendSystemChatMessage,
+      characters,
+    ]
+  );
+
+  // GM only: apply a remote player's decline (received via SPIN_DECLINE).
+  const handleHostDecline = useCallback(() => {
+    clearAssignment(
+      `${characterNameFor(characters, designatedSpinner)} declines the pull.`
+    );
+  }, [characters, designatedSpinner, clearAssignment]);
+
   // Register wheel event handler with PeerProvider
   useEffect(() => {
     registerWheelEventHandler(
       createWheelMessageHandler({
         isGM,
         handleHostSpin,
+        handleHostDecline,
         spinStartRef,
         spinTargetAngleRef,
         setSpinning,
@@ -152,10 +212,11 @@ export const WheelProvider = ({ children }) => {
         setSpinAngle,
         setDangerProbability,
         setAwaitingReset,
+        setDesignatedSpinner,
         setShowWheel,
       })
     );
-  }, [isGM, registerWheelEventHandler, handleHostSpin]);
+  }, [isGM, registerWheelEventHandler, handleHostSpin, handleHostDecline]);
 
   // GM only: explicitly move everyone from the lobby into the game. Replaces
   // the old behavior where the first player connecting silently flipped
@@ -167,15 +228,29 @@ export const WheelProvider = ({ children }) => {
     sendToPeers({ type: MESSAGE_TYPES.GAME_STARTED });
   }, [isGM, sendToPeers, setPeerGameStarted]);
 
-  // Player: request spin from host
+  // Player (or GM if self-assigned): request the spin they've been assigned.
+  // Elective, ask-anyone-anytime spinning is deliberately gone (see
+  // compliance-fix-plan.md item 7) - only the currently designated spinner
+  // may act, everyone else's Spin button isn't even rendered (GameLoaded.jsx).
   const handleSpin = () => {
     if (spinning || awaitingReset) return;
+    if (myName !== designatedSpinner) return;
     if (isGM) {
-      // Host spins directly
-      handleHostSpin("host");
+      handleHostSpin();
     } else {
-      // Player requests spin from host
-      sendToPeers({ type: MESSAGE_TYPES.SPIN_REQUEST, peerId: "player" });
+      sendToPeers({ type: MESSAGE_TYPES.SPIN_REQUEST });
+    }
+  };
+
+  // Decline the current assignment instead of spinning.
+  const handleDecline = () => {
+    if (myName !== designatedSpinner) return;
+    if (isGM) {
+      clearAssignment(
+        `${characterNameFor(characters, designatedSpinner)} declines the pull.`
+      );
+    } else {
+      sendToPeers({ type: MESSAGE_TYPES.SPIN_DECLINE });
     }
   };
 
@@ -191,7 +266,22 @@ export const WheelProvider = ({ children }) => {
     const spinResult = wedges[selectedIdx]?.type;
     if (!spinResult) return;
     const isDeath = spinResult === WEDGE_TYPES.DEATH;
-    setResult(isDeath ? RESULT_TEXT.DEATH : RESULT_TEXT.SUCCESS);
+    const spinnerCharacterName = characterNameFor(
+      characters,
+      designatedSpinner
+    );
+    const resultText = isDeath ? deathText(spinnerCharacterName) : SUCCESS_TEXT;
+    setResult(resultText);
+    sendSystemChatMessage(
+      isDeath
+        ? `${spinnerCharacterName} Died!`
+        : `${spinnerCharacterName} survives.`
+    );
+
+    // The turn is over either way - clear the assignment so the GM can pick
+    // the next spinner (item 9 will extend this with a multi-pull count).
+    setDesignatedSpinner(null);
+    setPeerDesignatedSpinner(null);
 
     if (isDeath) {
       setCharactersRemoved((c) => c + 1);
@@ -200,7 +290,9 @@ export const WheelProvider = ({ children }) => {
       sendToPeers({
         type: MESSAGE_TYPES.SPIN,
         result: spinResult,
+        resultText,
         awaitingReset: true,
+        designatedSpinner: null,
       });
     } else {
       const nextPullsSinceReset = pullsSinceReset + 1;
@@ -215,7 +307,9 @@ export const WheelProvider = ({ children }) => {
       sendToPeers({
         type: MESSAGE_TYPES.SPIN,
         result: spinResult,
+        resultText,
         dangerProbability: nextDangerProbability,
+        designatedSpinner: null,
       });
     }
     sendToPeers({
@@ -250,6 +344,8 @@ export const WheelProvider = ({ children }) => {
         wedges,
         dangerProbability,
         awaitingReset,
+        designatedSpinner,
+        assignSpinner,
         result,
         setResult,
         showWheel,
@@ -265,6 +361,7 @@ export const WheelProvider = ({ children }) => {
         spinTargetAngleRef,
         spinResultIdxRef,
         handleSpin,
+        handleDecline,
         handleSpinEnd,
         handleRestack,
       }}

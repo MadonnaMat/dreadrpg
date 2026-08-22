@@ -18,7 +18,7 @@ for the two items reclassified as by-design rather than implemented).
   reclassified 🔷→🟡. Everyone always pulls from the same shared tower by
   design; a conflict between characters is something the GM
   narrates/adjudicates using the same designate-a-spinner + pulls-required
-  mechanism (items 7–8) as any other risky action.
+  mechanism (items 7 and 9) as any other risky action.
 - **Decline vs. collapse severity**: GM designates who spins next; only
   that player sees the Spin button; a Decline button is added; spins/
   declines are logged to chat; the death message names the character, not
@@ -89,20 +89,30 @@ connectionManager.js`), so recreating a game with the same `gameId`
    — GM assigns who spins next; that player gets Spin + Decline; every
    spin/decline is logged to chat; death message names the character.
    Documents the resulting ✅→trade-off change to "Elective pulls."
-8. **Multi-pull complex/difficult actions** — GM can require several pulls
+8. **Player presence: connected/disconnected status + reconnect gating** —
+   a departed player currently just vanishes from `users` on disconnect
+   (`onConnectionClosed` in `PeerProvider.jsx` deletes their entry
+   outright); track a persistent per-userName presence status instead
+   (`connected: true/false`) so the roster can show who's online vs.
+   offline rather than silently forgetting them, and so item 4's "reclaim
+   a disconnected name" rule is enforced against an explicit, synced field
+   rather than inferred from `users` membership alone. Needed groundwork
+   for item 12 (a GM reload must reconstruct who's actually online) and
+   item 13 (the rejoin link needs something concrete to gate against).
+9. **Multi-pull complex/difficult actions** — GM can require several pulls
    for one declared action, tracked as a pulls-remaining countdown on top
    of item 7's assignment mechanism.
-9. **Host approval of questionnaire answers** — answers carry an
-   `approved` flag; other players only see approved answers; GM approves
-   per-answer.
-10. **Pre-pull scaled to actual joined players + GM-editable death flavor
+10. **Host approval of questionnaire answers** — answers carry an
+    `approved` flag; other players only see approved answers; GM approves
+    per-answer.
+11. **Pre-pull scaled to actual joined players + GM-editable death flavor
     text** — `startGame()` seeds extra virtual pulls from
     `3 * max(0, 5 - joinedPlayerCount)`; GM can customize the death
     narration text shown instead of a hardcoded string.
-11. **Full game persistence + homepage game list** — GM-side full game
+12. **Full game persistence + homepage game list** — GM-side full game
     snapshot persisted to localStorage; a homepage list of the GM's own
     games (by campaign name) with Resume/Delete.
-12. **Per-player shareable rejoin link** — extends the existing `?gameId=`
+13. **Per-player shareable rejoin link** — extends the existing `?gameId=`
     URL convention with `&userName=` so a player's own link logs them back
     in without retyping anything.
 

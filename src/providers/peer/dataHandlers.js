@@ -70,6 +70,7 @@ function applySnapshotToPlayerState(data, setters) {
     setTowerSize,
     setDangerProbability,
     setAwaitingReset,
+    setDesignatedSpinner,
     setGameStarted,
     setScenario,
     setCharacters,
@@ -92,6 +93,9 @@ function applySnapshotToPlayerState(data, setters) {
     setDangerProbability(data.dangerProbability);
   }
   if (data.awaitingReset !== undefined) setAwaitingReset(data.awaitingReset);
+  if (data.designatedSpinner !== undefined) {
+    setDesignatedSpinner(data.designatedSpinner);
+  }
   if (data.gameStarted !== undefined) setGameStarted(data.gameStarted);
   if (data.scenario) setScenario(data.scenario);
   if (data.characters) setCharacters(data.characters);

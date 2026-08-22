@@ -10,6 +10,10 @@ export function useGameState() {
   const [towerSize, setTowerSize] = useState(25);
   const [dangerProbability, setDangerProbability] = useState(0);
   const [awaitingReset, setAwaitingReset] = useState(false);
+  // The userName the GM has designated to spin next, or null if nobody is
+  // currently assigned (see docs/rules/compliance-fix-plan.md item 7) -
+  // only that player sees the Spin/Decline buttons.
+  const [designatedSpinner, setDesignatedSpinner] = useState(null);
   // Whether the GM has explicitly started the game yet - drives the
   // lobby -> in-game transition (see WheelProvider's startGame). Synced so a
   // late joiner's welcome/game-data-sync snapshot can skip the lobby.
@@ -38,6 +42,8 @@ export function useGameState() {
     setDangerProbability,
     awaitingReset,
     setAwaitingReset,
+    designatedSpinner,
+    setDesignatedSpinner,
     gameStarted,
     setGameStarted,
     scenario,

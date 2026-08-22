@@ -75,42 +75,48 @@ re-stack round trip).
 
 ## Declining a pull vs. a tower collapse (two different severities)
 
-**🔷 Gap.** The rules distinguish two outcomes with very different stakes:
+**🔧 Fixed this pass.** The rules distinguish two outcomes with very
+different stakes:
 
 - _Declining/failing a pull_ → the action just fails; "This failure can not
   be so drastic that it would remove the character from the game."
 - _A tower collapse_ → the character is removed from the game.
 
-The app's wheel collapses these into one binary outcome per spin: landing on
-`success` = "Success!", landing on `death` = "You Died!"
-(`src/providers/WheelProvider.jsx` `handleSpinEnd`). There's no app-level
-concept of "the character failed this one action but is still alive and
-in the game" as a distinct, less-severe result from a spin — nor is there a
-way to _decline_ a requested spin the way the rules allow declining a pull.
-Not fixed this pass: this is a meaningful game-design decision (would need a
-third wheel-outcome type, or a "decline" affordance in `GameLoaded.jsx`/
-`WheelGraphics.jsx`), not a mechanical bug.
+The GM now explicitly designates who spins next (`assignSpinner` in
+`src/providers/WheelProvider.jsx`) — only that player's client renders the
+Spin/Decline buttons (`SpinControls` in `src/components/GameLoaded.jsx`).
+Declining sends `SPIN_DECLINE` (player → GM) or resolves locally (GM
+self-assigned), clearing the assignment via `SPIN_ASSIGN{targetUserName:
+null}` without ever putting the character at risk — the wheel itself is
+never spun, so there's no death-probability exposure at all, closer to the
+rule's own "declining just means nothing happens" framing than adding a
+third wheel-outcome type would have been. Every spin/decline/result is also
+now narrated in chat (`sendSystemChatMessage`, reusing the existing chat
+message pipeline). See `docs/rules/compliance-fix-plan.md` item 7.
 
 ## "Ways to remove a character" (death is only one option)
 
-**🔷 Gap** (cosmetic/content, not mechanical). The rulebook lists ~25
-host-narrated outcomes for a removed character — death is just one. The
-app always shows the literal text `"You Died!"`
-(`src/providers/WheelProvider.jsx` `handleSpinEnd`). Not fixed this pass:
-deliberately **not** copying the rulebook's own copyrighted flavor-text list
-into shipped UI — if pursued, this needs originally-written flavor text (or
-simply a GM-editable "what happens on death" field), not a straight port of
-the source material.
+**🔷 Gap** (cosmetic/content, not mechanical) — **partially addressed this
+pass.** The rulebook lists ~25 host-narrated outcomes for a removed
+character — death is just one. The app's death message now names the
+actual character (`` `${characterName} Died!` ``,
+`src/constants/wheelOutcomes.js` `deathText`) instead of a generic "You
+Died!" shown to everyone, but it's still always the same flavor verb
+("Died"). Not fixed this pass: a GM-editable/varied flavor-text field is
+still open (`compliance-fix-plan.md` item 11b) — deliberately **not**
+copying the rulebook's own copyrighted flavor-text list into shipped UI.
 
 ## Elective pulls
 
-**✅ Matches** (incidentally, not by explicit design). "Players always have
-the option to pull a block without being asked." The app's spin button
-(`id="spin-btn"`, `src/components/GameLoaded.jsx:109-110`) is never gated
-behind a "you must be asked" check — any player can request a spin at any
-time via `handleSpin` → `spin-request` (`WheelProvider.jsx`). There's no
-labeled "elective spin" affordance distinguishing it from a required one,
-but nothing blocks the underlying behavior the rule describes.
+**🔷 Deliberate trade-off this pass** (was ✅, incidentally). "Players
+always have the option to pull a block without being asked." Before this
+pass, the app's spin button was never gated — any player could request a
+spin at any time. To support GM-directed turns and a Decline affordance
+(previous section), the GM must now explicitly designate who spins next;
+an un-designated player has no Spin button at all. This is a deliberate,
+requested product decision (`compliance-fix-plan.md` item 7), not a silent
+regression — elective, ask-nobody spinning is no longer possible, in
+exchange for the decline-severity fix above.
 
 ## Multi-pull complex/difficult tasks
 
@@ -123,22 +129,28 @@ in-progress multi-step action," plus GM-facing UI to declare step counts.
 
 ## Conflict between players' characters
 
-**🔷 Gap.** The rulebook's escalating pull-off procedure (aggressor pulls
-and declares intent → target accepts or pulls to defend → repeat until
-someone declines or the tower falls) isn't modeled at all. Every spin in the
-app is a single player vs. the wheel; there's no second-party
-accept/defend/escalate flow. Not fixed this pass: would need new PeerJS
-message types and turn-based UI, a nontrivial feature addition explicitly
-out of scope for a "safe fix."
+**🟡 Intentional simplification** (was 🔷 gap). The rulebook's escalating
+pull-off procedure (aggressor pulls and declares intent → target accepts or
+pulls to defend → repeat until someone declines or the tower falls) has no
+dedicated feature, by design: everyone always pulls from the same shared
+tower/wheel — there's no separate PvP resolution system to build. A
+conflict between two characters is something the GM narrates/adjudicates at
+the table (or in chat) using the same designate-a-spinner mechanism
+(`assignSpinner`, previous sections) as any other risky action — the GM
+just designates first the aggressor, then the target, back and forth,
+narrating who's "winning." No targeted player-to-player messaging or
+accept/defend turn UI was added.
 
 ## Mismatched opponents (variable pull counts)
 
-**🔷 Gap.** "If one character clearly has an advantage... his or her player
-may be required to make fewer pulls" (aggressor still needs at least one).
-The app has no situational weighting of a spin's difficulty or count —
-every spin draws from the same shared wheel regardless of context. Not
-fixed this pass: would need a way for the host to attach a modifier to an
-individual spin.
+**🟡 Intentional simplification** (was 🔷 gap), for the same reason as
+above. "If one character clearly has an advantage... his or her player may
+be required to make fewer pulls" only really applies within a PvP conflict,
+which is itself a GM-narrated use of the existing designate-a-spinner +
+pulls-required mechanism (see the multi-pull item below) rather than a
+dedicated feature — the GM can already narrate "you only need one pull,
+they need three" by assigning different `pullsRequired` counts to each
+side's spin.
 
 ## Initial pre-pull scaled to player count
 

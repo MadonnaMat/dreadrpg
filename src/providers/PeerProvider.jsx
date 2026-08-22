@@ -32,6 +32,7 @@ export const PeerProvider = ({ children }) => {
     isGM: session.isGM,
     dangerProbability: gameState.dangerProbability,
     awaitingReset: gameState.awaitingReset,
+    designatedSpinner: gameState.designatedSpinner,
     gameStarted: gameState.gameStarted,
     theme: gameState.theme,
     customColors: gameState.customColors,
@@ -51,6 +52,24 @@ export const PeerProvider = ({ children }) => {
   const sendToPeers = useCallback((msg) => {
     managerRef.current?.sendToPeers(msg);
   }, []);
+
+  // Lets any component (e.g. WheelProvider narrating a spin/decline) inject
+  // a system-authored chat message without needing direct access to Chat.jsx's
+  // own local `messages` state. Invoking the registered chat handler
+  // directly - the same function Chat.jsx registers to process an inbound
+  // network message - reuses its existing append-locally-and-(if GM)-
+  // forward-to-everyone-else logic exactly, rather than duplicating it here.
+  const { handlerRefs } = handlers;
+  const sendSystemChatMessage = useCallback(
+    (text) => {
+      handlerRefs.chat.current?.({
+        type: MESSAGE_TYPES.CHAT,
+        from: "System",
+        text,
+      });
+    },
+    [handlerRefs]
+  );
 
   // Non-GM clients re-request a full snapshot whenever their tab becomes
   // visible again, on top of GameLoaded's one-shot mount-time refetch.
@@ -100,6 +119,7 @@ export const PeerProvider = ({ children }) => {
     gameState.setTowerSize(towerSizeArg);
     gameState.setDangerProbability(0);
     gameState.setAwaitingReset(false);
+    gameState.setDesignatedSpinner(null);
     gameState.setGameStarted(false); // New game always starts back in the lobby
     gameState.setScenario(null); // Reset scenario for new game
     gameState.setCharacters({}); // Reset characters for new game
@@ -191,6 +211,7 @@ export const PeerProvider = ({ children }) => {
         setTowerSize: gameState.setTowerSize,
         setDangerProbability: gameState.setDangerProbability,
         setAwaitingReset: gameState.setAwaitingReset,
+        setDesignatedSpinner: gameState.setDesignatedSpinner,
         setGameStarted: gameState.setGameStarted,
         setScenario: gameState.setScenario,
         setCharacters: gameState.setCharacters,
@@ -216,6 +237,7 @@ export const PeerProvider = ({ children }) => {
         registerChatEventHandler: handlers.registerChatEventHandler,
         registerScenarioEventHandler: handlers.registerScenarioEventHandler,
         sendToPeers,
+        sendSystemChatMessage,
       }}
     >
       {children}
