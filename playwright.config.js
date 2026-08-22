@@ -11,8 +11,22 @@ import { defineConfig, devices } from "@playwright/test";
 // signaling server, which isn't appropriate to require on every push.
 export default defineConfig({
   testDir: "./e2e",
-  timeout: 30000,
+  // These tests do real network round-trips plus deliberate multi-second
+  // waits (network-drop/backoff simulation), and CI runners are slower and
+  // more resource-constrained than a local machine - 30s was too tight and
+  // produced spurious timeouts under CI load rather than real failures.
+  timeout: process.env.CI ? 90000 : 45000,
   fullyParallel: false,
+  // Only running 2 CPU cores on a standard GitHub-hosted runner: running
+  // multiple full browser instances concurrently there caused enough
+  // contention to blow past even the loosened timeout above. Serialize in
+  // CI for consistent timing; keep the local default (parallel) for faster
+  // iteration.
+  workers: process.env.CI ? 1 : undefined,
+  // A real network drop/reconnect over a public signaling service, on a
+  // shared CI runner, warrants some retry tolerance - a test passing on
+  // retry still gets flagged as "flaky" in the report rather than silently
+  // hidden, so it stays visible without failing the whole job over it.
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
   use: {

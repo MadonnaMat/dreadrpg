@@ -85,7 +85,12 @@ jobs:
         run: npm run test:e2e
 
       - name: Upload Playwright report
-        if: failure()
+        # Always upload (not just on failure): a run where a test passed
+        # only after a retry still exits 0 overall (see the `retries`
+        # comment in playwright.config.js) but is worth being able to
+        # inspect too, and `if: failure()` alone would keep skipping the
+        # upload for those.
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
