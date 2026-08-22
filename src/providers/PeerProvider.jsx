@@ -1,19 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import Peer from "peerjs";
 import { PeerContext } from "../contexts/PeerContext";
-
-const DEFAULT_QUESTIONS = [
-  "What is your name?",
-  "What do you look like?",
-  "What is your occupation?",
-  "Why did you choose to go on this adventure?",
-  "What are your interests and hobbies?",
-  "What is your biggest fear?",
-  "What are you most proud of?",
-  "What secret would you never share with anyone?",
-  "What gives you courage?",
-  "Tell me 3 of your weaknesses",
-];
+import { DEFAULT_QUESTIONS } from "../constants/questions";
 
 // Normalize IDs by stripping '-' and trimming whitespace
 function normalizedId(id) {
@@ -22,6 +10,7 @@ function normalizedId(id) {
 
 export const PeerProvider = ({ children }) => {
   const [gameId, setGameId] = useState("");
+  const [peerId, setPeerId] = useState("");
   const [userName, setUserName] = useState("");
   const [hostName, setHostName] = useState("");
   const [connectionStatus, setConnectionStatus] = useState("");
@@ -104,11 +93,6 @@ export const PeerProvider = ({ children }) => {
   // Method for sending messages
   const sendToPeers = (msg) => {
     const currentIsGM = currentStateRef.current.isGM;
-    console.log(
-      `[${currentIsGM ? "GM" : "Player"}] Broadcasting:`,
-      msg.type,
-      msg
-    );
     if (currentIsGM) {
       // GM: broadcast to all connections
       connectionsRef.current.forEach((c) => {
@@ -120,6 +104,43 @@ export const PeerProvider = ({ children }) => {
     }
   };
 
+  // Forward a message to whichever component registered interest in its type.
+  // Shared by both the GM's per-connection data handler and the player's
+  // single connection data handler.
+  const dispatchToRegisteredHandlers = (data, connection) => {
+    if (wheelEventHandlerRef.current) {
+      wheelEventHandlerRef.current(data, connection);
+    }
+    if (chatEventHandlerRef.current && data.type === "chat") {
+      chatEventHandlerRef.current(data, connection);
+    }
+    if (scenarioEventHandlerRef.current && data.type === "scenario-update") {
+      scenarioEventHandlerRef.current(data, connection);
+    }
+    if (
+      characterSheetEventHandlerRef.current &&
+      (data.type === "character-sheet-update" ||
+        data.type === "questions-update" ||
+        data.type === "sheet-visibility-update" ||
+        data.type === "character-sheets-broadcast")
+    ) {
+      characterSheetEventHandlerRef.current(data, connection);
+    }
+  };
+
+  // Build the full game-state snapshot sent to players via "welcome"/"game-data-sync"
+  const buildGameSnapshot = (type) => ({
+    type,
+    hostName: currentStateRef.current.hostName,
+    users: currentStateRef.current.users,
+    numWedges: currentStateRef.current.numWedges,
+    wheelState: Array(currentStateRef.current.numWedges).fill("success"),
+    scenario: currentStateRef.current.scenario,
+    characterSheets: currentStateRef.current.characterSheets,
+    questions: currentStateRef.current.questions,
+    allowPlayersToViewSheets: currentStateRef.current.allowPlayersToViewSheets,
+  });
+
   // Host: create game
   const createGame = (newGameId, hostName, numWedgesArg = 25) => {
     setGameId(newGameId);
@@ -129,7 +150,6 @@ export const PeerProvider = ({ children }) => {
     setInitialWheelState(Array(numWedgesArg).fill("success"));
     setScenario(null); // Reset scenario for new game
     setCharacterSheets({}); // Reset character sheets for new game
-    console.log("Creating game, resetting questions to default.");
     setQuestions(null); // Reset questions for new game
     setAllowPlayersToViewSheets(false); // Reset sheet visibility for new game
     setConnectionStatus("Waiting for players...");
@@ -137,9 +157,10 @@ export const PeerProvider = ({ children }) => {
     peerRef.current = peer;
     setUsers({});
     connectionsRef.current = [];
-    peer.on("open", () => {
+    peer.on("open", (id) => {
+      setPeerId(id);
       // Add GM to users list
-      const gmUsers = { [normalizedId(newGameId)]: hostName || "GM" };
+      const gmUsers = { [id]: hostName || "GM" };
       setUsers(gmUsers);
       setConnectionStatus(`Game created! Game ID: ${newGameId}`); // display original
     });
@@ -149,7 +170,6 @@ export const PeerProvider = ({ children }) => {
         connectionsRef.current.push(c);
       }
       c.on("data", (data) => {
-        console.log("[GM] Received message:", data.type, data);
         // All connection-based actions are handled here
         if (data && data.type === "join" && data.peerId && data.userName) {
           const newUsers = {
@@ -157,29 +177,13 @@ export const PeerProvider = ({ children }) => {
             [normalizedId(data.peerId)]: data.userName,
           };
           setUsers(newUsers);
-          const welcomeMsg = {
-            type: "welcome",
-            hostName: currentStateRef.current.hostName,
-            users: newUsers,
-            numWedges: currentStateRef.current.numWedges,
-            wheelState: Array(currentStateRef.current.numWedges).fill(
-              "success"
-            ),
-            scenario: currentStateRef.current.scenario,
-            characterSheets: currentStateRef.current.characterSheets,
-            questions: currentStateRef.current.questions,
-            allowPlayersToViewSheets:
-              currentStateRef.current.allowPlayersToViewSheets,
-          };
-          console.log("[GM] Sending welcome message:", welcomeMsg);
-          c.send(welcomeMsg);
+          c.send(buildGameSnapshot("welcome"));
 
           // Broadcast updated user list to all existing connections
           const userUpdateMsg = {
             type: "user-list-update",
             users: newUsers,
           };
-          console.log("[GM] Broadcasting user list update:", userUpdateMsg);
           connectionsRef.current.forEach((conn) => {
             if (conn !== c) {
               // Don't send to the new user, they already got the welcome message
@@ -189,48 +193,9 @@ export const PeerProvider = ({ children }) => {
         }
         // Handle refetch requests from clients
         if (data && data.type === "refetch-request") {
-          const syncMsg = {
-            type: "game-data-sync",
-            hostName: currentStateRef.current.hostName,
-            users: currentStateRef.current.users,
-            numWedges: currentStateRef.current.numWedges,
-            wheelState: Array(currentStateRef.current.numWedges).fill(
-              "success"
-            ),
-            scenario: currentStateRef.current.scenario,
-            characterSheets: currentStateRef.current.characterSheets,
-            questions: currentStateRef.current.questions,
-            allowPlayersToViewSheets:
-              currentStateRef.current.allowPlayersToViewSheets,
-          };
-          console.log("[GM] Sending game-data-sync:", syncMsg);
-          c.send(syncMsg);
+          c.send(buildGameSnapshot("game-data-sync"));
         }
-        // Forward wheel-related actions to WheelProvider
-        if (wheelEventHandlerRef.current) {
-          wheelEventHandlerRef.current(data, c);
-        }
-        // Forward chat-related actions to Chat
-        if (chatEventHandlerRef.current && data.type === "chat") {
-          chatEventHandlerRef.current(data, c);
-        }
-        // Forward scenario-related actions to Scenario
-        if (
-          scenarioEventHandlerRef.current &&
-          data.type === "scenario-update"
-        ) {
-          scenarioEventHandlerRef.current(data, c);
-        }
-        // Forward character sheet-related actions to CharacterSheet
-        if (
-          characterSheetEventHandlerRef.current &&
-          (data.type === "character-sheet-update" ||
-            data.type === "questions-update" ||
-            data.type === "sheet-visibility-update" ||
-            data.type === "character-sheets-broadcast")
-        ) {
-          characterSheetEventHandlerRef.current(data, c);
-        }
+        dispatchToRegisteredHandlers(data, c);
       });
       c.on("open", () => {
         setConn(c);
@@ -246,47 +211,27 @@ export const PeerProvider = ({ children }) => {
     const peer = new Peer(normalizedId(peerId));
     peerRef.current = peer;
     peer.on("open", (pid) => {
+      setPeerId(pid);
       setConnectionStatus(`Connected as ${userName} (${pid})`);
       const connection = peer.connect(normalizedId(gameId));
       connection.on("open", () => {
         setConn(connection);
-        const joinMsg = { type: "join", peerId: pid, userName };
-        console.log("[Player] Sending join message:", joinMsg);
-        connection.send(joinMsg);
+        connection.send({ type: "join", peerId: pid, userName });
       });
       connection.on("data", (data) => {
-        console.log("[Player] Received message:", data.type, data);
-        // Forward wheel-related actions to WheelProvider
-        if (wheelEventHandlerRef.current) {
-          wheelEventHandlerRef.current(data, connection);
-        }
-        // Forward chat-related actions to Chat
-        if (chatEventHandlerRef.current && data.type === "chat") {
-          chatEventHandlerRef.current(data, connection);
-        }
-        // Forward scenario-related actions to Scenario
+        dispatchToRegisteredHandlers(data, connection);
+
+        // Handle game data sync / welcome snapshots from the host
         if (
-          scenarioEventHandlerRef.current &&
-          data.type === "scenario-update"
+          data &&
+          (data.type === "game-data-sync" || data.type === "welcome")
         ) {
-          scenarioEventHandlerRef.current(data, connection);
-        }
-        // Forward character sheet-related actions to CharacterSheet
-        if (
-          characterSheetEventHandlerRef.current &&
-          (data.type === "character-sheet-update" ||
-            data.type === "questions-update" ||
-            data.type === "sheet-visibility-update" ||
-            data.type === "character-sheets-broadcast")
-        ) {
-          characterSheetEventHandlerRef.current(data, connection);
-        }
-        // Handle game data sync from host
-        if (data && data.type === "game-data-sync") {
           if (data.users) {
             setUsers(data.users);
             setConnectionStatus(
-              `Synced! Players: ${Object.values(data.users).join(", ")}`
+              data.type === "welcome"
+                ? `Welcome! Players: ${Object.values(data.users).join(", ")}`
+                : `Synced! Players: ${Object.values(data.users).join(", ")}`
             );
           }
           if (data.numWedges) {
@@ -302,21 +247,11 @@ export const PeerProvider = ({ children }) => {
             setCharacterSheets(data.characterSheets);
           }
           if (data.questions) {
-            console.log(
-              "Setting questions from game-data-sync:",
-              data.questions
-            );
             setQuestions(data.questions);
           }
           if (data.allowPlayersToViewSheets !== undefined) {
             setAllowPlayersToViewSheets(data.allowPlayersToViewSheets);
           }
-        }
-        if (data && data.type === "welcome" && data.users) {
-          setUsers(data.users);
-          setConnectionStatus(
-            `Welcome! Players: ${Object.values(data.users).join(", ")}`
-          );
         }
         // Handle user list updates from host
         if (data && data.type === "user-list-update") {
@@ -324,29 +259,6 @@ export const PeerProvider = ({ children }) => {
           setConnectionStatus(
             `Users updated! Players: ${Object.values(data.users).join(", ")}`
           );
-        }
-        // Sync spinner state from host
-        if (data && data.type === "welcome" && data.numWedges) {
-          setNumWedges(data.numWedges);
-          setInitialWheelState(
-            data.wheelState || Array(data.numWedges).fill("success")
-          );
-          // Sync scenario from host
-          if (data.scenario) {
-            setScenario(data.scenario);
-          }
-          // Sync character sheet data from host
-          if (data.characterSheets) {
-            setCharacterSheets(data.characterSheets);
-          }
-          if (data.questions) {
-            console.log("Setting questions from welcome:", data.questions);
-            setQuestions(data.questions);
-          }
-
-          if (data.allowPlayersToViewSheets !== undefined) {
-            setAllowPlayersToViewSheets(data.allowPlayersToViewSheets);
-          }
         }
       });
     });
@@ -357,6 +269,7 @@ export const PeerProvider = ({ children }) => {
       value={{
         gameId,
         setGameId,
+        peerId,
         userName,
         setUserName,
         hostName,

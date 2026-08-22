@@ -1,18 +1,10 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { usePeer } from "../hooks/usePeer";
-
-const DEFAULT_QUESTIONS = [
-  "What is your name?",
-  "What do you look like?",
-  "What is your occupation?",
-  "Why did you choose to go on this adventure?",
-  "What are your interests and hobbies?",
-  "What is your biggest fear?",
-  "What are you most proud of?",
-  "What secret would you never share with anyone?",
-  "What gives you courage?",
-  "Tell me 3 of your weaknesses",
-];
+import { DEFAULT_QUESTIONS } from "../constants/questions";
+import QuestionEditor from "./character-sheet/QuestionEditor";
+import PlayerSheetSelector from "./character-sheet/PlayerSheetSelector";
+import MyCharacterSheet from "./character-sheet/MyCharacterSheet";
+import OtherPlayersSheets from "./character-sheet/OtherPlayersSheets";
 
 export default function CharacterSheet() {
   const {
@@ -40,7 +32,6 @@ export default function CharacterSheet() {
   // Initialize questions (only for GM when starting new game)
   useEffect(() => {
     if (isGM && (!questions || questions.length === 0)) {
-      console.log("Setting default questions for new game:", DEFAULT_QUESTIONS);
       setQuestions(DEFAULT_QUESTIONS);
     }
   }, [isGM, setQuestions]); // Removed questions from deps to avoid overriding
@@ -57,19 +48,12 @@ export default function CharacterSheet() {
   // Separate effect for character sheet initialization
   useEffect(() => {
     if (userName && characterSheets && characterSheets[userName]) {
-      console.log(
-        "Loading existing sheet for user:",
-        userName,
-        characterSheets[userName]
-      );
       setMySheet(characterSheets[userName]);
     } else if (userName && questions) {
-      const currentQuestions = questions;
       const initialSheet = {};
-      currentQuestions.forEach((question, index) => {
+      questions.forEach((question, index) => {
         initialSheet[index] = "";
       });
-      console.log("Initializing new sheet for user:", userName, initialSheet);
       setMySheet(initialSheet);
     }
   }, [questions, characterSheets, userName]);
@@ -90,7 +74,6 @@ export default function CharacterSheet() {
           [data.playerName]: data.sheet,
         }));
       } else if (data.type === "questions-update") {
-        console.log("Setting questions from update:", data.questions);
         setQuestions(data.questions);
         // Update my character sheet structure to match new questions
         if (userName) {
@@ -99,10 +82,6 @@ export default function CharacterSheet() {
             // Preserve existing answers if they exist
             newSheet[index] = mySheet[index] || "";
           });
-          console.log(
-            "Updating my sheet structure to match new questions:",
-            newSheet
-          );
           setMySheet(newSheet);
 
           // Send updated sheet structure to other players
@@ -130,7 +109,6 @@ export default function CharacterSheet() {
 
   const handleAnswerChange = (questionIndex, value) => {
     const updatedSheet = { ...mySheet, [questionIndex]: value };
-    console.log("Updating my sheet:", updatedSheet);
     setMySheet(updatedSheet);
 
     // Send update to GM and other players
@@ -142,7 +120,6 @@ export default function CharacterSheet() {
   };
 
   const handleSaveQuestions = () => {
-    console.log("Saving questions:", editQuestions);
     setQuestions(editQuestions);
     setIsEditingQuestions(false);
 
@@ -218,7 +195,6 @@ export default function CharacterSheet() {
 
   return (
     <div className="character-sheet-container">
-      {/* GM Controls */}
       {isGM && (
         <div className="gm-controls">
           <h2>GM Character Sheet Management</h2>
@@ -243,143 +219,44 @@ export default function CharacterSheet() {
             </div>
           </div>
 
-          {/* Question Editor */}
           {isEditingQuestions && (
-            <div className="question-editor">
-              <h3>Edit Questionnaire</h3>
-              {editQuestions.map((question, index) => (
-                <div key={index} className="question-edit-row">
-                  <input
-                    type="text"
-                    value={question}
-                    onChange={(e) =>
-                      handleQuestionChange(index, e.target.value)
-                    }
-                    placeholder={`Question ${index + 1}`}
-                    className="question-input"
-                  />
-                  <button
-                    onClick={() => handleRemoveQuestion(index)}
-                    className="btn-danger-small"
-                    disabled={editQuestions.length <= 1}
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
-              <div className="question-editor-buttons">
-                <button onClick={handleAddQuestion} className="btn-secondary">
-                  Add Question
-                </button>
-                <button onClick={handleSaveQuestions} className="btn-success">
-                  Save Questions
-                </button>
-                <button
-                  onClick={handleCancelEditQuestions}
-                  className="btn-danger"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
+            <QuestionEditor
+              questions={editQuestions}
+              onQuestionChange={handleQuestionChange}
+              onAddQuestion={handleAddQuestion}
+              onRemoveQuestion={handleRemoveQuestion}
+              onSave={handleSaveQuestions}
+              onCancel={handleCancelEditQuestions}
+            />
           )}
 
-          {/* View Player Sheets */}
-          <div className="player-sheets-section">
-            <h3>Player Character Sheets</h3>
-            <div className="player-sheet-selector">
-              <select
-                value={selectedPlayerSheet}
-                onChange={(e) => setSelectedPlayerSheet(e.target.value)}
-                className="player-select"
-              >
-                <option value="">Select a player...</option>
-                {Object.keys(users)
-                  .filter((peerId) => users[peerId] !== (hostName || "GM"))
-                  .map((peerId) => (
-                    <option key={peerId} value={users[peerId]}>
-                      {users[peerId]}
-                    </option>
-                  ))}
-              </select>
-            </div>
-
-            {selectedPlayerSheet &&
-              characterSheets &&
-              characterSheets[selectedPlayerSheet] && (
-                <div className="player-sheet-display">
-                  <h4>{selectedPlayerSheet}'s Character Sheet</h4>
-                  {currentQuestions.map((question, index) => (
-                    <div key={index} className="character-answer-display">
-                      <label className="question-label">{question}</label>
-                      <div className="answer-display">
-                        {characterSheets[selectedPlayerSheet][index] || (
-                          <em>No answer provided</em>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-          </div>
+          <PlayerSheetSelector
+            users={users}
+            hostName={hostName}
+            selectedPlayerSheet={selectedPlayerSheet}
+            setSelectedPlayerSheet={setSelectedPlayerSheet}
+            characterSheets={characterSheets}
+            questions={currentQuestions}
+          />
         </div>
       )}
 
-      {/* Player Character Sheet */}
       {!isGM && (
-        <div className="player-sheet-section">
-          <h2>{isGM ? "Your Character Sheet" : "Character Sheet"}</h2>
-          <div className="character-sheet-form">
-            {currentQuestions.map((question, index) => (
-              <div key={index} className="character-field">
-                <label className="question-label">{question}</label>
-                <textarea
-                  value={mySheet[index] || ""}
-                  onChange={(e) => handleAnswerChange(index, e.target.value)}
-                  placeholder="Enter your answer..."
-                  rows={question.includes("weaknesses") ? 4 : 2}
-                  className="character-answer"
-                />
-              </div>
-            ))}
-          </div>
-        </div>
+        <MyCharacterSheet
+          questions={currentQuestions}
+          mySheet={mySheet}
+          onAnswerChange={handleAnswerChange}
+        />
       )}
 
-      {/* Other Players' Sheets (if GM allows) */}
       {!isGM && allowPlayersToViewSheets && (
-        <div className="other-players-section">
-          <h2>Other Players' Character Sheets</h2>
-          {Object.keys(users)
-            .filter(
-              (peerId) =>
-                users[peerId] !== userName &&
-                users[peerId] !== (hostName || "GM")
-            )
-            .map((peerId) => {
-              const playerName = users[peerId];
-              const playerSheet =
-                characterSheets && characterSheets[playerName];
-
-              return (
-                <div key={peerId} className="other-player-sheet">
-                  <h3>{playerName}'s Character Sheet</h3>
-                  {playerSheet ? (
-                    currentQuestions.map((question, index) => (
-                      <div key={index} className="character-answer-display">
-                        <label className="question-label">{question}</label>
-                        <div className="answer-display">
-                          {playerSheet[index] || <em>No answer provided</em>}
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="no-sheet">No character sheet available</p>
-                  )}
-                </div>
-              );
-            })}
-        </div>
+        <OtherPlayersSheets
+          users={users}
+          userName={userName}
+          hostName={hostName}
+          characterSheets={characterSheets}
+          questions={currentQuestions}
+        />
       )}
     </div>
   );

@@ -42,6 +42,8 @@ npm run build
 - `npm run build` - Build for production
 - `npm run preview` - Preview production build locally
 - `npm run lint` - Run ESLint
+- `npm run format` - Format the codebase with Prettier
+- `npm run format:check` - Check formatting without writing changes
 - `npm run test` - Run tests in watch mode
 - `npm run test:run` - Run tests once
 - `npm run test:ui` - Run tests with UI
@@ -49,7 +51,7 @@ npm run build
 
 ## Testing
 
-The project includes a comprehensive test suite with 44+ tests covering:
+The project includes a comprehensive test suite with 65+ tests covering:
 
 - Component rendering and interactions
 - State management (PeerProvider, WheelProvider)
@@ -85,13 +87,16 @@ npm run deploy
 
 ## Game Rules
 
-**Dread** is a horror tabletop RPG that uses a Jenga tower instead of dice. In this digital version:
+**Dread** is a horror tabletop RPG that uses a Jenga tower instead of dice — this app's spinning wheel is a deliberate digital stand-in for that tower. In this digital version:
 
 1. Players create characters using questionnaire-style character sheets
 2. When attempting risky actions, players spin the wheel
 3. Landing on "success" wedges allows the action to succeed
 4. Landing on "death" wedges means something terrible happens to your character
 5. As the game progresses, success wedges turn into death wedges, increasing tension
+6. When a "death" wedge is hit, the wheel resets — but each reset is more dangerous than the last, matching Dread's rule that a re-stacked tower is always pre-pulled further than the one before it
+
+See [`docs/rules/`](./docs/rules/) for the source rules this app's mechanics are checked against, and [`docs/rules/dreadrpg-app-compliance.md`](./docs/rules/dreadrpg-app-compliance.md) for how closely they match.
 
 Learn more about Dread at the [official website](https://www.tiltingatwindmills.net/games/dread/).
 

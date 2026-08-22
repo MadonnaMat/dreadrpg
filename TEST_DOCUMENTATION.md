@@ -4,9 +4,9 @@ This project now includes a comprehensive test suite that covers all major compo
 
 ## Test Summary
 
-- **Total Tests**: 44 passing, 4 skipped
-- **Test Files**: 7 files
-- **Coverage**: All major components, providers, helpers, and integration scenarios
+- **Total Tests**: 65 passing, 4 skipped
+- **Test Files**: 11 files
+- **Coverage**: All components, providers, helpers, and integration scenarios
 
 ## Test Structure
 
@@ -61,6 +61,38 @@ This project now includes a comprehensive test suite that covers all major compo
 - Spin button functionality
 - Active tab styling
 - Non-GM refetch request handling
+
+#### Chat Component (`src/test/Chat.test.jsx`)
+
+- Renders heading, connected-users list, and message input
+- Clears input after sending; ignores empty messages
+- Enter-to-send
+- GM's own message is echoed into the list immediately
+
+#### Scenario Component (`src/test/Scenario.test.jsx`)
+
+- Player placeholder view when no scenario exists
+- GM-only "Setup Scenario" entry point and full editor form
+- Saving a scenario renders it in the read view
+- Cancel discards edits without saving
+
+#### CharacterSheet Component (`src/test/CharacterSheet.test.jsx`)
+
+- Player's own sheet renders using the default (or GM-set) questions
+- Player can type answers
+- Other players' sheets stay hidden until the GM allows viewing
+- GM controls: question editor (add/remove/save questions), sheet-visibility
+  toggle, and the player-sheet selector
+- Exercises the split `character-sheet/` subcomponents together as one unit
+
+#### WheelGraphics Component (`src/test/WheelGraphics.test.jsx`)
+
+- Registers a tick callback via `@pixi/react`'s `useTick` (mocked, since
+  `pixiGraphics` elements require the real `@pixi/react` reconciler to render)
+- No-ops on tick while not spinning
+- Animates `spinAngle` toward the target while spinning
+- Finishes a spin at the configured duration: sets the final angle, stops
+  spinning, and reports a result via `onSpinEnd`
 
 ### Integration Tests (`src/test/integration.test.jsx`)
 

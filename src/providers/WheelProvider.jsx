@@ -22,6 +22,9 @@ export const WheelProvider = ({ children }) => {
   const [spinning, setSpinning] = useState(false);
   const [spinAngle, setSpinAngle] = useState(0);
   const [pointerIdx, setPointerIdx] = useState(null);
+  // Cumulative count of "death" spins this session, so each re-stack of the
+  // wheel is escalated per Dread's re-stacking rule (see helpers/index.js).
+  const [charactersRemoved, setCharactersRemoved] = useState(0);
   const spinStartRef = useRef(null);
   const spinTargetAngleRef = useRef(null);
   const spinResultIdxRef = useRef(null);
@@ -112,8 +115,17 @@ export const WheelProvider = ({ children }) => {
   const handleSpinEnd = (selectedIdx) => {
     if (selectedIdx == null) return;
     const spinResult = wheelState[selectedIdx];
-    setResult(spinResult === "death" ? "You Died!" : "Success!");
-    const newWheelState = getNewWheelStateOnSpin(selectedIdx, wheelState);
+    const isDeath = spinResult === "death";
+    setResult(isDeath ? "You Died!" : "Success!");
+    const nextCharactersRemoved = isDeath
+      ? charactersRemoved + 1
+      : charactersRemoved;
+    if (isDeath) setCharactersRemoved(nextCharactersRemoved);
+    const newWheelState = getNewWheelStateOnSpin(
+      selectedIdx,
+      wheelState,
+      nextCharactersRemoved
+    );
     setWheelState(newWheelState);
     setInitialWheelState(newWheelState);
     // Use PeerProvider to send spinner sync info

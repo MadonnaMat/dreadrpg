@@ -111,7 +111,11 @@ describe("WheelProvider", () => {
 
     await user.click(screen.getByText("End Spin"));
 
-    expect(getNewWheelStateOnSpin).toHaveBeenCalledWith(0, expect.any(Array));
+    expect(getNewWheelStateOnSpin).toHaveBeenCalledWith(
+      0,
+      expect.any(Array),
+      expect.any(Number)
+    );
     expect(screen.getByTestId("result")).toHaveTextContent("Success!");
   });
 
