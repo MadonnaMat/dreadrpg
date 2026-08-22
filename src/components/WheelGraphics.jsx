@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState } from "react";
 import { useTick } from "@pixi/react";
+import { WEDGE_TYPES, RESULT_TEXT } from "../constants/wheelOutcomes";
 
 const CENTER = 150;
 const RADIUS = 140;
@@ -45,15 +46,15 @@ export function WheelGraphics({
     if (spinning && spinStartRef.current == null) {
       spinStartRef.current = performance.now();
     }
-  }, [spinning]);
+  }, [spinning, spinStartRef]);
 
   // Trigger a shake whenever a fresh "Success!" result comes in, and a
   // death-flash sequence whenever a fresh "You Died!" result comes in.
   useEffect(() => {
     if (result && result !== lastResultRef.current) {
-      if (result === "Success!") {
+      if (result === RESULT_TEXT.SUCCESS) {
         shakeStartRef.current = performance.now();
-      } else if (result === "You Died!") {
+      } else if (result === RESULT_TEXT.DEATH) {
         deathFlashStartRef.current = performance.now();
       }
     }
@@ -162,7 +163,8 @@ export function WheelGraphics({
     } else {
       const flashElapsed =
         (performance.now() - deathFlashStartRef.current) / 1000;
-      const cyclePos = (flashElapsed / DEATH_FLASH_DURATION) * DEATH_FLASH_CYCLES;
+      const cyclePos =
+        (flashElapsed / DEATH_FLASH_DURATION) * DEATH_FLASH_CYCLES;
       deathFlashOn = Math.floor(cyclePos) % 2 === 0;
     }
   }
@@ -184,7 +186,7 @@ export function WheelGraphics({
             g.moveTo(CENTER, CENTER);
             g.arc(CENTER, CENTER, RADIUS, start, end);
             g.lineTo(CENTER, CENTER);
-            g.fill(wedge.type === "death" ? 0xcc0000 : 0x00cc00);
+            g.fill(wedge.type === WEDGE_TYPES.DEATH ? 0xcc0000 : 0x00cc00);
             g.moveTo(CENTER, CENTER);
             g.arc(CENTER, CENTER, RADIUS, start, end);
             g.lineTo(CENTER, CENTER);

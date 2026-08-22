@@ -8,6 +8,7 @@ export default defineConfig([
   globalIgnores(["dist"]),
   {
     files: ["**/*.{js,jsx}"],
+    ignores: ["*.config.js"],
     extends: [
       js.configs.recommended,
       reactHooks.configs["recommended-latest"],
@@ -24,6 +25,19 @@ export default defineConfig([
     },
     rules: {
       "no-unused-vars": ["error", { varsIgnorePattern: "^[A-Z_]" }],
+      complexity: ["error", 15],
+    },
+  },
+  // Root-level tool config files (vite/vitest/playwright/eslint) run under
+  // Node, not the browser, and don't need the app's react-hooks/react-refresh
+  // rules.
+  {
+    files: ["*.config.js"],
+    extends: [js.configs.recommended],
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      globals: globals.node,
     },
   },
 ]);

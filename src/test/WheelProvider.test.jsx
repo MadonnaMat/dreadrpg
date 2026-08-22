@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useEffect } from "react";
 import { WheelProvider } from "../providers/WheelProvider";
 import { useWheel } from "../hooks/useWheel";
 import { PeerProvider } from "../providers/PeerProvider";
+import { usePeer } from "../hooks/usePeer";
 import React from "react";
 
 // Mock the helpers with a simple 2-wedge model: index 0 is always the
@@ -55,13 +57,23 @@ const TestWheelComponent = () => {
   );
 };
 
+// Flips isGM on the real PeerProvider context before rendering children -
+// WheelProvider reads isGM from usePeer(), not from a prop, so a prop passed
+// straight to <WheelProvider> is silently ignored (mirrors the pattern in
+// CharacterSheet.test.jsx).
+const AsGM = ({ children }) => {
+  const { setIsGM } = usePeer();
+  useEffect(() => {
+    setIsGM(true);
+  }, [setIsGM]);
+  return children;
+};
+
 // Wrapper component that provides both PeerProvider and WheelProvider
-const TestWrapper = ({ children, isGM = false, conn = null }) => {
+const TestWrapper = ({ children, isGM = false }) => {
   return (
     <PeerProvider>
-      <WheelProvider conn={conn} isGM={isGM}>
-        {children}
-      </WheelProvider>
+      <WheelProvider>{isGM ? <AsGM>{children}</AsGM> : children}</WheelProvider>
     </PeerProvider>
   );
 };
@@ -180,6 +192,31 @@ describe("WheelProvider", () => {
     await user.click(screen.getByText("Restack"));
 
     expect(computeDangerProbability).not.toHaveBeenCalled();
+    expect(screen.getByTestId("awaiting-reset")).toHaveTextContent("false");
+  });
+
+  // Every client's own WheelGraphics animates locally and calls
+  // handleSpinEnd via onSpinEnd, but only the GM's resolution is
+  // authoritative - a player's own call must be an inert no-op, since a
+  // backgrounded tab's late-firing local resolve is exactly what caused the
+  // wheel to desync (see WheelProvider.jsx's isGM gate).
+  it("should not mutate any state when handleSpinEnd is called as a non-GM player", async () => {
+    const { computeDangerProbability } = await import("../helpers");
+
+    render(
+      <TestWrapper isGM={false}>
+        <TestWheelComponent />
+      </TestWrapper>
+    );
+
+    await user.click(screen.getByText("End Spin Success"));
+    expect(computeDangerProbability).not.toHaveBeenCalled();
+    expect(screen.getByTestId("result")).toHaveTextContent("");
+    expect(screen.getByTestId("danger-probability")).toHaveTextContent("0");
+
+    await user.click(screen.getByText("End Spin Death"));
+    expect(computeDangerProbability).not.toHaveBeenCalled();
+    expect(screen.getByTestId("result")).toHaveTextContent("");
     expect(screen.getByTestId("awaiting-reset")).toHaveTextContent("false");
   });
 });

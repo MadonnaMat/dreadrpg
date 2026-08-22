@@ -1,12 +1,23 @@
-import React, { useState, useRef, useEffect, useMemo } from "react";
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  useMemo,
+  useCallback,
+} from "react";
 import { computeDangerProbability, getWheelWedges } from "../helpers";
 import { usePeer } from "../hooks/usePeer";
 import { WheelContext } from "../contexts/WheelContext";
+import { createWheelMessageHandler } from "./wheel/wheelMessageHandler";
+import { loadWheelState, saveWheelState } from "./wheel/wheelPersistence";
+import { MESSAGE_TYPES } from "../constants/messageTypes";
+import { WEDGE_TYPES, RESULT_TEXT } from "../constants/wheelOutcomes";
 
 export const WheelProvider = ({ children }) => {
   const {
     conn,
     isGM,
+    gameId,
     registerWheelEventHandler,
     sendToPeers,
     towerSize,
@@ -35,6 +46,18 @@ export const WheelProvider = ({ children }) => {
   const spinStartRef = useRef(null);
   const spinTargetAngleRef = useRef(null);
   const spinResultIdxRef = useRef(null);
+  const restoredForGameRef = useRef(null);
+
+  // Mirror spinning/spinAngle into refs, updated inline during render (not
+  // an effect - this needs to be current *before* handleHostSpin might read
+  // it, and a ref write during render never triggers a re-render itself).
+  // handleHostSpin reads through these instead of the state directly so its
+  // own identity can stay stable via useCallback (see below) without also
+  // needing to change every time spinAngle updates mid-animation.
+  const spinningRef = useRef(spinning);
+  spinningRef.current = spinning;
+  const spinAngleRef = useRef(spinAngle);
+  spinAngleRef.current = spinAngle;
 
   const wedges = useMemo(
     () => getWheelWedges(dangerProbability),
@@ -51,62 +74,46 @@ export const WheelProvider = ({ children }) => {
     setAwaitingReset(peerAwaitingReset ?? false);
   }, [peerAwaitingReset]);
 
-  // Register wheel event handler with PeerProvider
+  // GM only: restore a previous session's danger-state on refresh instead of
+  // silently resetting tower danger to a fresh tower.
   useEffect(() => {
-    registerWheelEventHandler((data) => {
-      // Host: handle spin requests and broadcast
-      if (isGM) {
-        if (data.type === "spin-request") {
-          handleHostSpin(data.peerId);
-        }
-        // Host can also receive other wheel-related actions if needed
-      } else {
-        // Player: handle host broadcasts
-        if (data.type === "spin-start") {
-          spinStartRef.currentAngle = data.currentAngle;
-          spinTargetAngleRef.current = data.targetAngle;
-          spinStartRef.current = performance.now();
-          setSpinning(true);
-          setResult("");
-          setPointerIdx(null);
-        }
-        if (data.type === "spin") {
-          if (data.dangerProbability !== undefined) {
-            setDangerProbability(data.dangerProbability);
-          }
-          if (data.awaitingReset !== undefined) {
-            setAwaitingReset(data.awaitingReset);
-          }
-        }
-        if (data.type === "spin-final") {
-          setSpinAngle(data.finalAngle);
-          setSpinning(false);
-        }
-        if (data.type === "wheel-reset") {
-          setDangerProbability(data.dangerProbability);
-          setAwaitingReset(data.awaitingReset);
-        }
-        // Sync from a welcome/game-data-sync snapshot
-        if (data.type === "welcome" || data.type === "game-data-sync") {
-          if (data.dangerProbability !== undefined) {
-            setDangerProbability(data.dangerProbability);
-          }
-          if (data.awaitingReset !== undefined) {
-            setAwaitingReset(data.awaitingReset);
-          }
-        }
-      }
-      // Show wheel when any wheel event is received
-      setShowWheel(true);
-    });
-    // Show wheel if already connected
-    if (conn) setShowWheel(true);
-  }, [conn, isGM, registerWheelEventHandler]);
+    if (!isGM || !gameId || restoredForGameRef.current === gameId) return;
+    restoredForGameRef.current = gameId;
+    const saved = loadWheelState(gameId);
+    if (!saved) return;
+    setPullsSinceReset(saved.pullsSinceReset ?? 0);
+    setCharactersRemoved(saved.charactersRemoved ?? 0);
+    setDangerProbability(saved.dangerProbability ?? 0);
+    setPeerDangerProbability(saved.dangerProbability ?? 0);
+    setAwaitingReset(saved.awaitingReset ?? false);
+    setPeerAwaitingReset(saved.awaitingReset ?? false);
+  }, [isGM, gameId, setPeerDangerProbability, setPeerAwaitingReset]);
 
-  // Host: handle spin request from player
-  const handleHostSpin = () => {
-    if (spinning) return;
-    const currentAngle = spinAngle;
+  // GM only: persist danger-state so a refresh can restore it above.
+  useEffect(() => {
+    if (!isGM || !gameId) return;
+    saveWheelState(gameId, {
+      pullsSinceReset,
+      charactersRemoved,
+      dangerProbability,
+      awaitingReset,
+    });
+  }, [
+    isGM,
+    gameId,
+    pullsSinceReset,
+    charactersRemoved,
+    dangerProbability,
+    awaitingReset,
+  ]);
+
+  // Host: handle spin request from player. Wrapped in useCallback with a
+  // stable dependency (sendToPeers) so its own identity never changes -
+  // reading spinning/spinAngle through the refs above instead of closing
+  // over the state directly is what makes that safe to do.
+  const handleHostSpin = useCallback(() => {
+    if (spinningRef.current) return;
+    const currentAngle = spinAngleRef.current;
     spinStartRef.currentAngle = currentAngle;
     const minSpins = 3;
     const maxSpins = 6;
@@ -119,8 +126,29 @@ export const WheelProvider = ({ children }) => {
     setResult("");
     setPointerIdx(null);
     // Use PeerProvider to send
-    sendToPeers({ type: "spin-start", currentAngle, targetAngle });
-  };
+    sendToPeers({ type: MESSAGE_TYPES.SPIN_START, currentAngle, targetAngle });
+  }, [sendToPeers]);
+
+  // Register wheel event handler with PeerProvider
+  useEffect(() => {
+    registerWheelEventHandler(
+      createWheelMessageHandler({
+        isGM,
+        handleHostSpin,
+        spinStartRef,
+        spinTargetAngleRef,
+        setSpinning,
+        setResult,
+        setPointerIdx,
+        setSpinAngle,
+        setDangerProbability,
+        setAwaitingReset,
+        setShowWheel,
+      })
+    );
+    // Show wheel if already connected
+    if (conn) setShowWheel(true);
+  }, [conn, isGM, registerWheelEventHandler, handleHostSpin]);
 
   // Player: request spin from host
   const handleSpin = () => {
@@ -130,23 +158,33 @@ export const WheelProvider = ({ children }) => {
       handleHostSpin("host");
     } else {
       // Player requests spin from host
-      sendToPeers({ type: "spin-request", peerId: "player" });
+      sendToPeers({ type: MESSAGE_TYPES.SPIN_REQUEST, peerId: "player" });
     }
   };
 
-  // Host: broadcast spin result to all
+  // Host: resolve the spin outcome and broadcast the authoritative result.
+  // Gated to the GM: every client's own WheelGraphics runs its own animation
+  // and calls this via onSpinEnd, but only the GM's resolution is trusted -
+  // players receive the true outcome via the "spin"/"spin-final" broadcasts
+  // instead of computing (and possibly mis-computing, e.g. after a
+  // backgrounded-tab timing skew) their own.
   const handleSpinEnd = (selectedIdx) => {
+    if (!isGM) return;
     if (selectedIdx == null) return;
     const spinResult = wedges[selectedIdx]?.type;
     if (!spinResult) return;
-    const isDeath = spinResult === "death";
-    setResult(isDeath ? "You Died!" : "Success!");
+    const isDeath = spinResult === WEDGE_TYPES.DEATH;
+    setResult(isDeath ? RESULT_TEXT.DEATH : RESULT_TEXT.SUCCESS);
 
     if (isDeath) {
       setCharactersRemoved((c) => c + 1);
       setAwaitingReset(true);
       setPeerAwaitingReset(true);
-      sendToPeers({ type: "spin", result: spinResult, awaitingReset: true });
+      sendToPeers({
+        type: MESSAGE_TYPES.SPIN,
+        result: spinResult,
+        awaitingReset: true,
+      });
     } else {
       const nextPullsSinceReset = pullsSinceReset + 1;
       const nextDangerProbability = computeDangerProbability(
@@ -158,12 +196,15 @@ export const WheelProvider = ({ children }) => {
       setDangerProbability(nextDangerProbability);
       setPeerDangerProbability(nextDangerProbability);
       sendToPeers({
-        type: "spin",
+        type: MESSAGE_TYPES.SPIN,
         result: spinResult,
         dangerProbability: nextDangerProbability,
       });
     }
-    sendToPeers({ type: "spin-final", finalAngle: spinTargetAngleRef.current });
+    sendToPeers({
+      type: MESSAGE_TYPES.SPIN_FINAL,
+      finalAngle: spinTargetAngleRef.current,
+    });
   };
 
   // GM: re-stack the tower after a collapse, escalating per Dread's rule
@@ -180,7 +221,7 @@ export const WheelProvider = ({ children }) => {
     setAwaitingReset(false);
     setPeerAwaitingReset(false);
     sendToPeers({
-      type: "wheel-reset",
+      type: MESSAGE_TYPES.WHEEL_RESET,
       dangerProbability: nextDangerProbability,
       awaitingReset: false,
     });

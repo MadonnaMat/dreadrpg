@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { usePeer } from "../hooks/usePeer";
+import { MESSAGE_TYPES } from "../constants/messageTypes";
 
 export default function Chat() {
   const {
@@ -18,20 +19,20 @@ export default function Chat() {
   // Register chat event handler
   useEffect(() => {
     registerChatEventHandler((data) => {
-      if (data.type === "chat") {
+      if (data.type === MESSAGE_TYPES.CHAT) {
         setMessages((prev) => [...prev, { from: data.from, text: data.text }]);
 
         if (isGM) {
           // forward chat messages to all players
           sendToPeers({
-            type: "chat",
+            type: MESSAGE_TYPES.CHAT,
             from: data.from,
             text: data.text,
           });
         }
       }
     });
-  }, [registerChatEventHandler]);
+  }, [registerChatEventHandler, isGM, sendToPeers]);
 
   // Scroll to bottom on new message
   useEffect(() => {
@@ -46,7 +47,7 @@ export default function Chat() {
   const handleSend = () => {
     if (!input.trim()) return;
     sendToPeers({
-      type: "chat",
+      type: MESSAGE_TYPES.CHAT,
       from: userDisplayName,
       text: input,
     });

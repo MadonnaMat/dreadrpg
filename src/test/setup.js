@@ -1,4 +1,5 @@
 import "@testing-library/jest-dom";
+import { vi } from "vitest";
 
 // Polyfill Web APIs for Node.js environment
 if (typeof globalThis.TextEncoder === "undefined") {
@@ -46,8 +47,12 @@ if (typeof globalThis.URL === "undefined") {
   };
 }
 
-// Mock PeerJS since it doesn't work well in test environment
-globalThis.Peer = class MockPeer {
+// Mock PeerJS since it doesn't work well in test environment. Real peerjs
+// tries to reach the actual signaling server over WebSocket even under
+// happy-dom, which never resolves/rejects within a test's lifetime - `import
+// Peer from "peerjs"` must resolve to this mock via vi.mock below, not just
+// via a global (ES module imports don't read from globalThis).
+class MockPeer {
   constructor(id) {
     this.id = id;
     this.connections = new Map();
@@ -81,13 +86,26 @@ globalThis.Peer = class MockPeer {
 
   disconnect() {
     this.connections.clear();
+    this.disconnected = true;
+  }
+
+  // Real PeerJS re-establishes the signaling connection and re-fires "open"
+  // with the same id; tests rely on this to exercise reconnect-with-backoff
+  // paths without needing real network behavior.
+  reconnect() {
+    this.disconnected = false;
+    setTimeout(() => {
+      if (this.eventHandlers.open) {
+        this.eventHandlers.open(this.id);
+      }
+    }, 10);
   }
 
   destroy() {
     this.connections.clear();
     this.eventHandlers = {};
   }
-};
+}
 
 class MockConnection {
   constructor(peerId) {
@@ -108,15 +126,27 @@ class MockConnection {
     this.eventHandlers[event] = handler;
   }
 
-  send(data) {
+  send() {
     // Mock send - could be extended to simulate receiving
-    console.log("Mock connection sending:", data);
   }
 
   close() {
     this.open = false;
+    if (this.eventHandlers.close) {
+      this.eventHandlers.close();
+    }
   }
 }
+
+// `import Peer from "peerjs"` must resolve to MockPeer for this to actually
+// take effect - plain `globalThis.Peer = MockPeer` has no effect on an ES
+// module import, so without this every test that calls createGame/joinGame
+// was silently instantiating the real peerjs client (which just never fires
+// any event within a test's lifetime, since it can't reach a real signaling
+// server under happy-dom).
+vi.mock("peerjs", () => ({ default: MockPeer }));
+
+globalThis.Peer = MockPeer;
 
 // Mock URL constructor for browser environment
 Object.defineProperty(window, "location", {

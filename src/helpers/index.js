@@ -1,4 +1,5 @@
 // Helper for wheel danger-probability calculation and wedge geometry.
+import { WEDGE_TYPES } from "../constants/wheelOutcomes";
 
 // Dread's rule for re-stacking the tower after it collapses: "three
 // additional blocks for every character removed from the game." A collapse
@@ -37,8 +38,8 @@ export function getWheelWedges(dangerProbability, wedgePairs = WEDGE_PAIRS) {
   const successShare = (1 - dangerProbability) / wedgePairs;
   const wedges = [];
   for (let i = 0; i < wedgePairs; i++) {
-    wedges.push({ type: "success", angleFraction: successShare });
-    wedges.push({ type: "death", angleFraction: deathShare });
+    wedges.push({ type: WEDGE_TYPES.SUCCESS, angleFraction: successShare });
+    wedges.push({ type: WEDGE_TYPES.DEATH, angleFraction: deathShare });
   }
   return wedges;
 }
