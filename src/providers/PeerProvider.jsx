@@ -33,6 +33,8 @@ export const PeerProvider = ({ children }) => {
     dangerProbability: gameState.dangerProbability,
     awaitingReset: gameState.awaitingReset,
     gameStarted: gameState.gameStarted,
+    theme: gameState.theme,
+    customColors: gameState.customColors,
   });
 
   const peerRef = useRef(null);
@@ -102,6 +104,8 @@ export const PeerProvider = ({ children }) => {
     gameState.setScenario(null); // Reset scenario for new game
     gameState.setCharacters({}); // Reset characters for new game
     gameState.setAllowPlayersToViewSheets(false); // Reset sheet visibility for new game
+    gameState.setTheme("default");
+    gameState.setCustomColors(null);
     session.setConnectionStatus("Waiting for players...");
     session.setUsers({});
 
@@ -191,6 +195,8 @@ export const PeerProvider = ({ children }) => {
         setScenario: gameState.setScenario,
         setCharacters: gameState.setCharacters,
         setAllowPlayersToViewSheets: gameState.setAllowPlayersToViewSheets,
+        setTheme: gameState.setTheme,
+        setCustomColors: gameState.setCustomColors,
       }),
       onStatusChange: (status) => session.setConnectionStatus(status),
     });

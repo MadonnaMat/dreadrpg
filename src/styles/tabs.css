@@ -21,9 +21,9 @@
 }
 
 .tab-button.active {
-  background-color: #2196f3;
+  background-color: var(--color-accent, #2196f3);
   color: white;
-  border-color: #2196f3;
+  border-color: var(--color-accent, #2196f3);
 }
 
 .tab-content {

@@ -17,6 +17,8 @@ export function useCurrentStateRef({
   dangerProbability,
   awaitingReset,
   gameStarted,
+  theme,
+  customColors,
 }) {
   const currentStateRef = useRef({
     scenario: null,
@@ -30,6 +32,8 @@ export function useCurrentStateRef({
     dangerProbability: 0,
     awaitingReset: false,
     gameStarted: false,
+    theme: "default",
+    customColors: null,
   });
 
   useEffect(() => {
@@ -45,6 +49,8 @@ export function useCurrentStateRef({
       dangerProbability,
       awaitingReset,
       gameStarted,
+      theme,
+      customColors,
     };
   }, [
     scenario,
@@ -58,6 +64,8 @@ export function useCurrentStateRef({
     dangerProbability,
     awaitingReset,
     gameStarted,
+    theme,
+    customColors,
   ]);
 
   return currentStateRef;

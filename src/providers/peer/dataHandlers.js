@@ -74,6 +74,8 @@ function applySnapshotToPlayerState(data, setters) {
     setScenario,
     setCharacters,
     setAllowPlayersToViewSheets,
+    setTheme,
+    setCustomColors,
   } = setters;
 
   if (data.users) {
@@ -96,21 +98,32 @@ function applySnapshotToPlayerState(data, setters) {
   if (data.allowPlayersToViewSheets !== undefined) {
     setAllowPlayersToViewSheets(data.allowPlayersToViewSheets);
   }
+  if (data.theme !== undefined) setTheme(data.theme);
+  if (data.customColors !== undefined) setCustomColors(data.customColors);
 }
+
+// GAME_NAME_UPDATE/TOWER_SIZE_UPDATE/THEME_UPDATE only ever originate from
+// the GM's Admin Panel - no equivalent GM-side handling is needed since the
+// GM never receives its own broadcast back. Table-driven so adding another
+// single-field live update later doesn't grow createPlayerDataHandler's own
+// branching complexity.
+const LIVE_UPDATE_HANDLERS = {
+  [MESSAGE_TYPES.GAME_NAME_UPDATE]: (data, { setGameName }) =>
+    setGameName(data.gameName),
+  [MESSAGE_TYPES.TOWER_SIZE_UPDATE]: (data, { setTowerSize }) =>
+    setTowerSize(data.towerSize),
+  [MESSAGE_TYPES.THEME_UPDATE]: (data, { setTheme, setCustomColors }) => {
+    setTheme(data.theme);
+    setCustomColors(data.customColors ?? null);
+  },
+};
 
 // Player side: handle an inbound message on the single connection to the GM
 // - full-state snapshots (welcome/game-data-sync), user-list updates, and
 // forwarding everything else to whichever component registered interest.
 export function createPlayerDataHandler(setters) {
-  const {
-    handlerRefs,
-    setUsers,
-    setConnectionStatus,
-    setConn,
-    setJoinError,
-    setGameName,
-    setTowerSize,
-  } = setters;
+  const { handlerRefs, setUsers, setConnectionStatus, setConn, setJoinError } =
+    setters;
 
   return (data, connection) => {
     dispatchToRegisteredHandlers(data, connection, handlerRefs);
@@ -135,14 +148,7 @@ export function createPlayerDataHandler(setters) {
       setConnectionStatus("");
       setConn(null);
     }
-    // GAME_NAME_UPDATE/TOWER_SIZE_UPDATE only ever originate from the GM's
-    // Admin Panel - no equivalent GM-side handling is needed since the GM
-    // never receives its own broadcast back.
-    if (data && data.type === MESSAGE_TYPES.GAME_NAME_UPDATE) {
-      setGameName(data.gameName);
-    }
-    if (data && data.type === MESSAGE_TYPES.TOWER_SIZE_UPDATE) {
-      setTowerSize(data.towerSize);
-    }
+    const applyLiveUpdate = data && LIVE_UPDATE_HANDLERS[data.type];
+    if (applyLiveUpdate) applyLiveUpdate(data, setters);
   };
 }

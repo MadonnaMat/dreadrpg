@@ -1,0 +1,39 @@
+/* Theme tokens - see src/constants/themes.js for the JS-side list this must
+   stay in sync with. Defaults here match the app's original hardcoded
+   colors exactly, so a game that never touches the Admin Panel's theme
+   picker looks unchanged. Preset blocks below only need to override the
+   handful of tokens that define a theme's identity. */
+:root {
+  --color-bg: #242424;
+  --color-text: rgba(255, 255, 255, 0.87);
+  --color-accent: #2196f3;
+  --color-danger: #f44336;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    --color-bg: #ffffff;
+    --color-text: #213547;
+  }
+}
+
+[data-theme="scifi"] {
+  --color-bg: #0a1128;
+  --color-text: #c7d3ff;
+  --color-accent: #00e5ff;
+  --color-danger: #ff2b5e;
+}
+
+[data-theme="slasher"] {
+  --color-bg: #1a0000;
+  --color-text: #f5e6e6;
+  --color-accent: #8b0000;
+  --color-danger: #ff0000;
+}
+
+[data-theme="halloween"] {
+  --color-bg: #1a0f2e;
+  --color-text: #ffb347;
+  --color-accent: #ff7518;
+  --color-danger: #39ff14;
+}

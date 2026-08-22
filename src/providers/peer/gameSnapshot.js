@@ -19,6 +19,8 @@ export function buildGameSnapshot(type, currentStateRef) {
     scenario: currentStateRef.current.scenario,
     characters: currentStateRef.current.characters,
     allowPlayersToViewSheets: currentStateRef.current.allowPlayersToViewSheets,
+    theme: currentStateRef.current.theme,
+    customColors: currentStateRef.current.customColors,
   };
 }
 

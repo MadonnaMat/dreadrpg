@@ -106,4 +106,49 @@ describe("AdminPanel Component", () => {
     );
     expect(screen.getByText("Characters")).toBeInTheDocument();
   });
+
+  it("defaults to the Default theme with no custom color pickers shown", () => {
+    render(
+      <PeerProvider>
+        <WheelProvider>
+          <GmAdminPanel />
+        </WheelProvider>
+      </PeerProvider>
+    );
+
+    expect(screen.getByLabelText("Theme")).toHaveValue("default");
+    expect(screen.queryByText("Background")).not.toBeInTheDocument();
+  });
+
+  it("lets the GM pick a built-in preset", async () => {
+    render(
+      <PeerProvider>
+        <WheelProvider>
+          <GmAdminPanel />
+        </WheelProvider>
+      </PeerProvider>
+    );
+
+    await user.selectOptions(screen.getByLabelText("Theme"), "scifi");
+
+    expect(screen.getByLabelText("Theme")).toHaveValue("scifi");
+    expect(screen.queryByText("Background")).not.toBeInTheDocument();
+  });
+
+  it("reveals a color picker per theme token when Custom is picked", async () => {
+    render(
+      <PeerProvider>
+        <WheelProvider>
+          <GmAdminPanel />
+        </WheelProvider>
+      </PeerProvider>
+    );
+
+    await user.selectOptions(screen.getByLabelText("Theme"), "custom");
+
+    expect(screen.getByText("Background")).toBeInTheDocument();
+    expect(screen.getByText("Text")).toBeInTheDocument();
+    expect(screen.getByText("Accent")).toBeInTheDocument();
+    expect(screen.getByText("Danger")).toBeInTheDocument();
+  });
 });

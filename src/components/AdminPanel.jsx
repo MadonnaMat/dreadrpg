@@ -2,7 +2,77 @@ import { useState, useEffect } from "react";
 import { usePeer } from "../hooks/usePeer";
 import { useWheel } from "../hooks/useWheel";
 import { MESSAGE_TYPES } from "../constants/messageTypes";
+import {
+  THEME_PRESETS,
+  THEME_TOKENS,
+  THEME_LABELS,
+  THEME_TOKEN_LABELS,
+  DEFAULT_CUSTOM_COLORS,
+} from "../constants/themes";
 import CharacterSheet from "./CharacterSheet";
+
+// GM-only theme picker: built-in presets are pure CSS (see
+// src/styles/themes.css); "custom" broadcasts per-token colors applied
+// inline instead (see useThemeEffect.js).
+function ThemeSection() {
+  const { theme, setTheme, customColors, setCustomColors, sendToPeers } =
+    usePeer();
+  const colors = customColors || DEFAULT_CUSTOM_COLORS;
+
+  const chooseTheme = (newTheme) => {
+    setTheme(newTheme);
+    const payload = { type: MESSAGE_TYPES.THEME_UPDATE, theme: newTheme };
+    if (newTheme === "custom") {
+      const initialColors = customColors || DEFAULT_CUSTOM_COLORS;
+      setCustomColors(initialColors);
+      payload.customColors = initialColors;
+    }
+    sendToPeers(payload);
+  };
+
+  const updateColor = (token, value) => {
+    const nextColors = { ...colors, [token]: value };
+    setCustomColors(nextColors);
+    sendToPeers({
+      type: MESSAGE_TYPES.THEME_UPDATE,
+      theme: "custom",
+      customColors: nextColors,
+    });
+  };
+
+  return (
+    <div className="admin-field">
+      <label htmlFor="admin-theme">Theme</label>
+      <select
+        id="admin-theme"
+        className="pregame-input"
+        value={theme}
+        onChange={(e) => chooseTheme(e.target.value)}
+      >
+        {THEME_PRESETS.map((preset) => (
+          <option key={preset} value={preset}>
+            {THEME_LABELS[preset]}
+          </option>
+        ))}
+      </select>
+
+      {theme === "custom" && (
+        <div className="theme-custom-colors">
+          {THEME_TOKENS.map((token) => (
+            <label key={token} className="theme-color-field">
+              {THEME_TOKEN_LABELS[token]}
+              <input
+                type="color"
+                value={colors[token] || "#000000"}
+                onChange={(e) => updateColor(token, e.target.value)}
+              />
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // GM-only settings hub: campaign name, tower size, and Start Game -
 // previously scattered (tower size was a one-shot PreGame input, campaign
@@ -69,6 +139,8 @@ export default function AdminPanel({ showRoster = true }) {
           onBlur={saveTowerSize}
         />
       </div>
+
+      <ThemeSection />
 
       {!gameStarted && (
         <button id="start-game-btn" onClick={startGame}>

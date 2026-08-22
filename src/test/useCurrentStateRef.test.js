@@ -20,6 +20,8 @@ describe("useCurrentStateRef", () => {
       dangerProbability: 0.4,
       awaitingReset: true,
       gameStarted: true,
+      theme: "scifi",
+      customColors: null,
     };
 
     const { result } = renderHook(() => useCurrentStateRef(props));

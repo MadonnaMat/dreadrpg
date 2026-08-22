@@ -25,4 +25,5 @@ export const MESSAGE_TYPES = {
   GAME_STARTED: "game-started",
   GAME_NAME_UPDATE: "game-name-update",
   TOWER_SIZE_UPDATE: "tower-size-update",
+  THEME_UPDATE: "theme-update",
 };

@@ -153,3 +153,19 @@
   font-weight: bold;
   margin-bottom: 4px;
 }
+
+.theme-custom-colors {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.theme-color-field {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 12px;
+  font-weight: normal;
+  gap: 4px;
+}

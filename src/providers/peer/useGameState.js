@@ -23,6 +23,11 @@ export function useGameState() {
   const [characters, setCharacters] = useState({});
   const [allowPlayersToViewSheets, setAllowPlayersToViewSheets] =
     useState(false);
+  // "default"|"scifi"|"slasher"|"halloween"|"custom" - see
+  // src/constants/themes.js. customColors only matters when theme is
+  // "custom": { [cssVariableName]: hexColor }.
+  const [theme, setTheme] = useState("default");
+  const [customColors, setCustomColors] = useState(null);
 
   return {
     gameName,
@@ -41,5 +46,9 @@ export function useGameState() {
     setCharacters,
     allowPlayersToViewSheets,
     setAllowPlayersToViewSheets,
+    theme,
+    setTheme,
+    customColors,
+    setCustomColors,
   };
 }
