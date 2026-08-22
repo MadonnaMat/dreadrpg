@@ -208,4 +208,38 @@ describe("AdminPanel Component", () => {
 
     expect(screen.queryByText("Bob (offline)")).not.toBeInTheDocument();
   });
+
+  it("defaults the death narration to the standard template", () => {
+    render(
+      <PeerProvider>
+        <WheelProvider>
+          <GmAdminPanel />
+        </WheelProvider>
+      </PeerProvider>
+    );
+
+    expect(screen.getByDisplayValue("{name} Died!")).toBeInTheDocument();
+  });
+
+  it("lets the GM customize the death narration on blur", async () => {
+    render(
+      <PeerProvider>
+        <WheelProvider>
+          <GmAdminPanel />
+        </WheelProvider>
+      </PeerProvider>
+    );
+
+    const textarea = screen.getByLabelText(/Death Narration/);
+    await user.clear(textarea);
+    // userEvent.type() treats {..} as special key syntax - only the
+    // opening brace needs escaping (as {{) to type a literal "{"; a lone
+    // "}" is never special on its own.
+    await user.type(textarea, "{{name} vanishes into the dark.");
+    await user.tab();
+
+    expect(
+      screen.getByDisplayValue("{name} vanishes into the dark.")
+    ).toBeInTheDocument();
+  });
 });

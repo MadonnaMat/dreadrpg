@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   computeDangerProbability,
   getWheelWedges,
+  initialVirtualPullsForPlayerCount,
   WEDGE_PAIRS,
 } from "../helpers";
 
@@ -56,6 +57,34 @@ describe("computeDangerProbability", () => {
     expect(p).toBeGreaterThan(0);
     expect(p).toBeLessThan(1);
     expect(p).toBeGreaterThan(0.99);
+  });
+
+  it("folds initialVirtualPulls in exactly like charactersRemoved's virtual pulls (Dread's pre-pull-by-player-count rule)", () => {
+    const withInitialPulls = computeDangerProbability(0, 0, 25, 6);
+    const equivalentPulls = computeDangerProbability(6, 0, 25);
+    expect(withInitialPulls).toBe(equivalentPulls);
+  });
+
+  it("defaults initialVirtualPulls to 0 when omitted, unchanged from before item 11", () => {
+    const withDefault = computeDangerProbability(5, 1, 25);
+    const explicitZero = computeDangerProbability(5, 1, 25, 0);
+    expect(withDefault).toBe(explicitZero);
+  });
+});
+
+describe("initialVirtualPullsForPlayerCount", () => {
+  it("pre-pulls 3 blocks for every player under 5", () => {
+    expect(initialVirtualPullsForPlayerCount(1)).toBe(12);
+    expect(initialVirtualPullsForPlayerCount(4)).toBe(3);
+  });
+
+  it("adds nothing once the table has 5 or more players", () => {
+    expect(initialVirtualPullsForPlayerCount(5)).toBe(0);
+    expect(initialVirtualPullsForPlayerCount(8)).toBe(0);
+  });
+
+  it("never goes negative for an implausibly large player count", () => {
+    expect(initialVirtualPullsForPlayerCount(20)).toBe(0);
   });
 });
 

@@ -29,4 +29,5 @@ export const MESSAGE_TYPES = {
   GAME_NAME_UPDATE: "game-name-update",
   TOWER_SIZE_UPDATE: "tower-size-update",
   THEME_UPDATE: "theme-update",
+  DEATH_FLAVOR_TEXT_UPDATE: "death-flavor-text-update",
 };

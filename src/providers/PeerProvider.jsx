@@ -15,6 +15,7 @@ import { useRegisteredHandlers } from "./peer/useRegisteredHandlers";
 import { useCurrentStateRef } from "./peer/useCurrentStateRef";
 import { applyCharacterEvent } from "./peer/characterEvents";
 import { MESSAGE_TYPES } from "../constants/messageTypes";
+import { DEFAULT_DEATH_FLAVOR_TEXT } from "../constants/wheelOutcomes";
 
 export const PeerProvider = ({ children }) => {
   const session = usePeerSession();
@@ -37,6 +38,7 @@ export const PeerProvider = ({ children }) => {
     presence: gameState.presence,
     theme: gameState.theme,
     customColors: gameState.customColors,
+    deathFlavorText: gameState.deathFlavorText,
   });
 
   const peerRef = useRef(null);
@@ -127,6 +129,7 @@ export const PeerProvider = ({ children }) => {
     gameState.setAllowPlayersToViewSheets(false); // Reset sheet visibility for new game
     gameState.setTheme("default");
     gameState.setCustomColors(null);
+    gameState.setDeathFlavorText(DEFAULT_DEATH_FLAVOR_TEXT);
     // The GM never goes through the JOIN handshake that normally creates a
     // presence entry, so seed their own here - otherwise they'd never show
     // up in the online/offline roster at all.
@@ -240,6 +243,7 @@ export const PeerProvider = ({ children }) => {
         setAllowPlayersToViewSheets: gameState.setAllowPlayersToViewSheets,
         setTheme: gameState.setTheme,
         setCustomColors: gameState.setCustomColors,
+        setDeathFlavorText: gameState.setDeathFlavorText,
       }),
       onStatusChange: (status) => session.setConnectionStatus(status),
     });

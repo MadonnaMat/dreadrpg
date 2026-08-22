@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { DEFAULT_DEATH_FLAVOR_TEXT } from "../../constants/wheelOutcomes";
 
 // The shared game-domain state that gets synced across peers via the
 // welcome/game-data-sync snapshot (see gameSnapshot.js).
@@ -39,6 +40,12 @@ export function useGameState() {
   // "custom": { [cssVariableName]: hexColor }.
   const [theme, setTheme] = useState("default");
   const [customColors, setCustomColors] = useState(null);
+  // GM-editable death narration template (a {name} placeholder gets
+  // substituted with the designated spinner's character name) - see
+  // docs/rules/compliance-fix-plan.md item 11b.
+  const [deathFlavorText, setDeathFlavorText] = useState(
+    DEFAULT_DEATH_FLAVOR_TEXT
+  );
 
   return {
     gameName,
@@ -65,5 +72,7 @@ export function useGameState() {
     setTheme,
     customColors,
     setCustomColors,
+    deathFlavorText,
+    setDeathFlavorText,
   };
 }

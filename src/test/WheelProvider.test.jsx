@@ -13,13 +13,22 @@ import React from "react";
 // current dangerProbability - this keeps handleSpinEnd(idx) calls in tests
 // deterministic without depending on the real WEDGE_PAIRS arrangement.
 vi.mock("../helpers", () => ({
-  computeDangerProbability: vi.fn((pullsSinceReset, charactersRemoved) =>
-    pullsSinceReset === 0 && charactersRemoved === 0 ? 0 : 0.5
+  computeDangerProbability: vi.fn(
+    (pullsSinceReset, charactersRemoved, towerSize, initialVirtualPulls = 0) =>
+      pullsSinceReset === 0 &&
+      charactersRemoved === 0 &&
+      initialVirtualPulls === 0
+        ? 0
+        : 0.5
   ),
   getWheelWedges: vi.fn((dangerProbability) => [
     { type: "success", angleFraction: 1 - dangerProbability },
     { type: "death", angleFraction: dangerProbability },
   ]),
+  // No players joined in these tests (a bare TestWrapper/GM with no
+  // opponents), so this is always 3 * 5 = 15 - irrelevant to what these
+  // tests assert on, but must exist so startGame() doesn't throw.
+  initialVirtualPullsForPlayerCount: vi.fn(() => 15),
 }));
 
 // Test component to access WheelProvider context
@@ -187,7 +196,7 @@ describe("WheelProvider", () => {
 
     await user.click(screen.getByText("End Spin Success"));
 
-    expect(computeDangerProbability).toHaveBeenCalledWith(1, 0, 25);
+    expect(computeDangerProbability).toHaveBeenCalledWith(1, 0, 25, 0);
     expect(screen.getByTestId("result")).toHaveTextContent("Success!");
     expect(screen.getByTestId("awaiting-reset")).toHaveTextContent("false");
   });
@@ -240,7 +249,7 @@ describe("WheelProvider", () => {
 
     await user.click(screen.getByText("Restack"));
 
-    expect(computeDangerProbability).toHaveBeenCalledWith(0, 1, 25);
+    expect(computeDangerProbability).toHaveBeenCalledWith(0, 1, 25, 0);
     expect(screen.getByTestId("awaiting-reset")).toHaveTextContent("false");
   });
 
@@ -307,6 +316,38 @@ describe("WheelProvider", () => {
     await user.click(screen.getByText("Start Game"));
 
     expect(screen.getByTestId("show-wheel")).toHaveTextContent("true");
+  });
+
+  it("GM: startGame seeds the danger curve from the actual joined player count", async () => {
+    const { initialVirtualPullsForPlayerCount, computeDangerProbability } =
+      await import("../helpers");
+
+    // AsGM only sets hostName - seed a couple of joined players too, so
+    // Object.keys(users).length reflects a real lobby instead of 0.
+    function AsGMWithPlayers({ children }) {
+      const { setIsGM, setHostName, setUsers } = usePeer();
+      useEffect(() => {
+        setIsGM(true);
+        setHostName("Host");
+        setUsers({ p1: "Host", p2: "Alice", p3: "Bob" });
+      }, [setIsGM, setHostName, setUsers]);
+      return children;
+    }
+
+    render(
+      <PeerProvider>
+        <WheelProvider>
+          <AsGMWithPlayers>
+            <TestWheelComponent />
+          </AsGMWithPlayers>
+        </WheelProvider>
+      </PeerProvider>
+    );
+
+    await user.click(screen.getByText("Start Game"));
+
+    expect(initialVirtualPullsForPlayerCount).toHaveBeenCalledWith(3);
+    expect(computeDangerProbability).toHaveBeenCalledWith(0, 0, 25, 15);
   });
 
   it("non-GM: startGame is a no-op", async () => {

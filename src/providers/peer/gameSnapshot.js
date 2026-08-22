@@ -23,6 +23,7 @@ export function buildGameSnapshot(type, currentStateRef) {
     allowPlayersToViewSheets: currentStateRef.current.allowPlayersToViewSheets,
     theme: currentStateRef.current.theme,
     customColors: currentStateRef.current.customColors,
+    deathFlavorText: currentStateRef.current.deathFlavorText,
   };
 }
 

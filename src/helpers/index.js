@@ -22,13 +22,26 @@ const HAZARD_STEEPNESS = 8;
 // reads as multiple distinct blocks instead of one fused slice.
 export const WEDGE_PAIRS = 6;
 
+// Dread's rule for a small table: "stack the tower and pre-pull 3 blocks
+// for every player you have less than 5" - a game with fewer than 5
+// players starts harder. Modeled the same way as the re-stack rule above:
+// extra "virtual" pulls already spent before the first real spin. Player
+// count is only known once the GM actually starts the game (see
+// WheelProvider's startGame), not at creation time.
+export function initialVirtualPullsForPlayerCount(joinedPlayerCount) {
+  return BLOCKS_PER_REMOVED_CHARACTER * Math.max(0, 5 - joinedPlayerCount);
+}
+
 export function computeDangerProbability(
   pullsSinceReset,
   charactersRemoved,
-  towerSize
+  towerSize,
+  initialVirtualPulls = 0
 ) {
   const virtualPulls =
-    pullsSinceReset + BLOCKS_PER_REMOVED_CHARACTER * charactersRemoved;
+    pullsSinceReset +
+    BLOCKS_PER_REMOVED_CHARACTER * charactersRemoved +
+    initialVirtualPulls;
   const x = virtualPulls / towerSize;
   return 1 / (1 + Math.exp(-HAZARD_STEEPNESS * (x - HAZARD_MIDPOINT_FRACTION)));
 }

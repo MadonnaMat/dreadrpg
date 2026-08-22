@@ -13,6 +13,14 @@ export const WEDGE_TYPES = {
 // locally from `result` the way SUCCESS_TEXT still is.
 export const SUCCESS_TEXT = "Success!";
 
-export function deathText(characterName) {
-  return `${characterName} Died!`;
+// The GM-editable default (see useGameState.js's deathFlavorText) - a
+// {name} placeholder gets substituted with the designated spinner's
+// character name. Deliberately not copying the rulebook's own copyrighted
+// list of ~25 flavor outcomes; this just gives the GM one customizable
+// template instead of a hardcoded "You Died!" shown to everyone.
+export const DEFAULT_DEATH_FLAVOR_TEXT = "{name} Died!";
+
+export function deathText(flavorTextTemplate, characterName) {
+  const template = flavorTextTemplate || DEFAULT_DEATH_FLAVOR_TEXT;
+  return template.replaceAll("{name}", characterName);
 }

@@ -5,7 +5,11 @@ import React, {
   useMemo,
   useCallback,
 } from "react";
-import { computeDangerProbability, getWheelWedges } from "../helpers";
+import {
+  computeDangerProbability,
+  getWheelWedges,
+  initialVirtualPullsForPlayerCount,
+} from "../helpers";
 import { characterNameFor } from "../helpers/characters";
 import { usePeer } from "../hooks/usePeer";
 import { WheelContext } from "../contexts/WheelContext";
@@ -24,11 +28,13 @@ export const WheelProvider = ({ children }) => {
     gameId,
     userName,
     hostName,
+    users,
     characters,
     registerWheelEventHandler,
     sendToPeers,
     sendSystemChatMessage,
     towerSize,
+    deathFlavorText,
     dangerProbability: peerDangerProbability,
     awaitingReset: peerAwaitingReset,
     designatedSpinner: peerDesignatedSpinner,
@@ -60,6 +66,11 @@ export const WheelProvider = ({ children }) => {
   // Pulls since the tower was last (re-)stacked; only meaningful for the GM,
   // who is the only one who ever computes the next dangerProbability.
   const [pullsSinceReset, setPullsSinceReset] = useState(0);
+  // Extra virtual pulls baked in at startGame() from the actual joined
+  // player count ("pre-pull 3 blocks per player under 5") - GM-local, same
+  // reasoning as pullsRequired/pullsRemaining above: only the GM's own
+  // computeDangerProbability calls ever need it.
+  const [initialVirtualPulls, setInitialVirtualPulls] = useState(0);
   // Cumulative count of "death" spins this session, so each re-stack of the
   // wheel is escalated per Dread's re-stacking rule (see helpers/index.js).
   const [charactersRemoved, setCharactersRemoved] = useState(0);
@@ -247,12 +258,38 @@ export const WheelProvider = ({ children }) => {
   // GM only: explicitly move everyone from the lobby into the game. Replaces
   // the old behavior where the first player connecting silently flipped
   // showWheel for everyone - see docs/rules/compliance-fix-plan.md item 1.
+  // Also seeds the initial danger curve from the actual joined player count
+  // (item 11) - a table with fewer than 5 players starts harder, per
+  // Dread's own pre-pull-scaling rule.
   const startGame = useCallback(() => {
     if (!isGM) return;
+    const joinedPlayerCount = Object.keys(users || {}).length;
+    const virtualPulls = initialVirtualPullsForPlayerCount(joinedPlayerCount);
+    const nextDangerProbability = computeDangerProbability(
+      pullsSinceReset,
+      charactersRemoved,
+      towerSize,
+      virtualPulls
+    );
+    setInitialVirtualPulls(virtualPulls);
+    setDangerProbability(nextDangerProbability);
+    setPeerDangerProbability(nextDangerProbability);
     setShowWheel(true);
     setPeerGameStarted(true);
-    sendToPeers({ type: MESSAGE_TYPES.GAME_STARTED });
-  }, [isGM, sendToPeers, setPeerGameStarted]);
+    sendToPeers({
+      type: MESSAGE_TYPES.GAME_STARTED,
+      dangerProbability: nextDangerProbability,
+    });
+  }, [
+    isGM,
+    users,
+    pullsSinceReset,
+    charactersRemoved,
+    towerSize,
+    sendToPeers,
+    setPeerDangerProbability,
+    setPeerGameStarted,
+  ]);
 
   // Player (or GM if self-assigned): request the spin they've been assigned.
   // Elective, ask-anyone-anytime spinning is deliberately gone (see
@@ -296,13 +333,15 @@ export const WheelProvider = ({ children }) => {
       characters,
       designatedSpinner
     );
-    const resultText = isDeath ? deathText(spinnerCharacterName) : SUCCESS_TEXT;
+    const resultText = isDeath
+      ? deathText(deathFlavorText, spinnerCharacterName)
+      : SUCCESS_TEXT;
     setResult(resultText);
 
     if (isDeath) {
       // Death ends a multi-pull action early, no matter how many successful
       // pulls came before it - the character is removed either way.
-      sendSystemChatMessage(`${spinnerCharacterName} Died!`);
+      sendSystemChatMessage(resultText);
       setDesignatedSpinner(null);
       setPeerDesignatedSpinner(null);
       setPullsRequired(1);
@@ -323,7 +362,8 @@ export const WheelProvider = ({ children }) => {
       const nextDangerProbability = computeDangerProbability(
         nextPullsSinceReset,
         charactersRemoved,
-        towerSize
+        towerSize,
+        initialVirtualPulls
       );
       setPullsSinceReset(nextPullsSinceReset);
       setDangerProbability(nextDangerProbability);
@@ -371,7 +411,8 @@ export const WheelProvider = ({ children }) => {
     const nextDangerProbability = computeDangerProbability(
       0,
       charactersRemoved,
-      towerSize
+      towerSize,
+      initialVirtualPulls
     );
     setDangerProbability(nextDangerProbability);
     setPeerDangerProbability(nextDangerProbability);

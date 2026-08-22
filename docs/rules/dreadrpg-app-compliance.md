@@ -96,19 +96,20 @@ message pipeline). See `docs/rules/compliance-fix-plan.md` item 7.
 
 ## "Ways to remove a character" (death is only one option)
 
-**🔷 Gap** (cosmetic/content, not mechanical) — **partially addressed this
-pass.** The rulebook lists ~25 host-narrated outcomes for a removed
-character — death is just one. The app's death message now names the
-actual character (`` `${characterName} Died!` ``,
-`src/constants/wheelOutcomes.js` `deathText`) instead of a generic "You
-Died!" shown to everyone, but it's still always the same flavor verb
-("Died"). Not fixed this pass: a GM-editable/varied flavor-text field is
-still open (`compliance-fix-plan.md` item 11b) — deliberately **not**
-copying the rulebook's own copyrighted flavor-text list into shipped UI.
+**🔧 Fixed this pass** (cosmetic/content, not mechanical). The rulebook
+lists ~25 host-narrated outcomes for a removed character — death is just
+one. The app's death message already named the actual character as of item
+7 (`` `${characterName} Died!` ``); the GM can now also rewrite the
+narration template itself from the Admin Panel (`deathFlavorText` in
+`src/providers/peer/useGameState.js`, a `{name}` placeholder substituted by
+`deathText` in `src/constants/wheelOutcomes.js`), synced like the other
+Admin Panel settings. Deliberately **not** copying the rulebook's own
+copyrighted flavor-text list into shipped UI — the GM writes their own
+instead of picking from a canned list.
 
 ## Elective pulls
 
-**🔷 Deliberate trade-off this pass** (was ✅, incidentally). "Players
+**🟡 Deliberate trade-off this pass** (was ✅, incidentally). "Players
 always have the option to pull a block without being asked." Before this
 pass, the app's spin button was never gated — any player could request a
 spin at any time. To support GM-directed turns and a Decline affordance
@@ -162,14 +163,21 @@ side's spin.
 
 ## Initial pre-pull scaled to player count
 
-**🔷 Gap.** "Stack the tower and pre-pull 3 blocks for every player you
-have less than 5" — a game with fewer than 5 players should start harder.
-`PeerProvider.createGame` (`src/providers/PeerProvider.jsx`) always starts a
-new game with `Array(numWedgesArg).fill("success")` regardless of player
-count (the host sets `numWedges` manually, unrelated to who's actually
-joined). Not fixed this pass: would need to either delay initial wheel setup
-until players have joined, or retroactively apply pre-pulls as the lobby
-fills — a real behavior change to game start, not a one-line fix.
+**🔧 Fixed this pass.** "Stack the tower and pre-pull 3 blocks for every
+player you have less than 5" — a game with fewer than 5 players should
+start harder. Item 1's explicit lobby → Start Game transition made this
+possible: `startGame()` (`src/providers/WheelProvider.jsx`) now reads the
+actual joined player count at that moment and feeds
+`initialVirtualPullsForPlayerCount(joinedPlayerCount)` (`src/helpers/
+index.js`, `3 * max(0, 5 - joinedPlayerCount)`) into
+`computeDangerProbability` as extra virtual pulls — the same mechanism
+`charactersRemoved` already used, not a separate curve. Already-connected
+players get the recomputed probability immediately via the
+`game-started` broadcast. Verified in `src/test/helpers.test.js`
+(`initialVirtualPullsForPlayerCount`'s own cases, and that it folds into
+`computeDangerProbability` identically to an equivalent `pullsSinceReset`
+offset) and `src/test/WheelProvider.test.jsx` (`startGame` reading the real
+joined-player count from `users`).
 
 ## Questionnaires: unique per character vs. one shared list
 
@@ -228,19 +236,19 @@ either way.
 
 ## Summary
 
-| Area                                 | Verdict                                   |
-| ------------------------------------ | ----------------------------------------- |
-| GM/host model                        | ✅                                        |
-| Tower → wheel                        | 🟡 by design                              |
-| Escalating danger after a collapse   | 🔧 fixed this pass                        |
-| Decline-a-pull vs. collapse severity | 🔧 fixed this pass                        |
-| "Ways to remove a character" flavor  | 🔷 gap (partial - named death text fixed) |
-| Elective pulls                       | 🔷 deliberate trade-off (see notes)       |
-| Multi-pull complex tasks             | 🔧 fixed this pass                        |
-| Conflict between characters          | 🟡 by design                              |
-| Mismatched opponents                 | 🟡 by design                              |
-| Initial pre-pull by player count     | 🔷 gap                                    |
-| Unique per-character questionnaires  | 🔧 fixed this pass                        |
-| Question count                       | ✅                                        |
-| Host approval of answers             | 🔧 fixed this pass                        |
-| Scenario structure                   | 🟡 by design                              |
+| Area                                 | Verdict                             |
+| ------------------------------------ | ----------------------------------- |
+| GM/host model                        | ✅                                  |
+| Tower → wheel                        | 🟡 by design                        |
+| Escalating danger after a collapse   | 🔧 fixed this pass                  |
+| Decline-a-pull vs. collapse severity | 🔧 fixed this pass                  |
+| "Ways to remove a character" flavor  | 🔧 fixed this pass                  |
+| Elective pulls                       | 🟡 deliberate trade-off (see notes) |
+| Multi-pull complex tasks             | 🔧 fixed this pass                  |
+| Conflict between characters          | 🟡 by design                        |
+| Mismatched opponents                 | 🟡 by design                        |
+| Initial pre-pull by player count     | 🔧 fixed this pass                  |
+| Unique per-character questionnaires  | 🔧 fixed this pass                  |
+| Question count                       | ✅                                  |
+| Host approval of answers             | 🔧 fixed this pass                  |
+| Scenario structure                   | 🟡 by design                        |

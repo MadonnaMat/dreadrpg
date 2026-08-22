@@ -88,6 +88,12 @@ function handlePlayerMessage(data, setters) {
   }
   if (data.type === MESSAGE_TYPES.GAME_STARTED) {
     setShowWheel(true);
+    // Carries the danger curve recomputed from the actual joined player
+    // count (item 11) - already-connected players learn the harder
+    // starting probability immediately, not just at the next spin.
+    if (data.dangerProbability !== undefined) {
+      setDangerProbability(data.dangerProbability);
+    }
   }
   if (
     data.type === MESSAGE_TYPES.WELCOME ||

@@ -68,6 +68,27 @@ export function createHostDataHandler({
   };
 }
 
+// The Admin Panel's own settings (campaign name/tower size/theme/death
+// narration) - extracted purely to keep applySnapshotToPlayerState's own
+// branching complexity down; each field is independently optional.
+function applyAdminSettings(data, setters) {
+  const {
+    setGameName,
+    setTowerSize,
+    setTheme,
+    setCustomColors,
+    setDeathFlavorText,
+  } = setters;
+
+  if (data.gameName !== undefined) setGameName(data.gameName);
+  if (data.towerSize !== undefined) setTowerSize(data.towerSize);
+  if (data.theme !== undefined) setTheme(data.theme);
+  if (data.customColors !== undefined) setCustomColors(data.customColors);
+  if (data.deathFlavorText !== undefined) {
+    setDeathFlavorText(data.deathFlavorText);
+  }
+}
+
 // Applies a full welcome/game-data-sync snapshot to player-side state.
 // Extracted out of createPlayerDataHandler purely to keep that function's
 // branching complexity down - each field is independently optional.
@@ -76,8 +97,6 @@ function applySnapshotToPlayerState(data, setters) {
     setUsers,
     setPresence,
     setConnectionStatus,
-    setGameName,
-    setTowerSize,
     setDangerProbability,
     setAwaitingReset,
     setDesignatedSpinner,
@@ -85,8 +104,6 @@ function applySnapshotToPlayerState(data, setters) {
     setScenario,
     setCharacters,
     setAllowPlayersToViewSheets,
-    setTheme,
-    setCustomColors,
   } = setters;
 
   if (data.users) {
@@ -98,8 +115,6 @@ function applySnapshotToPlayerState(data, setters) {
     );
   }
   if (data.presence) setPresence(data.presence);
-  if (data.gameName !== undefined) setGameName(data.gameName);
-  if (data.towerSize !== undefined) setTowerSize(data.towerSize);
   if (data.dangerProbability !== undefined) {
     setDangerProbability(data.dangerProbability);
   }
@@ -113,8 +128,7 @@ function applySnapshotToPlayerState(data, setters) {
   if (data.allowPlayersToViewSheets !== undefined) {
     setAllowPlayersToViewSheets(data.allowPlayersToViewSheets);
   }
-  if (data.theme !== undefined) setTheme(data.theme);
-  if (data.customColors !== undefined) setCustomColors(data.customColors);
+  applyAdminSettings(data, setters);
 }
 
 // GAME_NAME_UPDATE/TOWER_SIZE_UPDATE/THEME_UPDATE only ever originate from
@@ -133,6 +147,8 @@ const LIVE_UPDATE_HANDLERS = {
   },
   [MESSAGE_TYPES.PRESENCE_UPDATE]: (data, { setPresence }) =>
     setPresence(data.presence),
+  [MESSAGE_TYPES.DEATH_FLAVOR_TEXT_UPDATE]: (data, { setDeathFlavorText }) =>
+    setDeathFlavorText(data.deathFlavorText),
 };
 
 // Player side: handle an inbound message on the single connection to the GM

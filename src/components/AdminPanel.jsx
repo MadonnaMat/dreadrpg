@@ -136,6 +136,43 @@ function PlayerPresenceSection() {
   );
 }
 
+// GM-only death narration editor - closes the "ways to remove a character"
+// gap (docs/rules/compliance-fix-plan.md item 11b) without copying the
+// rulebook's own copyrighted flavor-text list: the GM writes their own,
+// with a {name} placeholder for the designated spinner's character name.
+function DeathFlavorTextSection() {
+  const { deathFlavorText, setDeathFlavorText, sendToPeers } = usePeer();
+  const [draft, setDraft] = useState(deathFlavorText);
+
+  useEffect(() => setDraft(deathFlavorText), [deathFlavorText]);
+
+  const save = () => {
+    const trimmed = draft.trim();
+    if (!trimmed || trimmed === deathFlavorText) return;
+    setDeathFlavorText(trimmed);
+    sendToPeers({
+      type: MESSAGE_TYPES.DEATH_FLAVOR_TEXT_UPDATE,
+      deathFlavorText: trimmed,
+    });
+  };
+
+  return (
+    <div className="admin-field">
+      <label htmlFor="admin-death-flavor-text">
+        Death Narration (use {"{name}"} for the character's name)
+      </label>
+      <textarea
+        id="admin-death-flavor-text"
+        className="pregame-input"
+        rows={2}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={save}
+      />
+    </div>
+  );
+}
+
 // GM-only settings hub: campaign name, tower size, and Start Game -
 // previously scattered (tower size was a one-shot PreGame input, campaign
 // name didn't exist, and Start Game lived alone in the Lobby tab). Also
@@ -203,6 +240,8 @@ export default function AdminPanel({ showRoster = true }) {
       </div>
 
       <ThemeSection />
+
+      <DeathFlavorTextSection />
 
       <PlayerPresenceSection />
 
