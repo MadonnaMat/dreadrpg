@@ -8,8 +8,14 @@ import Chat from "./Chat";
 // thrown straight into GameLoaded the instant they connected. Lets them
 // chat and claim one of the GM's unassigned characters while waiting.
 export default function PlayerLobby() {
-  const { connectionStatus, userName, characters, setCharacters, sendToPeers } =
-    usePeer();
+  const {
+    connectionStatus,
+    userName,
+    characters,
+    setCharacters,
+    sendToPeers,
+    gameName,
+  } = usePeer();
 
   const characterList = Object.values(characters || {});
   const myCharacter = characterList.find((c) => c.assignedTo === userName);
@@ -29,6 +35,7 @@ export default function PlayerLobby() {
 
   return (
     <div id="player-lobby">
+      {gameName && <h2>{gameName}</h2>}
       <div id="connection-status" style={{ padding: 8, fontWeight: "bold" }}>
         {connectionStatus}
       </div>

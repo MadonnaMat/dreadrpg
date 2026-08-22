@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
 import { usePeer } from "../hooks/usePeer";
-import { useWheel } from "../hooks/useWheel";
 import Scenario from "./Scenario";
-import CharacterSheet from "./CharacterSheet";
+import AdminPanel from "./AdminPanel";
 import PlayerLobby from "./PlayerLobby";
 
 function generateGameId() {
@@ -25,8 +24,15 @@ function CreateSection({
   connectionStatus,
 }) {
   const [towerSize, setTowerSize] = useState(25);
+  const [gameName, setGameName] = useState("");
   return (
     <div id="create-game">
+      <input
+        className="pregame-input"
+        placeholder="Campaign Name"
+        value={gameName}
+        onChange={(e) => setGameName(e.target.value)}
+      />
       <input
         className="pregame-input"
         placeholder="Your Name"
@@ -46,9 +52,14 @@ function CreateSection({
         onClick={() => {
           const newGameId = generateGameId();
           setGameId(newGameId);
-          createGame(newGameId, hostName || "Host", towerSize);
+          createGame(
+            newGameId,
+            hostName || "Host",
+            towerSize,
+            gameName || "Untitled Campaign"
+          );
         }}
-        disabled={!hostName}
+        disabled={!hostName || !gameName}
       >
         Create
       </button>
@@ -65,7 +76,6 @@ function CreateSection({
 }
 
 function HostLobbyPanel({ gameId, connectionStatus, users, getShareUrl }) {
-  const { startGame } = useWheel();
   const [activeTab, setActiveTab] = useState("lobby");
 
   return (
@@ -74,7 +84,7 @@ function HostLobbyPanel({ gameId, connectionStatus, users, getShareUrl }) {
         {[
           ["lobby", "Lobby"],
           ["scenario", "Setup Scenario"],
-          ["characters", "Setup Characters"],
+          ["admin", "Admin"],
         ].map(([tab, label]) => (
           <button
             key={tab}
@@ -126,19 +136,14 @@ function HostLobbyPanel({ gameId, connectionStatus, users, getShareUrl }) {
                 automatically shared with players when they join.
               </p>
             </div>
-            <div id="start-game-section" style={{ marginTop: 16 }}>
-              <div style={{ marginBottom: 8 }}>
-                <strong>Players joined:</strong>{" "}
-                {Math.max(0, Object.keys(users || {}).length - 1)}
-              </div>
-              <button id="start-game-btn" onClick={startGame}>
-                Start Game
-              </button>
+            <div style={{ marginTop: 16 }}>
+              <strong>Players joined:</strong>{" "}
+              {Math.max(0, Object.keys(users || {}).length - 1)}
             </div>
           </div>
         )}
         {activeTab === "scenario" && <Scenario />}
-        {activeTab === "characters" && <CharacterSheet />}
+        {activeTab === "admin" && <AdminPanel />}
       </div>
     </>
   );

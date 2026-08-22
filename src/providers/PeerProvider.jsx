@@ -23,6 +23,7 @@ export const PeerProvider = ({ children }) => {
 
   const currentStateRef = useCurrentStateRef({
     scenario: gameState.scenario,
+    gameName: gameState.gameName,
     characters: gameState.characters,
     allowPlayersToViewSheets: gameState.allowPlayersToViewSheets,
     users: session.users,
@@ -84,10 +85,16 @@ export const PeerProvider = ({ children }) => {
   ]);
 
   // Host: create game
-  const createGame = (newGameId, hostNameArg, towerSizeArg = 25) => {
+  const createGame = (
+    newGameId,
+    hostNameArg,
+    towerSizeArg = 25,
+    gameNameArg = "Untitled Campaign"
+  ) => {
     session.setGameId(newGameId);
     session.setHostName(hostNameArg);
     session.setIsGM(true);
+    gameState.setGameName(gameNameArg);
     gameState.setTowerSize(towerSizeArg);
     gameState.setDangerProbability(0);
     gameState.setAwaitingReset(false);
@@ -176,6 +183,7 @@ export const PeerProvider = ({ children }) => {
         setConnectionStatus: session.setConnectionStatus,
         setConn: session.setConn,
         setJoinError: session.setJoinError,
+        setGameName: gameState.setGameName,
         setTowerSize: gameState.setTowerSize,
         setDangerProbability: gameState.setDangerProbability,
         setAwaitingReset: gameState.setAwaitingReset,

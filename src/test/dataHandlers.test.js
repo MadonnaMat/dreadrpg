@@ -131,3 +131,38 @@ describe("createPlayerDataHandler - join-rejected handling", () => {
     expect(setUsers).not.toHaveBeenCalled();
   });
 });
+
+describe("createPlayerDataHandler - GM Admin Panel broadcasts", () => {
+  it("applies a live game-name-update from the GM", () => {
+    const setGameName = vi.fn();
+    const handler = createPlayerDataHandler({
+      handlerRefs: makeHandlerRefs(),
+      setUsers: vi.fn(),
+      setConnectionStatus: vi.fn(),
+      setGameName,
+      setTowerSize: vi.fn(),
+    });
+
+    handler({
+      type: MESSAGE_TYPES.GAME_NAME_UPDATE,
+      gameName: "A Renamed Campaign",
+    });
+
+    expect(setGameName).toHaveBeenCalledWith("A Renamed Campaign");
+  });
+
+  it("applies a live tower-size-update from the GM", () => {
+    const setTowerSize = vi.fn();
+    const handler = createPlayerDataHandler({
+      handlerRefs: makeHandlerRefs(),
+      setUsers: vi.fn(),
+      setConnectionStatus: vi.fn(),
+      setGameName: vi.fn(),
+      setTowerSize,
+    });
+
+    handler({ type: MESSAGE_TYPES.TOWER_SIZE_UPDATE, towerSize: 40 });
+
+    expect(setTowerSize).toHaveBeenCalledWith(40);
+  });
+});

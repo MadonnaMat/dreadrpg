@@ -66,6 +66,7 @@ function applySnapshotToPlayerState(data, setters) {
   const {
     setUsers,
     setConnectionStatus,
+    setGameName,
     setTowerSize,
     setDangerProbability,
     setAwaitingReset,
@@ -83,6 +84,7 @@ function applySnapshotToPlayerState(data, setters) {
         : `Synced! Players: ${Object.values(data.users).join(", ")}`
     );
   }
+  if (data.gameName !== undefined) setGameName(data.gameName);
   if (data.towerSize !== undefined) setTowerSize(data.towerSize);
   if (data.dangerProbability !== undefined) {
     setDangerProbability(data.dangerProbability);
@@ -100,8 +102,15 @@ function applySnapshotToPlayerState(data, setters) {
 // - full-state snapshots (welcome/game-data-sync), user-list updates, and
 // forwarding everything else to whichever component registered interest.
 export function createPlayerDataHandler(setters) {
-  const { handlerRefs, setUsers, setConnectionStatus, setConn, setJoinError } =
-    setters;
+  const {
+    handlerRefs,
+    setUsers,
+    setConnectionStatus,
+    setConn,
+    setJoinError,
+    setGameName,
+    setTowerSize,
+  } = setters;
 
   return (data, connection) => {
     dispatchToRegisteredHandlers(data, connection, handlerRefs);
@@ -125,6 +134,15 @@ export function createPlayerDataHandler(setters) {
       );
       setConnectionStatus("");
       setConn(null);
+    }
+    // GAME_NAME_UPDATE/TOWER_SIZE_UPDATE only ever originate from the GM's
+    // Admin Panel - no equivalent GM-side handling is needed since the GM
+    // never receives its own broadcast back.
+    if (data && data.type === MESSAGE_TYPES.GAME_NAME_UPDATE) {
+      setGameName(data.gameName);
+    }
+    if (data && data.type === MESSAGE_TYPES.TOWER_SIZE_UPDATE) {
+      setTowerSize(data.towerSize);
     }
   };
 }

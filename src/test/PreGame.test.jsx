@@ -102,9 +102,14 @@ describe("PreGame Component", () => {
     const createButton = screen.getByRole("button", { name: "Create" });
     expect(createButton).toBeDisabled();
 
-    // Enter host name
+    // Enter host name only - still disabled without a campaign name
     const nameInput = screen.getByPlaceholderText("Your Name");
     await user.type(nameInput, "Test Host");
+    expect(createButton).toBeDisabled();
+
+    // Enter campaign name
+    const campaignNameInput = screen.getByPlaceholderText("Campaign Name");
+    await user.type(campaignNameInput, "Beneath a Metal Sky");
 
     expect(createButton).not.toBeDisabled();
   });

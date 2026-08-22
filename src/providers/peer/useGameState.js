@@ -3,6 +3,10 @@ import { useState } from "react";
 // The shared game-domain state that gets synced across peers via the
 // welcome/game-data-sync snapshot (see gameSnapshot.js).
 export function useGameState() {
+  // The campaign's own name (distinct from gameId, the pairing code, and
+  // hostName, the GM's personal display name) - set at creation, renamable
+  // later from the Admin Panel.
+  const [gameName, setGameName] = useState("");
   const [towerSize, setTowerSize] = useState(25);
   const [dangerProbability, setDangerProbability] = useState(0);
   const [awaitingReset, setAwaitingReset] = useState(false);
@@ -21,6 +25,8 @@ export function useGameState() {
     useState(false);
 
   return {
+    gameName,
+    setGameName,
     towerSize,
     setTowerSize,
     dangerProbability,

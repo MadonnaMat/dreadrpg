@@ -10,6 +10,7 @@ describe("useCurrentStateRef", () => {
   it("mirrors every field it's given into the ref", () => {
     const props = {
       scenario: { title: "Test" },
+      gameName: "Beneath a Metal Sky",
       characters: { "char-1": { id: "char-1", name: "Alice" } },
       allowPlayersToViewSheets: true,
       users: { p1: "Alice" },

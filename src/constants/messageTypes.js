@@ -23,4 +23,6 @@ export const MESSAGE_TYPES = {
   SPIN_FINAL: "spin-final",
   WHEEL_RESET: "wheel-reset",
   GAME_STARTED: "game-started",
+  GAME_NAME_UPDATE: "game-name-update",
+  TOWER_SIZE_UPDATE: "tower-size-update",
 };

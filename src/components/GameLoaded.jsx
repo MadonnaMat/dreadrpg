@@ -3,13 +3,14 @@ import { WheelGraphics } from "./WheelGraphics";
 import Chat from "./Chat";
 import Scenario from "./Scenario";
 import CharacterSheet from "./CharacterSheet";
+import AdminPanel from "./AdminPanel";
 import { usePeer } from "../hooks/usePeer";
 import { useWheel } from "../hooks/useWheel";
 import { useEffect, useRef, useState } from "react";
 import { MESSAGE_TYPES } from "../constants/messageTypes";
 
 export default function GameLoaded() {
-  const { peerId, isGM, conn, sendToPeers } = usePeer();
+  const { peerId, isGM, conn, sendToPeers, gameName } = usePeer();
   const {
     wedges,
     dangerProbability,
@@ -68,6 +69,7 @@ export default function GameLoaded() {
   return (
     <div className="App">
       <h1>Dread RPG</h1>
+      {gameName && <h2>{gameName}</h2>}
 
       {/* Tab Navigation */}
       <div className="tab-navigation">
@@ -89,14 +91,21 @@ export default function GameLoaded() {
         >
           Characters
         </button>
+        {isGM && (
+          <button
+            className={`tab-button ${activeTab === "admin" ? "active" : ""}`}
+            onClick={() => setActiveTab("admin")}
+          >
+            Admin
+          </button>
+        )}
       </div>
 
-      {/* Tab Content - all three panels stay mounted regardless of which
-          tab is active, only visibility toggles. Scenario/CharacterSheet/
-          Chat each register a handler for their own live network messages
-          only while mounted; unmounting on every tab switch would silently
-          drop any broadcast that arrives while a player isn't looking at
-          that tab. */}
+      {/* Tab Content - all panels stay mounted regardless of which tab is
+          active, only visibility toggles. Scenario/CharacterSheet/Chat each
+          register a handler for their own live network messages only while
+          mounted; unmounting on every tab switch would silently drop any
+          broadcast that arrives while a player isn't looking at that tab. */}
       <div className="tab-content">
         <div
           style={{
@@ -148,6 +157,11 @@ export default function GameLoaded() {
         <div style={{ display: activeTab === "characters" ? "block" : "none" }}>
           <CharacterSheet />
         </div>
+        {isGM && (
+          <div style={{ display: activeTab === "admin" ? "block" : "none" }}>
+            <AdminPanel showRoster={false} />
+          </div>
+        )}
       </div>
     </div>
   );

@@ -7,6 +7,7 @@ import { useRef, useEffect } from "react";
 // whatever the state was on the render that created them.
 export function useCurrentStateRef({
   scenario,
+  gameName,
   characters,
   allowPlayersToViewSheets,
   users,
@@ -19,6 +20,7 @@ export function useCurrentStateRef({
 }) {
   const currentStateRef = useRef({
     scenario: null,
+    gameName: "",
     characters: {},
     allowPlayersToViewSheets: false,
     users: {},
@@ -33,6 +35,7 @@ export function useCurrentStateRef({
   useEffect(() => {
     currentStateRef.current = {
       scenario,
+      gameName,
       characters,
       allowPlayersToViewSheets,
       users,
@@ -45,6 +48,7 @@ export function useCurrentStateRef({
     };
   }, [
     scenario,
+    gameName,
     characters,
     allowPlayersToViewSheets,
     users,
