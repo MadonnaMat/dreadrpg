@@ -94,19 +94,22 @@ describe("GameLoaded Component", () => {
       </TestWrapper>
     );
 
-    // Click scenario tab
+    // Click scenario tab. All three panels stay mounted regardless of the
+    // active tab (so each panel's own live-network-message handler stays
+    // registered even while a player is looking at a different tab) -
+    // switching tabs only toggles CSS visibility, not presence in the DOM.
     await user.click(screen.getByText("Scenario"));
-    expect(screen.getByTestId("scenario-component")).toBeInTheDocument();
-    expect(screen.queryByTestId("pixi-application")).not.toBeInTheDocument();
+    expect(screen.getByTestId("scenario-component")).toBeVisible();
+    expect(screen.getByTestId("pixi-application")).not.toBeVisible();
 
     // Click characters tab
     await user.click(screen.getByText("Characters"));
-    expect(screen.getByTestId("character-sheet-component")).toBeInTheDocument();
-    expect(screen.queryByTestId("scenario-component")).not.toBeInTheDocument();
+    expect(screen.getByTestId("character-sheet-component")).toBeVisible();
+    expect(screen.getByTestId("scenario-component")).not.toBeVisible();
 
     // Click back to game tab
     await user.click(screen.getByText("Game"));
-    expect(screen.getByTestId("pixi-application")).toBeInTheDocument();
+    expect(screen.getByTestId("pixi-application")).toBeVisible();
   });
 
   it("should render PIXI application with correct props", () => {

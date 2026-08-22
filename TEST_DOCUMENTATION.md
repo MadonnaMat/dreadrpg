@@ -4,8 +4,8 @@ This project now includes a comprehensive test suite that covers all major compo
 
 ## Test Summary
 
-- **Total Tests**: 65 passing, 4 skipped
-- **Test Files**: 11 files
+- **Total Tests**: 105 passing, 4 skipped
+- **Test Files**: 15 files
 - **Coverage**: All components, providers, helpers, and integration scenarios
 
 ## Test Structure
@@ -34,6 +34,45 @@ This project now includes a comprehensive test suite that covers all major compo
 - Spin end handling and state updates
 - Death result handling
 - Wheel state synchronization
+- Non-GM `handleSpinEnd` is a no-op (only the GM resolves a spin outcome -
+  see the extracted modules below for the message-handling side of this)
+
+### Extracted provider modules
+
+`PeerProvider.jsx` and `WheelProvider.jsx` delegate their connection-lifecycle
+and network-message-handling logic to smaller modules under
+`src/providers/peer/` and `src/providers/wheel/`, each covered independently
+so the logic is testable without mounting the whole provider tree:
+
+#### Connection manager (`src/test/connectionManager.test.js`)
+
+- GM side: broadcasting to registered connections, replacing a stale
+  connection for a reconnecting peerId instead of duplicating it, pruning a
+  connection on close, excluding a peerId from a broadcast, ping/pong
+  heartbeat handling
+- Player side: dialing the GM on peer open, ping/pong heartbeat handling,
+  reconnect-with-backoff after a drop (including giving up after exhausting
+  the configured retry attempts)
+
+#### Game snapshot (`src/test/gameSnapshot.test.js`)
+
+- `buildGameSnapshot` reflects current state for the given message type
+- `dispatchToRegisteredHandlers` fans a message out to the right registered
+  handler(s) by message type
+
+#### Wheel message handler (`src/test/wheelMessageHandler.test.js`)
+
+- GM branch: forwards `spin-request` to `handleHostSpin`, ignores other types
+- Player branch: `spin-start`/`spin`/`spin-final`/`wheel-reset`/
+  `welcome`/`game-data-sync` each update the right local state, including
+  result text coming from the GM's broadcast rather than being computed
+  locally
+
+#### Wheel persistence (`src/test/wheelPersistence.test.js`)
+
+- Round-trips GM danger-state through localStorage, keyed by gameId
+- Returns `null` (not a throw) when nothing is saved or the stored value is
+  corrupted
 
 ### Components
 
@@ -151,10 +190,44 @@ The test suite uses comprehensive mocking to isolate components:
 5. **Error Boundaries**: Tests handle both success and error cases
 6. **Performance**: Fast test execution with minimal external dependencies
 
+## E2E tests (`e2e/`, Playwright)
+
+Separate from the Vitest suite above, `e2e/` holds real-browser tests that
+exercise the actual PeerJS client and its public cloud signaling server - the
+Vitest suite mocks PeerJS entirely, so connection handshakes, reconnect
+timing, and real WebRTC data-channel delivery aren't covered there at all.
+Run via `npm run test:e2e` (Playwright's `webServer` config builds the app
+and serves it with `vite preview`, deliberately not the dev server - React's
+`<StrictMode>` double-invokes mount effects in dev only, which can defeat
+one-shot "fire once on mount" patterns in ways that never happen for real
+users hitting the production build). Wired into CI as its own `e2e` job,
+kept independent of the `deploy` job since it depends on reaching an
+external service.
+
+- `e2e/helpers.js` - shared `createGameAsGM`/`joinGameAsPlayer`/
+  `waitForGameLoaded`/`sendChat` helpers used by both spec files below.
+- `e2e/p2p-hardening.spec.js` - GM-authoritative spin resolution over a real
+  connection; reconnect-with-backoff and broadcast dedup after a real
+  network drop; resync after being backgrounded and offline at once.
+- `e2e/full-gameplay.spec.js` - scenario/character-sheet/chat sync between
+  GM and player; user-list and chat/spin consistency across a GM plus two
+  simultaneous players; a forced death spin (tower size 1) freezing the
+  wheel until the GM re-stacks.
+
+This suite has already caught two real bugs that the mocked unit suite
+couldn't: `GameLoaded.jsx`'s mount-time refetch effect using a `useState`
+guard that was also its own dependency, so the effect's own state update
+re-triggered it and its cleanup cancelled the just-scheduled timer before it
+ever fired (fixed with a `useRef` guard instead, set only once the timeout
+actually completes - see the comment on `sentRefetchRef` there); and
+`Scenario`/`CharacterSheet`/`Chat` being unmounted whenever their tab wasn't
+active, silently dropping any live broadcast that arrived while a player was
+looking at a different tab (fixed by keeping all three panels mounted and
+toggling CSS visibility instead of conditional rendering).
+
 ## Future Enhancements
 
 - Add visual regression tests for PIXI components
-- Implement E2E tests with Playwright
 - Add performance benchmarking
 - Increase test coverage for edge cases
 - Add accessibility testing

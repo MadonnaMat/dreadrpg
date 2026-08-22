@@ -1,4 +1,4 @@
-import { defineConfig } from "vitest/config";
+import { defineConfig, configDefaults } from "vitest/config";
 import react from "@vitejs/plugin-react";
 
 // CI-specific configuration with extra safeguards
@@ -9,6 +9,10 @@ export default defineConfig({
     environment: "happy-dom",
     setupFiles: ["./src/test/setup.js"],
     css: true,
+    // e2e/ holds Playwright specs (run via `npm run test:e2e`), not Vitest
+    // ones - exclude it so Vitest's default *.spec.js glob doesn't collide
+    // with @playwright/test's own test.describe/test runner.
+    exclude: [...configDefaults.exclude, "e2e/**"],
     // Force forks pool for maximum isolation in CI
     pool: "forks",
     // Prevent hanging tests in CI

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { usePeer } from "../hooks/usePeer";
 import { DEFAULT_QUESTIONS } from "../constants/questions";
+import { MESSAGE_TYPES } from "../constants/messageTypes";
 import QuestionEditor from "./character-sheet/QuestionEditor";
 import PlayerSheetSelector from "./character-sheet/PlayerSheetSelector";
 import MyCharacterSheet from "./character-sheet/MyCharacterSheet";
@@ -29,12 +30,20 @@ export default function CharacterSheet() {
   const [mySheet, setMySheet] = useState({});
   const [selectedPlayerSheet, setSelectedPlayerSheet] = useState("");
 
-  // Initialize questions (only for GM when starting new game)
+  // Initialize questions (only for GM when starting new game). questions is
+  // deliberately excluded from the dependency array: if the GM removes every
+  // question down to an empty list and saves, `questions` legitimately
+  // becomes `[]` via handleSaveQuestions below - if this effect also re-ran
+  // on that change, its `questions.length === 0` guard would immediately
+  // stomp that deliberate choice back to DEFAULT_QUESTIONS. This effect
+  // should only ever fire once, when the GM first starts a game with no
+  // questions set at all.
   useEffect(() => {
     if (isGM && (!questions || questions.length === 0)) {
       setQuestions(DEFAULT_QUESTIONS);
     }
-  }, [isGM, setQuestions]); // Removed questions from deps to avoid overriding
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isGM, setQuestions]);
 
   // Update editQuestions when questions change
   useEffect(() => {
@@ -68,12 +77,12 @@ export default function CharacterSheet() {
   // Register character sheet event handler
   useEffect(() => {
     registerCharacterSheetEventHandler((data) => {
-      if (data.type === "character-sheet-update") {
+      if (data.type === MESSAGE_TYPES.CHARACTER_SHEET_UPDATE) {
         setCharacterSheets((prev) => ({
           ...prev,
           [data.playerName]: data.sheet,
         }));
-      } else if (data.type === "questions-update") {
+      } else if (data.type === MESSAGE_TYPES.QUESTIONS_UPDATE) {
         setQuestions(data.questions);
         // Update my character sheet structure to match new questions
         if (userName) {
@@ -86,14 +95,14 @@ export default function CharacterSheet() {
 
           // Send updated sheet structure to other players
           sendToPeers({
-            type: "character-sheet-update",
+            type: MESSAGE_TYPES.CHARACTER_SHEET_UPDATE,
             playerName: userName,
             sheet: newSheet,
           });
         }
-      } else if (data.type === "sheet-visibility-update") {
+      } else if (data.type === MESSAGE_TYPES.SHEET_VISIBILITY_UPDATE) {
         setAllowPlayersToViewSheets(data.allowPlayersToViewSheets);
-      } else if (data.type === "character-sheets-broadcast") {
+      } else if (data.type === MESSAGE_TYPES.CHARACTER_SHEETS_BROADCAST) {
         setCharacterSheets(data.characterSheets);
       }
     });
@@ -113,7 +122,7 @@ export default function CharacterSheet() {
 
     // Send update to GM and other players
     sendToPeers({
-      type: "character-sheet-update",
+      type: MESSAGE_TYPES.CHARACTER_SHEET_UPDATE,
       playerName: userName,
       sheet: updatedSheet,
     });
@@ -140,13 +149,13 @@ export default function CharacterSheet() {
 
     // Send updated questions to all players
     sendToPeers({
-      type: "questions-update",
+      type: MESSAGE_TYPES.QUESTIONS_UPDATE,
       questions: editQuestions,
     });
 
     // Send updated character sheets structure to all players
     sendToPeers({
-      type: "character-sheets-broadcast",
+      type: MESSAGE_TYPES.CHARACTER_SHEETS_BROADCAST,
       characterSheets: updatedCharacterSheets,
     });
   };
@@ -176,7 +185,7 @@ export default function CharacterSheet() {
 
     // Send visibility update to all players
     sendToPeers({
-      type: "sheet-visibility-update",
+      type: MESSAGE_TYPES.SHEET_VISIBILITY_UPDATE,
       allowPlayersToViewSheets: newVisibility,
     });
 
@@ -184,7 +193,7 @@ export default function CharacterSheet() {
     // so players can immediately see each other's sheets
     if (newVisibility && characterSheets) {
       sendToPeers({
-        type: "character-sheets-broadcast",
+        type: MESSAGE_TYPES.CHARACTER_SHEETS_BROADCAST,
         characterSheets: characterSheets,
       });
     }

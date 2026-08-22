@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PeerProvider } from "../providers/PeerProvider";
 import { usePeer } from "../hooks/usePeer";
@@ -128,6 +128,11 @@ describe("PeerProvider", () => {
     expect(screen.getByTestId("game-id")).toHaveTextContent("test-game");
     expect(screen.getByTestId("host-name")).toHaveTextContent("Host");
     expect(screen.getByTestId("tower-size")).toHaveTextContent("20");
+
+    // Let the mock Peer's async "open" event (a real setTimeout - see
+    // MockPeer in src/test/setup.js) fire while the test environment is
+    // still alive, instead of leaking past teardown.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 30)));
   });
 
   it("should join game and set player state", async () => {
@@ -143,6 +148,10 @@ describe("PeerProvider", () => {
     expect(screen.getByTestId("is-gm")).toHaveTextContent("false");
     expect(screen.getByTestId("game-id")).toHaveTextContent("test-game");
     expect(screen.getByTestId("user-name")).toHaveTextContent("Player");
+
+    // Let the mock Peer/Connection's chained async "open" events fire while
+    // the test environment is still alive, instead of leaking past teardown.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 30)));
   });
 
   it("should normalize game IDs correctly", () => {

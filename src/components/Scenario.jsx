@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { usePeer } from "../hooks/usePeer";
+import { MESSAGE_TYPES } from "../constants/messageTypes";
 
 export default function Scenario() {
   const {
@@ -31,7 +32,7 @@ export default function Scenario() {
   // Register scenario event handler
   useEffect(() => {
     registerScenarioEventHandler((data) => {
-      if (data.type === "scenario-update") {
+      if (data.type === MESSAGE_TYPES.SCENARIO_UPDATE) {
         setScenario(data.scenario);
       }
     });
@@ -48,7 +49,7 @@ export default function Scenario() {
 
     // Send to all connected users
     sendToPeers({
-      type: "scenario-update",
+      type: MESSAGE_TYPES.SCENARIO_UPDATE,
       scenario: scenarioData,
     });
   };
