@@ -6,6 +6,7 @@ export const MESSAGE_TYPES = {
   JOIN_REJECTED: "join-rejected",
   WELCOME: "welcome",
   USER_LIST_UPDATE: "user-list-update",
+  PRESENCE_UPDATE: "presence-update",
   REFETCH_REQUEST: "refetch-request",
   GAME_DATA_SYNC: "game-data-sync",
   PING: "ping",

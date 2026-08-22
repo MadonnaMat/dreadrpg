@@ -43,7 +43,7 @@ describe("Chat Component", () => {
     user = userEvent.setup({ skipPointerEventsCheck: true });
   });
 
-  it("renders the chat heading and an empty user list", () => {
+  it("renders the chat heading and an empty player list", () => {
     render(
       <PeerProvider>
         <Chat />
@@ -51,10 +51,32 @@ describe("Chat Component", () => {
     );
 
     expect(screen.getByText("Chat")).toBeInTheDocument();
-    expect(screen.getByText("Connected Users:")).toBeInTheDocument();
+    expect(screen.getByText("Players:")).toBeInTheDocument();
     expect(
       screen.getByPlaceholderText("Type a message...")
     ).toBeInTheDocument();
+  });
+
+  it("shows each known player's online/offline status", async () => {
+    function ChatWithPresence() {
+      const { setPresence } = usePeer();
+      useEffect(() => {
+        setPresence({
+          Alice: { connected: true },
+          Bob: { connected: false },
+        });
+      }, [setPresence]);
+      return <Chat />;
+    }
+
+    render(
+      <PeerProvider>
+        <ChatWithPresence />
+      </PeerProvider>
+    );
+
+    expect(screen.getByText("Alice (online)")).toBeInTheDocument();
+    expect(screen.getByText("Bob (offline)")).toBeInTheDocument();
   });
 
   it("clears the input after sending a message as a player", async () => {

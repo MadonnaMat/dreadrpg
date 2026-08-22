@@ -25,6 +25,13 @@ export function useGameState() {
   // just a per-player questionnaire (see docs/rules/compliance-fix-plan.md
   // item 2).
   const [characters, setCharacters] = useState({});
+  // { [userName]: { connected: boolean } } - persists across a disconnect
+  // (unlike `users`, which is peerId-keyed and only ever holds currently
+  // active connections) so the roster can show who's online vs. offline,
+  // and so a rejoin under an existing name can be gated on this explicit
+  // status rather than inferred from `users` membership (see
+  // docs/rules/compliance-fix-plan.md item 8).
+  const [presence, setPresence] = useState({});
   const [allowPlayersToViewSheets, setAllowPlayersToViewSheets] =
     useState(false);
   // "default"|"scifi"|"slasher"|"halloween"|"custom" - see
@@ -50,6 +57,8 @@ export function useGameState() {
     setScenario,
     characters,
     setCharacters,
+    presence,
+    setPresence,
     allowPlayersToViewSheets,
     setAllowPlayersToViewSheets,
     theme,

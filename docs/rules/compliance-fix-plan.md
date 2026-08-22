@@ -48,8 +48,16 @@ connectionManager.js`), so recreating a game with the same `gameId`
   NPCs/characters description for GM authoring) — unrelated to the new
   structured Character entity this plan introduces.
 - `src/providers/wheel/wheelPersistence.js` is the existing localStorage
-  precedent (key prefix `dread-rpg-wheel-state-{gameId}`, try/catch
-  guarded) — new persistence work follows this pattern.
+  precedent (key prefix `dread-rpg-wheel-state-{gameId}-{hostName}`,
+  try/catch guarded) — new persistence work follows this pattern. The
+  `hostName` half of the key matters for local testing: keying on `gameId`
+  alone would let two browser tabs simulating different identities against
+  the same game (e.g. two "GM" test attempts, or - once item 12 adds
+  per-player persistence - two different players in two tabs) clobber the
+  same localStorage entry. Every new localStorage key this plan adds
+  (item 12's full game snapshot, any future per-player persistence) must
+  include the acting identity (GM's `hostName`, or a player's `userName`)
+  alongside `gameId`, not `gameId` alone.
 - `PreGame.jsx` already reads `?gameId=` from the URL to prefill the join
   form, and has a `getShareUrl()` helper — the per-player rejoin link
   extends this rather than inventing new mechanics.
@@ -98,7 +106,12 @@ connectionManager.js`), so recreating a game with the same `gameId`
    a disconnected name" rule is enforced against an explicit, synced field
    rather than inferred from `users` membership alone. Needed groundwork
    for item 12 (a GM reload must reconstruct who's actually online) and
-   item 13 (the rejoin link needs something concrete to gate against).
+   item 13 (the rejoin link needs something concrete to gate against). Also
+   adds a GM-only Admin Panel action to remove a _disconnected_ player
+   outright (not offered for someone currently connected): clears the
+   presence entry and un-assigns (`assignedTo: null`) any character that
+   player held, freeing it for someone else to claim instead of it staying
+   permanently bound to a player who's never coming back.
 9. **Multi-pull complex/difficult actions** — GM can require several pulls
    for one declared action, tracked as a pulls-remaining countdown on top
    of item 7's assignment mechanism.
@@ -110,8 +123,10 @@ connectionManager.js`), so recreating a game with the same `gameId`
     `3 * max(0, 5 - joinedPlayerCount)`; GM can customize the death
     narration text shown instead of a hardcoded string.
 12. **Full game persistence + homepage game list** — GM-side full game
-    snapshot persisted to localStorage; a homepage list of the GM's own
-    games (by campaign name) with Resume/Delete.
+    snapshot persisted to localStorage, keyed by `gameId` + `hostName`
+    (same convention as `wheelPersistence.js`, for the same multi-tab-
+    testing reason); a homepage list of the GM's own games (by campaign
+    name) with Resume/Delete.
 13. **Per-player shareable rejoin link** — extends the existing `?gameId=`
     URL convention with `&userName=` so a player's own link logs them back
     in without retyping anything.

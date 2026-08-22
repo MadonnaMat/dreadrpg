@@ -4,7 +4,6 @@ import { MESSAGE_TYPES } from "../constants/messageTypes";
 
 export default function Chat() {
   const {
-    users,
     userName,
     hostName,
     isGM,
@@ -12,6 +11,7 @@ export default function Chat() {
     registerChatEventHandler,
     gameId,
     characters,
+    presence,
   } = usePeer();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -73,11 +73,11 @@ export default function Chat() {
       <h2>Chat</h2>
 
       <div className="chat-users-section">
-        <div className="chat-users-title">Connected Users:</div>
+        <div className="chat-users-title">Players:</div>
         <ul className="chat-users-list">
-          {Object.values(users).map((name, idx) => (
-            <li key={idx}>
-              {name}
+          {Object.entries(presence || {}).map(([name, info]) => (
+            <li key={name}>
+              {name} ({info.connected ? "online" : "offline"})
               {name === userName ? " (You)" : ""}
             </li>
           ))}

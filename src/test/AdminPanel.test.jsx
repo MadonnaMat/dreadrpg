@@ -19,6 +19,34 @@ function GmAdminPanel({ showRoster = false }) {
   return <AdminPanel showRoster={showRoster} />;
 }
 
+// Same, but also seeds a presence roster (one online, one offline player)
+// and a character assigned to the offline player, to exercise the
+// remove-a-disconnected-player flow.
+function GmAdminPanelWithPresence() {
+  const { setIsGM, setGameName, setTowerSize, setPresence, setCharacters } =
+    usePeer();
+  useEffect(() => {
+    setIsGM(true);
+    setGameName("Beneath a Metal Sky");
+    setTowerSize(25);
+    setPresence({
+      Alice: { connected: true },
+      Bob: { connected: false },
+    });
+    setCharacters({
+      "char-1": {
+        id: "char-1",
+        name: "The Drifter",
+        defaultName: "The Drifter",
+        assignedTo: "Bob",
+        questions: [],
+        answers: {},
+      },
+    });
+  }, [setIsGM, setGameName, setTowerSize, setPresence, setCharacters]);
+  return <AdminPanel showRoster={false} />;
+}
+
 describe("AdminPanel Component", () => {
   let user;
 
@@ -150,5 +178,34 @@ describe("AdminPanel Component", () => {
     expect(screen.getByText("Text")).toBeInTheDocument();
     expect(screen.getByText("Accent")).toBeInTheDocument();
     expect(screen.getByText("Danger")).toBeInTheDocument();
+  });
+
+  it("lists known players with online/offline status, Remove only for offline", () => {
+    render(
+      <PeerProvider>
+        <WheelProvider>
+          <GmAdminPanelWithPresence />
+        </WheelProvider>
+      </PeerProvider>
+    );
+
+    expect(screen.getByText("Alice (online)")).toBeInTheDocument();
+    expect(screen.getByText("Bob (offline)")).toBeInTheDocument();
+    // Only one Remove button - Alice (online) doesn't get one.
+    expect(screen.getAllByRole("button", { name: "Remove" })).toHaveLength(1);
+  });
+
+  it("removing a disconnected player frees the character they held", async () => {
+    render(
+      <PeerProvider>
+        <WheelProvider>
+          <GmAdminPanelWithPresence />
+        </WheelProvider>
+      </PeerProvider>
+    );
+
+    await user.click(screen.getByRole("button", { name: "Remove" }));
+
+    expect(screen.queryByText("Bob (offline)")).not.toBeInTheDocument();
   });
 });

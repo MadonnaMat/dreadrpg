@@ -21,12 +21,14 @@ function makeConnection(peerId) {
 
 describe("createHostDataHandler - join handling", () => {
   it("accepts a join with a userName nobody else is currently using", () => {
-    const currentStateRef = { current: { users: {} } };
+    const currentStateRef = { current: { users: {}, presence: {} } };
     const setUsers = vi.fn();
+    const setPresence = vi.fn();
     const sendToPeers = vi.fn();
     const handler = createHostDataHandler({
       currentStateRef,
       setUsers,
+      setPresence,
       handlerRefs: makeHandlerRefs(),
       sendToPeers,
     });
@@ -37,20 +39,25 @@ describe("createHostDataHandler - join handling", () => {
     expect(setUsers).toHaveBeenCalledWith({
       [normalizedId("p1")]: "Alice",
     });
+    expect(setPresence).toHaveBeenCalledWith({
+      Alice: { connected: true },
+    });
     expect(c.send).toHaveBeenCalledWith(
       expect.objectContaining({ type: MESSAGE_TYPES.WELCOME })
     );
   });
 
-  it("rejects a join whose userName is already connected under a different peerId", () => {
+  it("rejects a join whose userName's presence is currently connected", () => {
     const currentStateRef = {
-      current: { users: { [normalizedId("existing-peer")]: "Alice" } },
+      current: { users: {}, presence: { Alice: { connected: true } } },
     };
     const setUsers = vi.fn();
+    const setPresence = vi.fn();
     const sendToPeers = vi.fn();
     const handler = createHostDataHandler({
       currentStateRef,
       setUsers,
+      setPresence,
       handlerRefs: makeHandlerRefs(),
       sendToPeers,
     });
@@ -62,6 +69,7 @@ describe("createHostDataHandler - join handling", () => {
     );
 
     expect(setUsers).not.toHaveBeenCalled();
+    expect(setPresence).not.toHaveBeenCalled();
     expect(c.send).toHaveBeenCalledWith({
       type: MESSAGE_TYPES.JOIN_REJECTED,
       reason: "name-in-use",
@@ -69,31 +77,16 @@ describe("createHostDataHandler - join handling", () => {
     expect(sendToPeers).not.toHaveBeenCalled();
   });
 
-  it("allows the same peerId to re-send a join for its own existing name (idempotent)", () => {
-    const peerId = normalizedId("p1");
-    const currentStateRef = { current: { users: { [peerId]: "Alice" } } };
+  it("allows a disconnected player's name to be reclaimed and flips their presence back to connected", () => {
+    const currentStateRef = {
+      current: { users: {}, presence: { Alice: { connected: false } } },
+    };
     const setUsers = vi.fn();
+    const setPresence = vi.fn();
     const handler = createHostDataHandler({
       currentStateRef,
       setUsers,
-      handlerRefs: makeHandlerRefs(),
-      sendToPeers: vi.fn(),
-    });
-    const c = makeConnection("p1");
-
-    handler({ type: MESSAGE_TYPES.JOIN, peerId: "p1", userName: "Alice" }, c);
-
-    expect(setUsers).toHaveBeenCalledWith({ [peerId]: "Alice" });
-  });
-
-  it("allows a disconnected player's name to be reclaimed once they're no longer in users", () => {
-    // "existing-peer" already left (removed from users on disconnect), so
-    // Alice's name is free again for a genuine rejoin under a new peerId.
-    const currentStateRef = { current: { users: {} } };
-    const setUsers = vi.fn();
-    const handler = createHostDataHandler({
-      currentStateRef,
-      setUsers,
+      setPresence,
       handlerRefs: makeHandlerRefs(),
       sendToPeers: vi.fn(),
     });
@@ -106,6 +99,9 @@ describe("createHostDataHandler - join handling", () => {
 
     expect(setUsers).toHaveBeenCalledWith({
       [normalizedId("new-peer")]: "Alice",
+    });
+    expect(setPresence).toHaveBeenCalledWith({
+      Alice: { connected: true },
     });
   });
 });
@@ -164,5 +160,20 @@ describe("createPlayerDataHandler - GM Admin Panel broadcasts", () => {
     handler({ type: MESSAGE_TYPES.TOWER_SIZE_UPDATE, towerSize: 40 });
 
     expect(setTowerSize).toHaveBeenCalledWith(40);
+  });
+
+  it("applies a live presence-update (e.g. a disconnect, or a GM removing a player)", () => {
+    const setPresence = vi.fn();
+    const handler = createPlayerDataHandler({
+      handlerRefs: makeHandlerRefs(),
+      setUsers: vi.fn(),
+      setConnectionStatus: vi.fn(),
+      setPresence,
+    });
+
+    const presence = { Alice: { connected: false } };
+    handler({ type: MESSAGE_TYPES.PRESENCE_UPDATE, presence });
+
+    expect(setPresence).toHaveBeenCalledWith(presence);
   });
 });

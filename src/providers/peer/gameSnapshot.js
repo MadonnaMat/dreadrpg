@@ -12,6 +12,7 @@ export function buildGameSnapshot(type, currentStateRef) {
     hostName: currentStateRef.current.hostName,
     gameName: currentStateRef.current.gameName,
     users: currentStateRef.current.users,
+    presence: currentStateRef.current.presence,
     towerSize: currentStateRef.current.towerSize,
     dangerProbability: currentStateRef.current.dangerProbability,
     awaitingReset: currentStateRef.current.awaitingReset,

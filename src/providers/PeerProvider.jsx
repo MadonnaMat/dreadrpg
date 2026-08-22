@@ -34,6 +34,7 @@ export const PeerProvider = ({ children }) => {
     awaitingReset: gameState.awaitingReset,
     designatedSpinner: gameState.designatedSpinner,
     gameStarted: gameState.gameStarted,
+    presence: gameState.presence,
     theme: gameState.theme,
     customColors: gameState.customColors,
   });
@@ -126,6 +127,10 @@ export const PeerProvider = ({ children }) => {
     gameState.setAllowPlayersToViewSheets(false); // Reset sheet visibility for new game
     gameState.setTheme("default");
     gameState.setCustomColors(null);
+    // The GM never goes through the JOIN handshake that normally creates a
+    // presence entry, so seed their own here - otherwise they'd never show
+    // up in the online/offline roster at all.
+    gameState.setPresence({ [hostNameArg]: { connected: true } });
     session.setConnectionStatus("Waiting for players...");
     session.setUsers({});
 
@@ -136,6 +141,7 @@ export const PeerProvider = ({ children }) => {
     const onData = createHostDataHandler({
       currentStateRef,
       setUsers: session.setUsers,
+      setPresence: gameState.setPresence,
       handlerRefs: handlers.handlerRefs,
       sendToPeers: (msg, opts) => manager.sendToPeers(msg, opts),
     });
@@ -153,11 +159,26 @@ export const PeerProvider = ({ children }) => {
       onConnectionClosed: (droppedPeerId) => {
         session.setUsers((prev) => {
           if (!(droppedPeerId in prev)) return prev;
+          const droppedUserName = prev[droppedPeerId];
           const next = { ...prev };
           delete next[droppedPeerId];
           manager.sendToPeers({
             type: MESSAGE_TYPES.USER_LIST_UPDATE,
             users: next,
+          });
+          // Mark presence disconnected rather than deleting it - the name
+          // stays visible in the roster (as offline) and reclaimable by the
+          // same player reconnecting, instead of just vanishing.
+          gameState.setPresence((prevPresence) => {
+            const nextPresence = {
+              ...prevPresence,
+              [droppedUserName]: { connected: false },
+            };
+            manager.sendToPeers({
+              type: MESSAGE_TYPES.PRESENCE_UPDATE,
+              presence: nextPresence,
+            });
+            return nextPresence;
           });
           return next;
         });
@@ -204,6 +225,7 @@ export const PeerProvider = ({ children }) => {
       onData: createPlayerDataHandler({
         handlerRefs: handlers.handlerRefs,
         setUsers: session.setUsers,
+        setPresence: gameState.setPresence,
         setConnectionStatus: session.setConnectionStatus,
         setConn: session.setConn,
         setJoinError: session.setJoinError,

@@ -15,6 +15,7 @@ import { MESSAGE_TYPES } from "../../constants/messageTypes";
 export function createHostDataHandler({
   currentStateRef,
   setUsers,
+  setPresence,
   handlerRefs,
   sendToPeers, // the host connection manager's sendToPeers(msg, { excludePeerId })
 }) {
@@ -26,11 +27,10 @@ export function createHostDataHandler({
       data.userName
     ) {
       const joiningPeerId = normalizedId(data.peerId);
-      const nameInUse = Object.entries(currentStateRef.current.users).some(
-        ([existingPeerId, existingName]) =>
-          existingName === data.userName && existingPeerId !== joiningPeerId
-      );
-      if (nameInUse) {
+      // A name is only unavailable while its presence entry says
+      // "connected" - a disconnected name is free to reclaim (see
+      // docs/rules/compliance-fix-plan.md item 8).
+      if (currentStateRef.current.presence[data.userName]?.connected) {
         c.send({
           type: MESSAGE_TYPES.JOIN_REJECTED,
           reason: "name-in-use",
@@ -43,12 +43,21 @@ export function createHostDataHandler({
         [joiningPeerId]: data.userName,
       };
       setUsers(newUsers);
+      const newPresence = {
+        ...currentStateRef.current.presence,
+        [data.userName]: { connected: true },
+      };
+      setPresence(newPresence);
       c.send(buildGameSnapshot(MESSAGE_TYPES.WELCOME, currentStateRef));
 
-      // Broadcast updated user list to everyone except the new joiner, who
-      // already got the welcome message.
+      // Broadcast updated user list/presence to everyone except the new
+      // joiner, who already got the welcome message.
       sendToPeers(
         { type: MESSAGE_TYPES.USER_LIST_UPDATE, users: newUsers },
+        { excludePeerId: c.peer }
+      );
+      sendToPeers(
+        { type: MESSAGE_TYPES.PRESENCE_UPDATE, presence: newPresence },
         { excludePeerId: c.peer }
       );
     }
@@ -65,6 +74,7 @@ export function createHostDataHandler({
 function applySnapshotToPlayerState(data, setters) {
   const {
     setUsers,
+    setPresence,
     setConnectionStatus,
     setGameName,
     setTowerSize,
@@ -87,6 +97,7 @@ function applySnapshotToPlayerState(data, setters) {
         : `Synced! Players: ${Object.values(data.users).join(", ")}`
     );
   }
+  if (data.presence) setPresence(data.presence);
   if (data.gameName !== undefined) setGameName(data.gameName);
   if (data.towerSize !== undefined) setTowerSize(data.towerSize);
   if (data.dangerProbability !== undefined) {
@@ -120,6 +131,8 @@ const LIVE_UPDATE_HANDLERS = {
     setTheme(data.theme);
     setCustomColors(data.customColors ?? null);
   },
+  [MESSAGE_TYPES.PRESENCE_UPDATE]: (data, { setPresence }) =>
+    setPresence(data.presence),
 };
 
 // Player side: handle an inbound message on the single connection to the GM

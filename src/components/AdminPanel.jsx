@@ -74,6 +74,68 @@ function ThemeSection() {
   );
 }
 
+// GM-only player roster: shows every known player's online/offline status
+// (see docs/rules/compliance-fix-plan.md item 8) and lets the GM remove a
+// disconnected player outright - freeing any character they held, since
+// otherwise that character would stay permanently assigned to someone
+// who's never coming back. Not offered for a currently-connected player.
+function PlayerPresenceSection() {
+  const { presence, setPresence, characters, setCharacters, sendToPeers } =
+    usePeer();
+  const entries = Object.entries(presence || {});
+
+  const removePlayer = (playerName) => {
+    const nextPresence = { ...presence };
+    delete nextPresence[playerName];
+    setPresence(nextPresence);
+    sendToPeers({
+      type: MESSAGE_TYPES.PRESENCE_UPDATE,
+      presence: nextPresence,
+    });
+
+    const character = Object.values(characters || {}).find(
+      (c) => c.assignedTo === playerName
+    );
+    if (character) {
+      setCharacters((prev) => ({
+        ...prev,
+        [character.id]: { ...prev[character.id], assignedTo: null },
+      }));
+      sendToPeers({
+        type: MESSAGE_TYPES.CHARACTER_UPDATE,
+        id: character.id,
+        assignedTo: null,
+      });
+    }
+  };
+
+  return (
+    <div className="admin-field">
+      <label>Players</label>
+      {entries.length === 0 && (
+        <p className="no-character-assigned">No players have joined yet.</p>
+      )}
+      <ul className="character-roster-list">
+        {entries.map(([playerName, info]) => (
+          <li key={playerName} className="character-roster-row">
+            <span className="character-roster-name">
+              {playerName} ({info.connected ? "online" : "offline"})
+            </span>
+            {!info.connected && (
+              <button
+                className="btn-danger-small"
+                onClick={() => removePlayer(playerName)}
+              >
+                Remove
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 // GM-only settings hub: campaign name, tower size, and Start Game -
 // previously scattered (tower size was a one-shot PreGame input, campaign
 // name didn't exist, and Start Game lived alone in the Lobby tab). Also
@@ -141,6 +203,8 @@ export default function AdminPanel({ showRoster = true }) {
       </div>
 
       <ThemeSection />
+
+      <PlayerPresenceSection />
 
       {!gameStarted && (
         <button id="start-game-btn" onClick={startGame}>

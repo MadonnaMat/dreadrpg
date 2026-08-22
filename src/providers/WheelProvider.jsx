@@ -105,9 +105,10 @@ export const WheelProvider = ({ children }) => {
   // GM only: restore a previous session's danger-state on refresh instead of
   // silently resetting tower danger to a fresh tower.
   useEffect(() => {
-    if (!isGM || !gameId || restoredForGameRef.current === gameId) return;
+    if (!isGM || !gameId || !hostName || restoredForGameRef.current === gameId)
+      return;
     restoredForGameRef.current = gameId;
-    const saved = loadWheelState(gameId);
+    const saved = loadWheelState(gameId, hostName);
     if (!saved) return;
     setPullsSinceReset(saved.pullsSinceReset ?? 0);
     setCharactersRemoved(saved.charactersRemoved ?? 0);
@@ -115,12 +116,12 @@ export const WheelProvider = ({ children }) => {
     setPeerDangerProbability(saved.dangerProbability ?? 0);
     setAwaitingReset(saved.awaitingReset ?? false);
     setPeerAwaitingReset(saved.awaitingReset ?? false);
-  }, [isGM, gameId, setPeerDangerProbability, setPeerAwaitingReset]);
+  }, [isGM, gameId, hostName, setPeerDangerProbability, setPeerAwaitingReset]);
 
   // GM only: persist danger-state so a refresh can restore it above.
   useEffect(() => {
-    if (!isGM || !gameId) return;
-    saveWheelState(gameId, {
+    if (!isGM || !gameId || !hostName) return;
+    saveWheelState(gameId, hostName, {
       pullsSinceReset,
       charactersRemoved,
       dangerProbability,
@@ -129,6 +130,7 @@ export const WheelProvider = ({ children }) => {
   }, [
     isGM,
     gameId,
+    hostName,
     pullsSinceReset,
     charactersRemoved,
     dangerProbability,
