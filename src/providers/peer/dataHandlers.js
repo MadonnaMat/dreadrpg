@@ -58,8 +58,7 @@ function applySnapshotToPlayerState(data, setters) {
     setAwaitingReset,
     setGameStarted,
     setScenario,
-    setCharacterSheets,
-    setQuestions,
+    setCharacters,
     setAllowPlayersToViewSheets,
   } = setters;
 
@@ -78,8 +77,7 @@ function applySnapshotToPlayerState(data, setters) {
   if (data.awaitingReset !== undefined) setAwaitingReset(data.awaitingReset);
   if (data.gameStarted !== undefined) setGameStarted(data.gameStarted);
   if (data.scenario) setScenario(data.scenario);
-  if (data.characterSheets) setCharacterSheets(data.characterSheets);
-  if (data.questions) setQuestions(data.questions);
+  if (data.characters) setCharacters(data.characters);
   if (data.allowPlayersToViewSheets !== undefined) {
     setAllowPlayersToViewSheets(data.allowPlayersToViewSheets);
   }

@@ -16,8 +16,7 @@ export function buildGameSnapshot(type, currentStateRef) {
     awaitingReset: currentStateRef.current.awaitingReset,
     gameStarted: currentStateRef.current.gameStarted,
     scenario: currentStateRef.current.scenario,
-    characterSheets: currentStateRef.current.characterSheets,
-    questions: currentStateRef.current.questions,
+    characters: currentStateRef.current.characters,
     allowPlayersToViewSheets: currentStateRef.current.allowPlayersToViewSheets,
   };
 }
@@ -39,12 +38,16 @@ export function dispatchToRegisteredHandlers(data, connection, handlerRefs) {
   ) {
     handlerRefs.scenario.current(data, connection);
   }
+  const characterSheetTypes = [
+    MESSAGE_TYPES.CHARACTER_CREATE,
+    MESSAGE_TYPES.CHARACTER_CLONE,
+    MESSAGE_TYPES.CHARACTER_UPDATE,
+    MESSAGE_TYPES.CHARACTER_DELETE,
+    MESSAGE_TYPES.SHEET_VISIBILITY_UPDATE,
+  ];
   if (
     handlerRefs.characterSheet.current &&
-    (data.type === MESSAGE_TYPES.CHARACTER_SHEET_UPDATE ||
-      data.type === MESSAGE_TYPES.QUESTIONS_UPDATE ||
-      data.type === MESSAGE_TYPES.SHEET_VISIBILITY_UPDATE ||
-      data.type === MESSAGE_TYPES.CHARACTER_SHEETS_BROADCAST)
+    characterSheetTypes.includes(data.type)
   ) {
     handlerRefs.characterSheet.current(data, connection);
   }

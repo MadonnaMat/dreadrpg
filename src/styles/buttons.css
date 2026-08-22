@@ -73,3 +73,8 @@
   color: white;
   border-color: #4caf50;
 }
+
+.btn-small {
+  padding: 4px 8px;
+  font-size: 12px;
+}

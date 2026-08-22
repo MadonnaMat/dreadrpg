@@ -23,8 +23,7 @@ const TestComponent = () => {
     dangerProbability,
     awaitingReset,
     scenario,
-    characterSheets,
-    questions,
+    characters,
     allowPlayersToViewSheets,
   } = usePeer();
 
@@ -40,10 +39,7 @@ const TestComponent = () => {
       <div data-testid="danger-probability">{dangerProbability}</div>
       <div data-testid="awaiting-reset">{awaitingReset.toString()}</div>
       <div data-testid="scenario">{JSON.stringify(scenario)}</div>
-      <div data-testid="character-sheets">
-        {JSON.stringify(characterSheets)}
-      </div>
-      <div data-testid="questions">{JSON.stringify(questions)}</div>
+      <div data-testid="characters">{JSON.stringify(characters)}</div>
       <div data-testid="allow-players-view">
         {allowPlayersToViewSheets.toString()}
       </div>
@@ -92,8 +88,7 @@ describe("PeerProvider", () => {
     expect(screen.getByTestId("danger-probability")).toHaveTextContent("0");
     expect(screen.getByTestId("awaiting-reset")).toHaveTextContent("false");
     expect(screen.getByTestId("scenario")).toHaveTextContent("null");
-    expect(screen.getByTestId("character-sheets")).toHaveTextContent("{}");
-    expect(screen.getByTestId("questions")).toHaveTextContent("null");
+    expect(screen.getByTestId("characters")).toHaveTextContent("{}");
     expect(screen.getByTestId("allow-players-view")).toHaveTextContent("false");
   });
 
@@ -165,16 +160,5 @@ describe("PeerProvider", () => {
 
     // The normalization should happen internally when creating games
     expect(screen.getByTestId("is-gm")).toHaveTextContent("false");
-  });
-
-  it("should handle default questions correctly", () => {
-    render(
-      <PeerProvider>
-        <TestComponent />
-      </PeerProvider>
-    );
-
-    // Initially questions should be null, will be set to defaults when needed
-    expect(screen.getByTestId("questions")).toHaveTextContent("null");
   });
 });

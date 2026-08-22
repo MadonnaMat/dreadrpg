@@ -153,28 +153,25 @@ fills — a real behavior change to game start, not a one-line fix.
 
 ## Questionnaires: unique per character vs. one shared list
 
-**🔷 Gap — the largest one.** "The host creates a unique character
-questionnaire for each of the players' characters." The "Beneath a Metal
-Sky" example proves this in practice: 6 characters, 6 completely distinct
-~11-question sheets built around each character's specific role and secrets
-(see [`example-scenario-metal-sky.md`](./example-scenario-metal-sky.md)).
+**🔧 Fixed this pass.** "The host creates a unique character questionnaire
+for each of the players' characters." The "Beneath a Metal Sky" example
+proves this in practice: 6 characters, 6 completely distinct ~11-question
+sheets built around each character's specific role and secrets (see
+[`example-scenario-metal-sky.md`](./example-scenario-metal-sky.md)).
 
-The app has exactly one shared questionnaire for the whole game:
-`DEFAULT_QUESTIONS` (`src/constants/questions.js:1`), editable only as one
-set by the GM via `QuestionEditor`
-(`src/components/character-sheet/QuestionEditor.jsx`), applied to every
-player identically (`src/components/CharacterSheet.jsx:35`, `:77`, `:123`).
-There is no per-player question data model at all — `questions` is a single
-array in `PeerProvider`/`PeerContext`, not a map keyed by player.
-
-Not fixed this pass — this is a real data-model and UI change (`questions`
-would need to become `{ [playerName]: Question[] }`, plus new GM UI to
-author/edit one questionnaire per joined player, plus migration of the
-"send default questions to a new joiner" flow in `PeerProvider.jsx`). Flagged
-for a product decision: is per-character uniqueness worth the added GM
-setup burden for this app's use case, or is one shared questionnaire an
-acceptable, deliberate simplification (similar to the wheel-for-tower
-swap)? Worth an explicit call rather than a silent implementation.
+`questions`/`characterSheets` used to be one shared array + a map keyed by
+player name, applied identically to everyone. Characters are now first-class
+entities (`characters: { [characterId]: { id, name, defaultName, assignedTo,
+questions, answers } }` in `src/providers/peer/useGameState.js`) that the GM
+creates, clones, renames, and deletes independently via a roster
+(`src/components/character-sheet/CharacterRoster.jsx`), each with its own
+questionnaire edited through the same `QuestionEditor`
+(`src/components/character-sheet/QuestionEditor.jsx`) scoped to one
+character at a time (`src/components/CharacterSheet.jsx`). See
+`docs/rules/compliance-fix-plan.md` item 2. Not yet wired up: a UI for a
+player to actually claim one of these characters (that's plan item 3, next)
+— until then `assignedTo` only ever gets set by direct state manipulation
+(exercised in tests), not by an in-app flow.
 
 ## Question count guidance ("a baker's dozen")
 
@@ -219,7 +216,7 @@ either way.
 | Conflict between characters          | 🔷 gap                                             |
 | Mismatched opponents                 | 🔷 gap                                             |
 | Initial pre-pull by player count     | 🔷 gap                                             |
-| Unique per-character questionnaires  | 🔷 **gap — biggest one, needs a product decision** |
+| Unique per-character questionnaires  | 🔧 fixed this pass                                 |
 | Question count                       | ✅                                                 |
 | Host approval of answers             | 🔷 gap (minor)                                     |
 | Scenario structure                   | 🟡 by design                                       |

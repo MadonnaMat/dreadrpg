@@ -22,8 +22,7 @@ export const PeerProvider = ({ children }) => {
 
   const currentStateRef = useCurrentStateRef({
     scenario: gameState.scenario,
-    characterSheets: gameState.characterSheets,
-    questions: gameState.questions,
+    characters: gameState.characters,
     allowPlayersToViewSheets: gameState.allowPlayersToViewSheets,
     users: session.users,
     hostName: session.hostName,
@@ -68,8 +67,7 @@ export const PeerProvider = ({ children }) => {
     gameState.setAwaitingReset(false);
     gameState.setGameStarted(false); // New game always starts back in the lobby
     gameState.setScenario(null); // Reset scenario for new game
-    gameState.setCharacterSheets({}); // Reset character sheets for new game
-    gameState.setQuestions(null); // Reset questions for new game
+    gameState.setCharacters({}); // Reset characters for new game
     gameState.setAllowPlayersToViewSheets(false); // Reset sheet visibility for new game
     session.setConnectionStatus("Waiting for players...");
     session.setUsers({});
@@ -154,8 +152,7 @@ export const PeerProvider = ({ children }) => {
         setAwaitingReset: gameState.setAwaitingReset,
         setGameStarted: gameState.setGameStarted,
         setScenario: gameState.setScenario,
-        setCharacterSheets: gameState.setCharacterSheets,
-        setQuestions: gameState.setQuestions,
+        setCharacters: gameState.setCharacters,
         setAllowPlayersToViewSheets: gameState.setAllowPlayersToViewSheets,
       }),
       onStatusChange: (status) => session.setConnectionStatus(status),

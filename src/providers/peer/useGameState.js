@@ -11,8 +11,12 @@ export function useGameState() {
   // late joiner's welcome/game-data-sync snapshot can skip the lobby.
   const [gameStarted, setGameStarted] = useState(false);
   const [scenario, setScenario] = useState(null);
-  const [characterSheets, setCharacterSheets] = useState({}); // { playerName: { questionIndex: answer } }
-  const [questions, setQuestions] = useState(null); // Array of questions
+  // { [characterId]: { id, name, defaultName, assignedTo: userName|null,
+  //   questions: string[], answers: { [questionIndex]: string } } } - a
+  // character is a first-class entity the GM authors/clones/assigns, not
+  // just a per-player questionnaire (see docs/rules/compliance-fix-plan.md
+  // item 2).
+  const [characters, setCharacters] = useState({});
   const [allowPlayersToViewSheets, setAllowPlayersToViewSheets] =
     useState(false);
 
@@ -27,10 +31,8 @@ export function useGameState() {
     setGameStarted,
     scenario,
     setScenario,
-    characterSheets,
-    setCharacterSheets,
-    questions,
-    setQuestions,
+    characters,
+    setCharacters,
     allowPlayersToViewSheets,
     setAllowPlayersToViewSheets,
   };

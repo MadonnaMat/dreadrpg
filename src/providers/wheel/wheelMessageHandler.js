@@ -73,7 +73,11 @@ function handlePlayerMessage(data, setters) {
   }
 }
 
-export function createWheelMessageHandler({ isGM, handleHostSpin, ...setters }) {
+export function createWheelMessageHandler({
+  isGM,
+  handleHostSpin,
+  ...setters
+}) {
   return (data) => {
     if (isGM) {
       if (data.type === MESSAGE_TYPES.SPIN_REQUEST) {

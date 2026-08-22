@@ -14,8 +14,7 @@ function makeStateRef(overrides = {}) {
       awaitingReset: false,
       gameStarted: false,
       scenario: null,
-      characterSheets: {},
-      questions: null,
+      characters: {},
       allowPlayersToViewSheets: false,
       ...overrides,
     },
@@ -35,8 +34,7 @@ describe("buildGameSnapshot", () => {
       awaitingReset: false,
       gameStarted: false,
       scenario: null,
-      characterSheets: {},
-      questions: null,
+      characters: {},
       allowPlayersToViewSheets: false,
     });
   });
@@ -89,13 +87,14 @@ describe("dispatchToRegisteredHandlers", () => {
     expect(handlerRefs.chat.current).not.toHaveBeenCalled();
   });
 
-  it("forwards all four character-sheet-related types to the same handler", () => {
+  it("forwards all five character-sheet-related types to the same handler", () => {
     const handlerRefs = makeHandlerRefs();
     const types = [
-      "character-sheet-update",
-      "questions-update",
+      "character-create",
+      "character-clone",
+      "character-update",
+      "character-delete",
       "sheet-visibility-update",
-      "character-sheets-broadcast",
     ];
 
     types.forEach((type) => {

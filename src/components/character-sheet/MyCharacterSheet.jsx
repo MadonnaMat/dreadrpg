@@ -1,6 +1,6 @@
 export default function MyCharacterSheet({
   questions,
-  mySheet,
+  answers,
   onAnswerChange,
 }) {
   return (
@@ -11,7 +11,7 @@ export default function MyCharacterSheet({
           <div key={index} className="character-field">
             <label className="question-label">{question}</label>
             <textarea
-              value={mySheet[index] || ""}
+              value={answers[index] || ""}
               onChange={(e) => onAnswerChange(index, e.target.value)}
               placeholder="Enter your answer..."
               rows={question.includes("weaknesses") ? 4 : 2}

@@ -36,11 +36,11 @@ for the two items reclassified as by-design rather than implemented).
 
 - `gameId` is used directly as the PeerJS peer ID
   (`new Peer(normalizedId(gameId))` in `src/providers/peer/
-  connectionManager.js`), so recreating a game with the same `gameId`
+connectionManager.js`), so recreating a game with the same `gameId`
   reproduces the same pairing code.
 - **There is no lobby/waiting stage today.** `WheelProvider.jsx` sets
   `showWheel = true` the instant `conn` becomes truthy, and for the GM,
-  `conn` is only set once the *first* player connects. The moment one
+  `conn` is only set once the _first_ player connects. The moment one
   player joins, everyone is thrown straight into `GameLoaded` — no
   "wait for more players, then GM clicks Start" step exists, and no
   player-side waiting-room UI exists at all.
