@@ -22,35 +22,11 @@ function remapAnswersToQuestions(oldAnswers, newQuestions) {
   return remapped;
 }
 
-// Applies an inbound create/clone/update/delete/visibility message to local
-// state. Extracted out of the registered handler purely to keep
-// CharacterSheet's own complexity down - each message type is independent.
-function applyCharacterEvent(data, setCharacters, setAllowPlayersToViewSheets) {
-  if (
-    data.type === MESSAGE_TYPES.CHARACTER_CREATE ||
-    data.type === MESSAGE_TYPES.CHARACTER_CLONE
-  ) {
-    setCharacters((prev) => ({ ...prev, [data.character.id]: data.character }));
-  } else if (data.type === MESSAGE_TYPES.CHARACTER_UPDATE) {
-    const { type: _type, id, ...patch } = data;
-    setCharacters((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
-  } else if (data.type === MESSAGE_TYPES.CHARACTER_DELETE) {
-    setCharacters((prev) => {
-      const next = { ...prev };
-      delete next[data.id];
-      return next;
-    });
-  } else if (data.type === MESSAGE_TYPES.SHEET_VISIBILITY_UPDATE) {
-    setAllowPlayersToViewSheets(data.allowPlayersToViewSheets);
-  }
-}
-
 export default function CharacterSheet() {
   const {
     isGM,
     userName,
     sendToPeers,
-    registerCharacterSheetEventHandler,
     characters,
     setCharacters,
     allowPlayersToViewSheets,
@@ -65,23 +41,6 @@ export default function CharacterSheet() {
   const myCharacter = Object.values(characters || {}).find(
     (c) => c.assignedTo === userName
   );
-
-  // Register character event handler - applies inbound create/clone/update/
-  // delete/visibility messages to local state, and (GM only) forwards them
-  // on to every other player, mirroring Chat.jsx's forwarding pattern since
-  // GM is the only hub every player is connected to.
-  useEffect(() => {
-    registerCharacterSheetEventHandler((data) => {
-      applyCharacterEvent(data, setCharacters, setAllowPlayersToViewSheets);
-      if (isGM) sendToPeers(data);
-    });
-  }, [
-    registerCharacterSheetEventHandler,
-    setCharacters,
-    setAllowPlayersToViewSheets,
-    isGM,
-    sendToPeers,
-  ]);
 
   // Keep the question-editor draft in sync with whichever character is
   // currently selected, unless the GM is actively editing it.

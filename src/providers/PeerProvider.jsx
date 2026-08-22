@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import { PeerContext } from "../contexts/PeerContext";
 import {
   createHostConnectionManager,
@@ -13,6 +13,7 @@ import { usePeerSession } from "./peer/usePeerSession";
 import { useGameState } from "./peer/useGameState";
 import { useRegisteredHandlers } from "./peer/useRegisteredHandlers";
 import { useCurrentStateRef } from "./peer/useCurrentStateRef";
+import { applyCharacterEvent } from "./peer/characterEvents";
 import { MESSAGE_TYPES } from "../constants/messageTypes";
 
 export const PeerProvider = ({ children }) => {
@@ -56,6 +57,31 @@ export const PeerProvider = ({ children }) => {
     sendToPeers,
     peerId: session.peerId,
   });
+
+  // Character events are registered here (always active for the whole app
+  // session) rather than from whichever component currently renders
+  // character UI - a player claiming a character in the pre-game lobby, or
+  // another player answering questions, needs to be applied and (GM only)
+  // forwarded on to everyone else even when nobody has a character-related
+  // tab open. Mirrors Chat.jsx's forwarding pattern since the GM is the only
+  // hub every player is connected to.
+  const { registerCharacterSheetEventHandler } = handlers;
+  useEffect(() => {
+    registerCharacterSheetEventHandler((data) => {
+      applyCharacterEvent(
+        data,
+        gameState.setCharacters,
+        gameState.setAllowPlayersToViewSheets
+      );
+      if (session.isGM) sendToPeers(data);
+    });
+  }, [
+    registerCharacterSheetEventHandler,
+    gameState.setCharacters,
+    gameState.setAllowPlayersToViewSheets,
+    session.isGM,
+    sendToPeers,
+  ]);
 
   // Host: create game
   const createGame = (newGameId, hostNameArg, towerSizeArg = 25) => {
@@ -172,8 +198,6 @@ export const PeerProvider = ({ children }) => {
         registerWheelEventHandler: handlers.registerWheelEventHandler,
         registerChatEventHandler: handlers.registerChatEventHandler,
         registerScenarioEventHandler: handlers.registerScenarioEventHandler,
-        registerCharacterSheetEventHandler:
-          handlers.registerCharacterSheetEventHandler,
         sendToPeers,
       }}
     >

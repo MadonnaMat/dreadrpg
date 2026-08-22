@@ -204,19 +204,19 @@ either way.
 
 ## Summary
 
-| Area                                 | Verdict                                            |
-| ------------------------------------ | -------------------------------------------------- |
-| GM/host model                        | ✅                                                 |
-| Tower → wheel                        | 🟡 by design                                       |
-| Escalating danger after a collapse   | 🔧 fixed this pass                                 |
-| Decline-a-pull vs. collapse severity | 🔷 gap                                             |
-| "Ways to remove a character" flavor  | 🔷 gap (cosmetic)                                  |
-| Elective pulls                       | ✅                                                 |
-| Multi-pull complex tasks             | 🔷 gap                                             |
-| Conflict between characters          | 🔷 gap                                             |
-| Mismatched opponents                 | 🔷 gap                                             |
-| Initial pre-pull by player count     | 🔷 gap                                             |
-| Unique per-character questionnaires  | 🔧 fixed this pass                                 |
-| Question count                       | ✅                                                 |
-| Host approval of answers             | 🔷 gap (minor)                                     |
-| Scenario structure                   | 🟡 by design                                       |
+| Area                                 | Verdict            |
+| ------------------------------------ | ------------------ |
+| GM/host model                        | ✅                 |
+| Tower → wheel                        | 🟡 by design       |
+| Escalating danger after a collapse   | 🔧 fixed this pass |
+| Decline-a-pull vs. collapse severity | 🔷 gap             |
+| "Ways to remove a character" flavor  | 🔷 gap (cosmetic)  |
+| Elective pulls                       | ✅                 |
+| Multi-pull complex tasks             | 🔷 gap             |
+| Conflict between characters          | 🔷 gap             |
+| Mismatched opponents                 | 🔷 gap             |
+| Initial pre-pull by player count     | 🔷 gap             |
+| Unique per-character questionnaires  | 🔧 fixed this pass |
+| Question count                       | ✅                 |
+| Host approval of answers             | 🔷 gap (minor)     |
+| Scenario structure                   | 🟡 by design       |

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import PreGame from "../components/PreGame";
 import { PeerProvider } from "../providers/PeerProvider";
@@ -133,6 +133,30 @@ describe("PreGame Component", () => {
     await user.type(nameInput, "Test Player");
 
     expect(joinButton).not.toBeDisabled();
+  });
+
+  it("shows the player lobby (not the join form) once connected", async () => {
+    render(
+      <PeerProvider>
+        <WheelProvider>
+          <PreGame />
+        </WheelProvider>
+      </PeerProvider>
+    );
+
+    await user.click(screen.getByText("Join Game"));
+    await user.type(screen.getByPlaceholderText("Game ID"), "test-game-123");
+    await user.type(screen.getByPlaceholderText("Your Name"), "Bob");
+    await user.click(screen.getByRole("button", { name: "Join" }));
+
+    // Let the mock Peer/Connection's chained async "open" events fire (see
+    // MockPeer in src/test/setup.js) so `conn` actually becomes truthy.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 30)));
+
+    expect(
+      screen.getByText("Waiting for the GM to start the game...")
+    ).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("Game ID")).not.toBeInTheDocument();
   });
 
   it("should handle tower size input", async () => {

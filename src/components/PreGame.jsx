@@ -3,6 +3,7 @@ import { usePeer } from "../hooks/usePeer";
 import { useWheel } from "../hooks/useWheel";
 import Scenario from "./Scenario";
 import CharacterSheet from "./CharacterSheet";
+import PlayerLobby from "./PlayerLobby";
 
 function generateGameId() {
   return Array(3)
@@ -63,6 +64,86 @@ function CreateSection({
   );
 }
 
+function HostLobbyPanel({ gameId, connectionStatus, users, getShareUrl }) {
+  const { startGame } = useWheel();
+  const [activeTab, setActiveTab] = useState("lobby");
+
+  return (
+    <>
+      <div className="tab-navigation">
+        {[
+          ["lobby", "Lobby"],
+          ["scenario", "Setup Scenario"],
+          ["characters", "Setup Characters"],
+        ].map(([tab, label]) => (
+          <button
+            key={tab}
+            className={`tab-button ${activeTab === tab ? "active" : ""}`}
+            onClick={() => setActiveTab(tab)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div className="tab-content">
+        {activeTab === "lobby" && (
+          <div>
+            <div className="lobby-info">
+              <div style={{ marginBottom: 12 }}>
+                <strong>Game ID:</strong> {gameId}
+                <br />
+                <span>Share this ID with players to join.</span>
+              </div>
+              <div>
+                <strong>Sharable URL:</strong>
+                <div className="url-input-container">
+                  <input
+                    type="text"
+                    value={getShareUrl()}
+                    readOnly
+                    onClick={(e) => e.target.select()}
+                  />
+                  <button
+                    onClick={() => navigator.clipboard.writeText(getShareUrl())}
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div
+              id="connection-status"
+              style={{ padding: 8, fontWeight: "bold" }}
+            >
+              {connectionStatus}
+            </div>
+            <div className="lobby-tip">
+              <p>
+                <strong>Tip:</strong> While waiting for players to join, you can
+                use the "Setup Scenario" tab to prepare your Dread RPG scenario.
+                This will help you get the session ready and will be
+                automatically shared with players when they join.
+              </p>
+            </div>
+            <div id="start-game-section" style={{ marginTop: 16 }}>
+              <div style={{ marginBottom: 8 }}>
+                <strong>Players joined:</strong>{" "}
+                {Math.max(0, Object.keys(users || {}).length - 1)}
+              </div>
+              <button id="start-game-btn" onClick={startGame}>
+                Start Game
+              </button>
+            </div>
+          </div>
+        )}
+        {activeTab === "scenario" && <Scenario />}
+        {activeTab === "characters" && <CharacterSheet />}
+      </div>
+    </>
+  );
+}
+
 function JoinSection({
   inputGameId,
   setInputGameId,
@@ -112,11 +193,10 @@ export default function PreGame() {
     setHostName,
     isGM,
     users,
+    conn,
   } = usePeer();
-  const { startGame } = useWheel();
   const [mode, setMode] = useState("");
   const [inputGameId, setInputGameId] = useState("");
-  const [activeTab, setActiveTab] = useState("lobby");
 
   // On mount, check for gameId in query params
   useEffect(() => {
@@ -185,95 +265,14 @@ export default function PreGame() {
           />
         )}
         {mode === "create" && gameId && isGM && (
-          <>
-            {/* Tab Navigation for Host */}
-            <div className="tab-navigation">
-              <button
-                className={`tab-button ${
-                  activeTab === "lobby" ? "active" : ""
-                }`}
-                onClick={() => setActiveTab("lobby")}
-              >
-                Lobby
-              </button>
-              <button
-                className={`tab-button ${
-                  activeTab === "scenario" ? "active" : ""
-                }`}
-                onClick={() => setActiveTab("scenario")}
-              >
-                Setup Scenario
-              </button>
-              <button
-                className={`tab-button ${
-                  activeTab === "characters" ? "active" : ""
-                }`}
-                onClick={() => setActiveTab("characters")}
-              >
-                Setup Characters
-              </button>
-            </div>
-
-            {/* Tab Content */}
-            <div className="tab-content">
-              {activeTab === "lobby" && (
-                <div>
-                  <div className="lobby-info">
-                    <div style={{ marginBottom: 12 }}>
-                      <strong>Game ID:</strong> {gameId}
-                      <br />
-                      <span>Share this ID with players to join.</span>
-                    </div>
-                    <div>
-                      <strong>Sharable URL:</strong>
-                      <div className="url-input-container">
-                        <input
-                          type="text"
-                          value={getShareUrl()}
-                          readOnly
-                          onClick={(e) => e.target.select()}
-                        />
-                        <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(getShareUrl());
-                          }}
-                        >
-                          Copy
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  <div
-                    id="connection-status"
-                    style={{ padding: 8, fontWeight: "bold" }}
-                  >
-                    {connectionStatus}
-                  </div>
-                  <div className="lobby-tip">
-                    <p>
-                      <strong>Tip:</strong> While waiting for players to join,
-                      you can use the "Setup Scenario" tab to prepare your Dread
-                      RPG scenario. This will help you get the session ready and
-                      will be automatically shared with players when they join.
-                    </p>
-                  </div>
-                  <div id="start-game-section" style={{ marginTop: 16 }}>
-                    <div style={{ marginBottom: 8 }}>
-                      <strong>Players joined:</strong>{" "}
-                      {Math.max(0, Object.keys(users || {}).length - 1)}
-                    </div>
-                    <button id="start-game-btn" onClick={startGame}>
-                      Start Game
-                    </button>
-                  </div>
-                </div>
-              )}
-              {activeTab === "scenario" && <Scenario />}
-              {activeTab === "characters" && <CharacterSheet />}
-            </div>
-          </>
+          <HostLobbyPanel
+            gameId={gameId}
+            connectionStatus={connectionStatus}
+            users={users}
+            getShareUrl={getShareUrl}
+          />
         )}
-        {mode === "join" && (
+        {mode === "join" && !conn && (
           <JoinSection
             inputGameId={inputGameId}
             setInputGameId={setInputGameId}
@@ -283,6 +282,7 @@ export default function PreGame() {
             connectionStatus={connectionStatus}
           />
         )}
+        {mode === "join" && conn && <PlayerLobby />}
       </div>
     </div>
   );
