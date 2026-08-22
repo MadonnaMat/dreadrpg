@@ -44,6 +44,31 @@ function makeCharacter(overrides = {}) {
   };
 }
 
+// Renders CharacterSheet as the GM with a character already pre-seeded
+// (e.g. one with a pending answer to approve), rather than an empty roster.
+function GmCharacterSheetWithCharacter({ character }) {
+  const { setIsGM, setCharacters } = usePeer();
+  useEffect(() => {
+    setIsGM(true);
+    setCharacters({ [character.id]: character });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setIsGM, setCharacters]);
+  return <CharacterSheet />;
+}
+
+// Renders CharacterSheet as a different, unassigned player with sheet
+// visibility already on, so OtherPlayersSheets renders Alice's character.
+function OtherPlayerCharacterSheet({ characters }) {
+  const { setUserName, setCharacters, setAllowPlayersToViewSheets } = usePeer();
+  useEffect(() => {
+    setUserName("Bob");
+    setCharacters(characters);
+    setAllowPlayersToViewSheets(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setUserName, setCharacters, setAllowPlayersToViewSheets]);
+  return <CharacterSheet />;
+}
+
 describe("CharacterSheet Component", () => {
   let user;
 
@@ -171,6 +196,71 @@ describe("CharacterSheet Component", () => {
     await user.click(screen.getAllByRole("button", { name: "Delete" })[0]);
 
     expect(screen.getByText(/No characters yet/)).toBeInTheDocument();
+  });
+
+  it("marks a newly-typed answer as pending GM approval", async () => {
+    render(
+      <PeerProvider>
+        <PlayerCharacterSheet assignedCharacter={makeCharacter()} />
+      </PeerProvider>
+    );
+
+    const [firstAnswer] = screen.getAllByPlaceholderText(
+      "Enter your answer..."
+    );
+    await user.type(firstAnswer, "Alice");
+
+    expect(screen.getByText("Pending GM approval")).toBeInTheDocument();
+  });
+
+  it("lets the GM approve a submitted answer", async () => {
+    const character = makeCharacter({
+      answers: { 0: { text: "Alice", approved: false } },
+    });
+    render(
+      <PeerProvider>
+        <GmCharacterSheetWithCharacter character={character} />
+      </PeerProvider>
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: `${character.name} (Alice)` })
+    );
+    expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Approve" }));
+
+    expect(screen.getByText("Approved")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Approve" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides an unapproved answer from other players even with sheet visibility on", () => {
+    const character = makeCharacter({
+      answers: { 0: { text: "A secret", approved: false } },
+    });
+    render(
+      <PeerProvider>
+        <OtherPlayerCharacterSheet characters={{ [character.id]: character }} />
+      </PeerProvider>
+    );
+
+    expect(screen.getAllByText("No answer provided").length).toBeGreaterThan(0);
+    expect(screen.queryByText("A secret")).not.toBeInTheDocument();
+  });
+
+  it("shows an approved answer to other players once sheet visibility is on", () => {
+    const character = makeCharacter({
+      answers: { 0: { text: "A public fact", approved: true } },
+    });
+    render(
+      <PeerProvider>
+        <OtherPlayerCharacterSheet characters={{ [character.id]: character }} />
+      </PeerProvider>
+    );
+
+    expect(screen.getByText("A public fact")).toBeInTheDocument();
   });
 
   it("toggles the sheet visibility button label for the GM", async () => {

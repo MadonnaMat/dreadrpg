@@ -180,6 +180,22 @@
   font-style: italic;
 }
 
+.answer-approved-badge {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: bold;
+  color: #4caf50;
+}
+
+.answer-pending-badge {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 12px;
+  font-style: italic;
+  color: #999;
+}
+
 /* Other Players Section */
 .other-players-section {
   margin-top: 32px;

@@ -13,6 +13,7 @@ export default function CharacterRoster({
   onRename,
   onDelete,
   onEditQuestions,
+  onApproveAnswer,
 }) {
   const [renamingId, setRenamingId] = useState("");
   const [renameDraft, setRenameDraft] = useState("");
@@ -97,16 +98,28 @@ export default function CharacterRoster({
           >
             Edit Questions
           </button>
-          {selected.questions.map((question, index) => (
-            <div key={index} className="character-answer-display">
-              <label className="question-label">{question}</label>
-              <div className="answer-display">
-                {(selected.answers && selected.answers[index]) || (
-                  <em>No answer provided</em>
-                )}
+          {selected.questions.map((question, index) => {
+            const answer = selected.answers?.[index];
+            return (
+              <div key={index} className="character-answer-display">
+                <label className="question-label">{question}</label>
+                <div className="answer-display">
+                  {answer?.text || <em>No answer provided</em>}
+                </div>
+                {answer?.text &&
+                  (answer.approved ? (
+                    <span className="answer-approved-badge">Approved</span>
+                  ) : (
+                    <button
+                      className="btn-success btn-small"
+                      onClick={() => onApproveAnswer(selected.id, index)}
+                    >
+                      Approve
+                    </button>
+                  ))}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

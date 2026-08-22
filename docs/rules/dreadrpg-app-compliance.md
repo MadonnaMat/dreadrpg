@@ -203,12 +203,16 @@ average ~11). Not a gap.
 
 ## Host approval of questionnaire answers
 
-**🔷 Gap** (minor). "The host has to approve any answer a player puts on a
-questionnaire." The app has no approval/review step — a player's answers in
-`MyCharacterSheet.jsx` sync directly to everyone the instant they're typed
-(`handleAnswerChange` in `src/components/CharacterSheet.jsx`) with no GM
-gate. Not fixed this pass: minor scope, would need an approval/flag state
-per answer.
+**🔧 Fixed this pass.** "The host has to approve any answer a player puts on
+a questionnaire." An answer is now `{ text, approved }`
+(`src/components/CharacterSheet.jsx` `handleAnswerChange`) — still synced
+to the GM on every keystroke (unchanged UX for the player and GM, who
+always see the live draft), but always reset to `approved: false` on
+change. The GM's character roster (`CharacterRoster.jsx`) shows an
+"Approve" button per answer; `OtherPlayersSheets.jsx` — the only place
+another player ever sees someone else's answers — shows an unapproved
+answer as "No answer provided," identical to a genuinely blank one, until
+the GM approves it.
 
 ## Scenario structure vs. GM-craft advice
 
@@ -238,5 +242,5 @@ either way.
 | Initial pre-pull by player count     | 🔷 gap                                    |
 | Unique per-character questionnaires  | 🔧 fixed this pass                        |
 | Question count                       | ✅                                        |
-| Host approval of answers             | 🔷 gap (minor)                            |
+| Host approval of answers             | 🔧 fixed this pass                        |
 | Scenario structure                   | 🟡 by design                              |

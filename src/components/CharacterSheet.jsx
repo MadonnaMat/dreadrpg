@@ -17,7 +17,10 @@ function generateCharacterId() {
 function remapAnswersToQuestions(oldAnswers, newQuestions) {
   const remapped = {};
   newQuestions.forEach((_, index) => {
-    remapped[index] = (oldAnswers && oldAnswers[index]) || "";
+    remapped[index] = (oldAnswers && oldAnswers[index]) || {
+      text: "",
+      approved: false,
+    };
   });
   return remapped;
 }
@@ -96,10 +99,37 @@ export default function CharacterSheet() {
     if (selectedCharacterId === id) setSelectedCharacterId("");
   };
 
+  // A newly-typed answer always reverts to unapproved - the GM has to
+  // explicitly re-approve it (see handleApproveAnswer), even if it was
+  // previously approved before the player changed it.
   const handleAnswerChange = (characterId, questionIndex, value) => {
     const character = characters?.[characterId];
     if (!character) return;
-    const answers = { ...(character.answers || {}), [questionIndex]: value };
+    const answers = {
+      ...(character.answers || {}),
+      [questionIndex]: { text: value, approved: false },
+    };
+    setCharacters((prev) => ({
+      ...prev,
+      [characterId]: { ...prev[characterId], answers },
+    }));
+    sendToPeers({
+      type: MESSAGE_TYPES.CHARACTER_UPDATE,
+      id: characterId,
+      answers,
+    });
+  };
+
+  // GM only: marks one answer as officially approved, making it visible to
+  // other players once sheet visibility is on (see OtherPlayersSheets).
+  const handleApproveAnswer = (characterId, questionIndex) => {
+    const character = characters?.[characterId];
+    const existing = character?.answers?.[questionIndex];
+    if (!existing) return;
+    const answers = {
+      ...character.answers,
+      [questionIndex]: { ...existing, approved: true },
+    };
     setCharacters((prev) => ({
       ...prev,
       [characterId]: { ...prev[characterId], answers },
@@ -180,6 +210,7 @@ export default function CharacterSheet() {
           onRemoveQuestion={handleRemoveQuestion}
           onSaveQuestions={handleSaveQuestions}
           onCancelEditQuestions={handleCancelEditQuestions}
+          onApproveAnswer={handleApproveAnswer}
         />
       ) : (
         <PlayerCharacterPanel
@@ -212,6 +243,7 @@ function GMCharacterPanel({
   onRemoveQuestion,
   onSaveQuestions,
   onCancelEditQuestions,
+  onApproveAnswer,
 }) {
   return (
     <div className="gm-controls">
@@ -239,6 +271,7 @@ function GMCharacterPanel({
         onRename={onRename}
         onDelete={onDelete}
         onEditQuestions={() => setIsEditingQuestions(true)}
+        onApproveAnswer={onApproveAnswer}
       />
 
       {isEditingQuestions && selectedCharacter && (
