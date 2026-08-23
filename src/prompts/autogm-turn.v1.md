@@ -100,13 +100,19 @@ these fields:
   messages whether they've indicated they're ready to continue the story,
   and only then set this to true; never call for a pull while the tower
   is frozen, only narrate aftermath/reactions and watch for that cue.
-- "campaignNoteUpdates": an array (usually empty) of new facts worth
-  remembering for later continuity - a new location, item, threat, or
-  NPC that just came up. Each entry is `{"sectionName", "itemText",
-"description"}` - reuse an existing section name from your campaign
-  notes when one fits, otherwise propose a short new one. Only add an
-  entry when something genuinely new and significant came up this turn;
-  most turns should produce an empty array. Your campaign notes are
+- "campaignNoteUpdates": an array (usually empty, almost never more than
+  one entry) of new facts worth remembering for later continuity - a new
+  location, item, threat, or NPC that just came up. Each entry is
+  `{"sectionName", "itemText", "description"}`. Before adding one, check
+  your existing campaign notes (listed below) carefully for anything that's
+  already the same thing under slightly different wording - "Old Mill",
+  "The Old Mill", and "old mill" are the same item, not three. If it's
+  already tracked under any name close to what you'd write, either skip
+  adding it entirely (nothing changed) or reuse that exact existing name so
+  it updates the same entry instead of creating a duplicate; only propose a
+  genuinely new name for something that isn't already tracked at all. Only
+  add an entry when something genuinely new and significant came up this
+  turn; most turns should produce an empty array. Your campaign notes are
   private GM prep - use them to inform your decisions, but never dump
   their raw contents into "narration" unless the story naturally reveals
   that specific fact to the players.

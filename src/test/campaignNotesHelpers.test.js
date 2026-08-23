@@ -86,4 +86,64 @@ describe("applyCampaignNoteUpdates", () => {
     ]);
     expect(result).toHaveLength(1);
   });
+
+  it("treats a leading article as the same item, avoiding a near-duplicate", () => {
+    const notes = [
+      {
+        id: "note-1",
+        name: "Locations",
+        items: [{ text: "Old Mill", description: "Downstream." }],
+      },
+    ];
+    const result = applyCampaignNoteUpdates(notes, [
+      {
+        sectionName: "Locations",
+        itemText: "The Old Mill",
+        description: "Downstream, now flooded.",
+      },
+    ]);
+    expect(result[0].items).toEqual([
+      { text: "Old Mill", description: "Downstream, now flooded." },
+    ]);
+  });
+
+  it("truncates an unusually long description instead of letting it grow unbounded", () => {
+    const longDescription = "x".repeat(500);
+    const result = applyCampaignNoteUpdates(
+      [],
+      [
+        {
+          sectionName: "Items",
+          itemText: "Journal",
+          description: longDescription,
+        },
+      ]
+    );
+    expect(result[0].items[0].description.length).toBeLessThan(250);
+    expect(result[0].items[0].description.endsWith("…")).toBe(true);
+  });
+
+  it("evicts the oldest item once a section exceeds the per-section cap", () => {
+    let notes = [];
+    for (let i = 0; i < 9; i += 1) {
+      notes = applyCampaignNoteUpdates(notes, [
+        { sectionName: "Items", itemText: `Item ${i}`, description: "" },
+      ]);
+    }
+    expect(notes[0].items).toHaveLength(8);
+    expect(notes[0].items.map((item) => item.text)).not.toContain("Item 0");
+    expect(notes[0].items.map((item) => item.text)).toContain("Item 8");
+  });
+
+  it("evicts the oldest section once the total section cap is exceeded", () => {
+    let notes = [];
+    for (let i = 0; i < 9; i += 1) {
+      notes = applyCampaignNoteUpdates(notes, [
+        { sectionName: `Section ${i}`, itemText: "First", description: "" },
+      ]);
+    }
+    expect(notes).toHaveLength(8);
+    expect(notes.map((section) => section.name)).not.toContain("Section 0");
+    expect(notes.map((section) => section.name)).toContain("Section 8");
+  });
 });
