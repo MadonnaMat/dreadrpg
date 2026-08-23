@@ -45,6 +45,8 @@ function Probe() {
         {String(peer.characters?.["char-1"]?.answers?.[0]?.approved)}
       </div>
       <div data-testid="turn-log-count">{autoGm.turnLog.length}</div>
+      <div data-testid="raw-history-count">{autoGm.rawHistory.length}</div>
+      <div data-testid="story-summary">{autoGm.storySummary}</div>
       <div data-testid="campaign-notes">
         {JSON.stringify(peer.campaignNotes)}
       </div>
@@ -398,6 +400,58 @@ describe("AutoGmProvider", () => {
         expect(screen.getByTestId("turn-log-count")).toHaveTextContent("0")
       );
       expect(chatMessages).toHaveLength(0);
+    });
+
+    it("compacts the raw history into storySummary once it crosses the threshold", async () => {
+      const { runPrompt, deliver } = setupEnabled({
+        runPromptImpl: async ({ systemPromptText }) => {
+          if (systemPromptText === latest("autogmCompaction").text) {
+            return {
+              valid: true,
+              parsed: { summary: "The party explored the mill." },
+            };
+          }
+          return validTurnResult();
+        },
+      });
+
+      await enable();
+      for (let i = 0; i < 21; i += 1) {
+        await deliver.current({ from: "Alice", text: `message ${i}` });
+      }
+
+      await waitFor(() =>
+        expect(screen.getByTestId("story-summary")).toHaveTextContent(
+          "The party explored the mill."
+        )
+      );
+      expect(screen.getByTestId("raw-history-count")).toHaveTextContent("1");
+      expect(runPrompt).toHaveBeenCalledWith(
+        expect.objectContaining({
+          systemPromptText: latest("autogmCompaction").text,
+        })
+      );
+    });
+
+    it("keeps the prior summary when compaction itself fails", async () => {
+      const { deliver } = setupEnabled({
+        runPromptImpl: async ({ systemPromptText }) => {
+          if (systemPromptText === latest("autogmCompaction").text) {
+            return { valid: false, parsed: null };
+          }
+          return validTurnResult();
+        },
+      });
+
+      await enable();
+      for (let i = 0; i < 21; i += 1) {
+        await deliver.current({ from: "Alice", text: `message ${i}` });
+      }
+
+      await waitFor(() =>
+        expect(screen.getByTestId("raw-history-count")).toHaveTextContent("1")
+      );
+      expect(screen.getByTestId("story-summary")).toHaveTextContent("");
     });
   });
 });

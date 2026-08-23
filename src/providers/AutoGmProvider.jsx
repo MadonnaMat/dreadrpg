@@ -10,11 +10,18 @@ import {
 } from "../helpers/characters";
 import { applyCampaignNoteUpdates } from "../helpers/campaignNotes";
 import { latest } from "../prompts/index";
-import { buildAutoGmTurnContext } from "../ai/promptContexts";
+import {
+  buildAutoGmTurnContext,
+  buildAutoGmCompactionContext,
+} from "../ai/promptContexts";
 import {
   autoGmTurnSchema,
   validate as validateAutoGmTurn,
 } from "../ai/schemas/autoGmTurnSchema";
+import {
+  autoGmCompactionSchema,
+  validate as validateAutoGmCompaction,
+} from "../ai/schemas/autoGmCompactionSchema";
 import {
   loadAutoGmState,
   saveAutoGmState,
@@ -24,6 +31,10 @@ import {
 // upcoming AutoGmDebugPanel), not part of the story's actual memory, so it
 // deliberately never persists.
 const TURN_LOG_LIMIT = 20;
+// Once the uncompacted raw-history window exceeds this many messages, it's
+// folded into storySummary and reset - keeps context bounded without
+// losing track of the story (see docs/autogm-requirements.md).
+const RAW_HISTORY_COMPACTION_THRESHOLD = 20;
 
 // Runs the AutoGM mode: an AI-driven GM that narrates and adjudicates play
 // live through the existing Chat, instead of a human running the GM role.
@@ -278,20 +289,51 @@ export function AutoGmProvider({ children }) {
     ]
   );
 
+  // Folds the retiring raw-history window into one updated running summary,
+  // fail-soft: on any failure, the prior summary is kept rather than losing
+  // everything compaction was meant to preserve.
+  const compact = useCallback(
+    async (history) => {
+      const context = buildAutoGmCompactionContext({
+        priorSummary: storySummary,
+        rawHistory: history,
+      });
+      const result = await runPrompt({
+        systemPromptText: latest("autogmCompaction").text,
+        userContent: context,
+        schema: autoGmCompactionSchema,
+        validate: validateAutoGmCompaction,
+      });
+      if (!result.valid) return storySummary;
+      return result.parsed.summary;
+    },
+    [storySummary, runPrompt]
+  );
+
   // Every human-authored chat message (inbound over the network, or the
   // GM's own local send via notifyAutoGmChat - see PeerProvider.jsx) lands
   // here. AutoGM's own narration is sent via sendSystemChatMessage, which
   // never invokes this handler, so there's no feedback-loop risk.
+  //
+  // Once the raw window grows past RAW_HISTORY_COMPACTION_THRESHOLD
+  // messages, it's folded into storySummary and the window resets to just
+  // the message that triggered this turn - keeps the context sent to the
+  // model bounded without losing track of where the story stands.
   const processIncomingChat = useCallback(
-    (data) => {
+    async (data) => {
       if (!isGM || !autoGmEnabled) return;
       const trigger = { from: data.from, text: data.text };
-      const history = [...historyRef.current, trigger];
+      let history = [...historyRef.current, trigger];
+      if (history.length > RAW_HISTORY_COMPACTION_THRESHOLD) {
+        const newSummary = await compact(history);
+        setStorySummary(newSummary);
+        history = [trigger];
+      }
       historyRef.current = history;
       setRawHistory(history);
       return runTurn(history, trigger);
     },
-    [isGM, autoGmEnabled, runTurn]
+    [isGM, autoGmEnabled, compact, runTurn]
   );
 
   useEffect(() => {
