@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   characterNameFor,
   formatUserWithCharacter,
+  formatNameForList,
   isCharacterAlive,
 } from "../helpers/characters";
 
@@ -12,6 +13,20 @@ const characters = {
     name: "The Ghost",
     assignedTo: "Alice",
     alive: false,
+  },
+};
+
+// Alice's original character died and she picked a replacement - both stay
+// assigned to her (the dead one as a historical record), so any lookup by
+// userName alone must specifically prefer the alive one, not just whichever
+// happens to be first in the characters map.
+const charactersWithReplacement = {
+  ...characters,
+  "char-3": {
+    id: "char-3",
+    name: "The Survivor",
+    assignedTo: "Alice",
+    alive: true,
   },
 };
 
@@ -26,6 +41,16 @@ describe("characterNameFor", () => {
 
   it("falls back to a generic placeholder with no userName at all", () => {
     expect(characterNameFor(characters, null)).toBe("The character");
+  });
+
+  it("falls back to the userName when their only assignment is dead", () => {
+    expect(characterNameFor(characters, "Alice")).toBe("Alice");
+  });
+
+  it("prefers a replacement character over a dead earlier one for the same player", () => {
+    expect(characterNameFor(charactersWithReplacement, "Alice")).toBe(
+      "The Survivor"
+    );
   });
 });
 
@@ -42,6 +67,38 @@ describe("formatUserWithCharacter", () => {
 
   it("returns the userName unchanged (including falsy) with no assignment lookup possible", () => {
     expect(formatUserWithCharacter(characters, null)).toBe(null);
+  });
+
+  it("returns just the userName when their only assignment is dead", () => {
+    expect(formatUserWithCharacter(characters, "Alice")).toBe("Alice");
+  });
+
+  it("prefers a replacement character over a dead earlier one for the same player", () => {
+    expect(formatUserWithCharacter(charactersWithReplacement, "Alice")).toBe(
+      "Alice <The Survivor>"
+    );
+  });
+});
+
+describe("formatNameForList", () => {
+  it("tags the GM's own row with <GM> instead of a character", () => {
+    expect(formatNameForList(characters, "GM Vera", "GM Vera")).toBe(
+      "GM Vera <GM>"
+    );
+  });
+
+  it("formats a player row the same way formatUserWithCharacter would", () => {
+    expect(formatNameForList(characters, "Bob", "GM Vera")).toBe(
+      "Bob <The Drifter>"
+    );
+  });
+
+  it("leaves a player with no character as just their name", () => {
+    expect(formatNameForList(characters, "Carol", "GM Vera")).toBe("Carol");
+  });
+
+  it("returns a falsy name unchanged", () => {
+    expect(formatNameForList(characters, null, "GM Vera")).toBe(null);
   });
 });
 

@@ -148,4 +148,70 @@ describe("Chat Component", () => {
 
     expect(screen.getByText("Alice <The Detective>:")).toBeInTheDocument();
   });
+
+  it("tags the GM's own row in the Players list with <GM> instead of a character", () => {
+    function GmChatWithPresence() {
+      const { setIsGM, setHostName, setPresence } = usePeer();
+      useEffect(() => {
+        setIsGM(true);
+        setHostName("GM Vera");
+        setPresence({ "GM Vera": { connected: true } });
+      }, [setIsGM, setHostName, setPresence]);
+      return <Chat />;
+    }
+
+    render(
+      <PeerProvider>
+        <GmChatWithPresence />
+      </PeerProvider>
+    );
+
+    expect(screen.getByText("GM Vera <GM> (online) (You)")).toBeInTheDocument();
+  });
+
+  it("shows (You) next to a player's own row in the Players list", () => {
+    function PlayerChatWithPresence() {
+      const { setUserName, setPresence } = usePeer();
+      useEffect(() => {
+        setUserName("Bob");
+        setPresence({
+          Bob: { connected: true },
+          Alice: { connected: true },
+        });
+      }, [setUserName, setPresence]);
+      return <Chat />;
+    }
+
+    render(
+      <PeerProvider>
+        <PlayerChatWithPresence />
+      </PeerProvider>
+    );
+
+    expect(screen.getByText("Bob (online) (You)")).toBeInTheDocument();
+    expect(screen.getByText("Alice (online)")).toBeInTheDocument();
+  });
+
+  it("labels the GM's own chat message with <GM> instead of GM (hostName)", async () => {
+    function GmChatWithHostName() {
+      const { setIsGM, setHostName } = usePeer();
+      useEffect(() => {
+        setIsGM(true);
+        setHostName("GM Vera");
+      }, [setIsGM, setHostName]);
+      return <Chat />;
+    }
+
+    render(
+      <PeerProvider>
+        <GmChatWithHostName />
+      </PeerProvider>
+    );
+
+    const input = screen.getByPlaceholderText("Type a message...");
+    await user.type(input, "Welcome");
+    await user.click(screen.getByText("Send"));
+
+    expect(screen.getByText("GM Vera <GM>:")).toBeInTheDocument();
+  });
 });

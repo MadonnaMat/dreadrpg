@@ -125,6 +125,25 @@ function PlayerPresenceSection() {
     };
   }, []);
 
+  // A ping that goes unanswered is the strongest signal we have that a
+  // player's presence is stale (see docs on the pagehide fix - most real
+  // disconnects now self-correct near-instantly, but this covers whatever
+  // still slips through, e.g. a genuinely stalled connection that never
+  // fires a close event at all) - so a timeout doesn't just report "no
+  // response", it actually flips their presence to offline too, the same
+  // way a detected disconnect already does.
+  const markOffline = (playerName) => {
+    setPresence((prev) => {
+      if (!prev[playerName]?.connected) return prev;
+      const nextPresence = { ...prev, [playerName]: { connected: false } };
+      sendToPeers({
+        type: MESSAGE_TYPES.PRESENCE_UPDATE,
+        presence: nextPresence,
+      });
+      return nextPresence;
+    });
+  };
+
   const ping = (playerName) => {
     setPingResults((prev) => ({
       ...prev,
@@ -133,11 +152,11 @@ function PlayerPresenceSection() {
     pingUser(playerName);
     clearTimeout(timeoutsRef.current[playerName]);
     timeoutsRef.current[playerName] = setTimeout(() => {
-      setPingResults((prev) =>
-        prev[playerName]?.status === "pinging"
-          ? { ...prev, [playerName]: { status: "timeout" } }
-          : prev
-      );
+      setPingResults((prev) => {
+        if (prev[playerName]?.status !== "pinging") return prev;
+        markOffline(playerName);
+        return { ...prev, [playerName]: { status: "timeout" } };
+      });
     }, PING_TIMEOUT_MS);
   };
 

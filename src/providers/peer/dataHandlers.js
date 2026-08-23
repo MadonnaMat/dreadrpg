@@ -6,7 +6,6 @@ import {
   buildGameSnapshot,
   dispatchToRegisteredHandlers,
 } from "./gameSnapshot";
-import { normalizedId } from "./connectionManager";
 import { MESSAGE_TYPES } from "../../constants/messageTypes";
 
 // GM side: handle an inbound message on one player's connection - the join
@@ -26,7 +25,17 @@ export function createHostDataHandler({
       data.peerId &&
       data.userName
     ) {
-      const joiningPeerId = normalizedId(data.peerId);
+      // Use the connection's own peerId (c.peer) rather than re-deriving one
+      // from data.peerId - the latter was already normalized once by the
+      // player before sending (createPlayerConnectionManager registers with
+      // normalizedId(peerId)), so normalizing it again here produced a
+      // *different* string than what's actually used as the key everywhere
+      // else (the connections Map, excludePeerId, pruneConnection's
+      // droppedPeerId) - `users` ended up keyed by an id nothing else could
+      // ever match, silently breaking anything that looked a player's
+      // connection up by their users-map key (a GM-triggered presence ping,
+      // and disconnect cleanup's own `droppedPeerId in prev` check).
+      const joiningPeerId = c.peer;
       // A name is only unavailable while its presence entry says
       // "connected" - a disconnected name is free to reclaim (see
       // docs/rules/compliance-fix-plan.md item 8).

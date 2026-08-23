@@ -205,6 +205,56 @@ describe("GameLoaded Component", () => {
     expect(options).not.toContain("Bob");
   });
 
+  it("tags the GM's own row in the spin-assign dropdown with <GM>", () => {
+    render(
+      <TestWrapper isGM={true}>
+        <GmSelfAssigned>
+          <GameLoaded />
+        </GmSelfAssigned>
+      </TestWrapper>
+    );
+
+    const options = screen.getAllByRole("option").map((opt) => opt.textContent);
+    expect(options).toContain("Host <GM>");
+  });
+
+  it("keeps a player selectable after they replace their dead character with a new one", () => {
+    function GmWithReplacedCharacter({ children }) {
+      const { setIsGM, setHostName, setUsers, setCharacters } = usePeer();
+      useEffect(() => {
+        setIsGM(true);
+        setHostName("Host");
+        setUsers({ "peer-gm": "Host", "peer-1": "Alice" });
+        setCharacters({
+          "char-1": {
+            id: "char-1",
+            name: "The Ghost",
+            assignedTo: "Alice",
+            alive: false,
+          },
+          "char-2": {
+            id: "char-2",
+            name: "The Survivor",
+            assignedTo: "Alice",
+            alive: true,
+          },
+        });
+      }, [setIsGM, setHostName, setUsers, setCharacters]);
+      return children;
+    }
+
+    render(
+      <TestWrapper isGM={true}>
+        <GmWithReplacedCharacter>
+          <GameLoaded />
+        </GmWithReplacedCharacter>
+      </TestWrapper>
+    );
+
+    const options = screen.getAllByRole("option").map((opt) => opt.textContent);
+    expect(options).toContain("Alice <The Survivor>");
+  });
+
   it("disables the Decline button while a spin is in progress", async () => {
     render(
       <TestWrapper isGM={true}>

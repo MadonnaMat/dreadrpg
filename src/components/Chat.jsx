@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import { usePeer } from "../hooks/usePeer";
 import { MESSAGE_TYPES } from "../constants/messageTypes";
-import { formatUserWithCharacter } from "../helpers/characters";
+import {
+  formatUserWithCharacter,
+  formatNameForList,
+} from "../helpers/characters";
 
 export default function Chat() {
   const {
@@ -44,11 +47,13 @@ export default function Chat() {
   }, [messages]);
 
   // Show "<name> <CharacterName>" once the player has claimed a character,
-  // so other players can tell who's speaking as whom in the transcript.
+  // so other players can tell who's speaking as whom in the transcript. The
+  // GM has no character to show, but gets the same "<...>" bracket
+  // treatment via a literal "<GM>" tag instead, for a consistent look.
   const userDisplayName = userName
     ? formatUserWithCharacter(characters, userName)
     : isGM
-      ? `GM (${hostName || gameId})`
+      ? `${hostName || gameId} <GM>`
       : "Player";
 
   const handleSend = () => {
@@ -73,9 +78,9 @@ export default function Chat() {
         <ul className="chat-users-list">
           {Object.entries(presence || {}).map(([name, info]) => (
             <li key={name}>
-              {formatUserWithCharacter(characters, name)} (
+              {formatNameForList(characters, name, hostName)} (
               {info.connected ? "online" : "offline"})
-              {name === userName ? " (You)" : ""}
+              {(isGM ? name === hostName : name === userName) ? " (You)" : ""}
             </li>
           ))}
         </ul>

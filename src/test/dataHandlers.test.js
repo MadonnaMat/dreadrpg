@@ -3,7 +3,6 @@ import {
   createHostDataHandler,
   createPlayerDataHandler,
 } from "../providers/peer/dataHandlers";
-import { normalizedId } from "../providers/peer/connectionManager";
 import { MESSAGE_TYPES } from "../constants/messageTypes";
 
 function makeHandlerRefs() {
@@ -38,7 +37,7 @@ describe("createHostDataHandler - join handling", () => {
     handler({ type: MESSAGE_TYPES.JOIN, peerId: "p1", userName: "Alice" }, c);
 
     expect(setUsers).toHaveBeenCalledWith({
-      [normalizedId("p1")]: "Alice",
+      p1: "Alice",
     });
     expect(setPresence).toHaveBeenCalledWith({
       Alice: { connected: true },
@@ -110,7 +109,7 @@ describe("createHostDataHandler - join handling", () => {
       .find((msg) => msg.type === MESSAGE_TYPES.WELCOME);
     expect(welcomeMessage.users).toEqual({
       existingPeer: "Alice",
-      [normalizedId("new-peer")]: "Bob",
+      "new-peer": "Bob",
     });
     expect(welcomeMessage.presence).toEqual({
       Alice: { connected: true },
@@ -139,7 +138,7 @@ describe("createHostDataHandler - join handling", () => {
     );
 
     expect(setUsers).toHaveBeenCalledWith({
-      [normalizedId("new-peer")]: "Alice",
+      "new-peer": "Alice",
     });
     expect(setPresence).toHaveBeenCalledWith({
       Alice: { connected: true },

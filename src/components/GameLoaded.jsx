@@ -8,7 +8,7 @@ import { usePeer } from "../hooks/usePeer";
 import { useWheel } from "../hooks/useWheel";
 import {
   characterNameFor,
-  formatUserWithCharacter,
+  formatNameForList,
   isCharacterAlive,
 } from "../helpers/characters";
 import { buildRejoinUrl } from "../helpers/rejoinLink";
@@ -23,6 +23,7 @@ function SpinControls({
   users,
   characters,
   myName,
+  hostName,
   designatedSpinner,
   assignSpinner,
   pullsRequired,
@@ -36,13 +37,20 @@ function SpinControls({
   const [requiredPulls, setRequiredPulls] = useState(1);
   const isMyTurn = designatedSpinner && myName === designatedSpinner;
 
-  // A dead character can't be asked to spin again - someone with no
-  // character assigned at all (or an alive one) remains selectable.
+  // A dead character can't be asked to spin again - but a player can end up
+  // with *multiple* assigned characters over a game (a dead one, kept as a
+  // historical record, plus whatever they picked afterward via
+  // CharacterPicker), so this has to check whether *any* of their
+  // assignments is still alive, not just the first one found. Someone with
+  // no character assigned at all remains selectable too.
   const eligibleNames = Object.values(users || {}).filter((name) => {
-    const character = Object.values(characters || {}).find(
+    const assignedCharacters = Object.values(characters || {}).filter(
       (c) => c.assignedTo === name
     );
-    return !character || isCharacterAlive(character);
+    return (
+      assignedCharacters.length === 0 ||
+      assignedCharacters.some(isCharacterAlive)
+    );
   });
 
   return (
@@ -57,7 +65,7 @@ function SpinControls({
             <option value="">Choose a player...</option>
             {eligibleNames.map((name) => (
               <option key={name} value={name}>
-                {formatUserWithCharacter(characters, name)}
+                {formatNameForList(characters, name, hostName)}
               </option>
             ))}
           </select>
@@ -280,6 +288,7 @@ export default function GameLoaded() {
               users={users}
               characters={characters}
               myName={myName}
+              hostName={hostName}
               designatedSpinner={designatedSpinner}
               assignSpinner={assignSpinner}
               pullsRequired={pullsRequired}
