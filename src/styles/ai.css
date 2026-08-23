@@ -30,6 +30,13 @@
   margin: 8px 0;
 }
 
+.ai-dev-harness-toggle {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid
+    color-mix(in srgb, var(--color-text, #ccc) 20%, transparent);
+}
+
 /* Shared text field look, matching .character-answer / .scenario-field
    textarea elsewhere in the app - inputs/textareas inside the AI panels
    previously had no border/background/focus styling of their own. */
