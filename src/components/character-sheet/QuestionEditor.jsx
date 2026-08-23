@@ -5,10 +5,22 @@ export default function QuestionEditor({
   onRemoveQuestion,
   onSave,
   onCancel,
+  onSuggestMoreQuestions,
+  suggesting,
 }) {
   return (
     <div className="question-editor">
       <h3>Edit Questionnaire</h3>
+      {onSuggestMoreQuestions && (
+        <button
+          type="button"
+          className="btn-secondary"
+          disabled={suggesting}
+          onClick={onSuggestMoreQuestions}
+        >
+          {suggesting ? "Suggesting…" : "Suggest more questions with AI"}
+        </button>
+      )}
       {questions.map((question, index) => (
         <div key={index} className="question-edit-row">
           <input

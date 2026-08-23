@@ -1,13 +1,15 @@
 import { useState, useEffect } from "react";
 import { usePeer } from "../hooks/usePeer";
+import { useAi } from "../hooks/useAi";
 import { DEFAULT_QUESTIONS } from "../constants/questions";
 import { MESSAGE_TYPES } from "../constants/messageTypes";
-import { isCharacterAlive } from "../helpers/characters";
+import { isCharacterAlive, withUpdatedAnswer } from "../helpers/characters";
 import QuestionEditor from "./character-sheet/QuestionEditor";
 import CharacterRoster from "./character-sheet/CharacterRoster";
 import CharacterPicker from "./character-sheet/CharacterPicker";
 import MyCharacterSheet from "./character-sheet/MyCharacterSheet";
 import OtherPlayersSheets from "./character-sheet/OtherPlayersSheets";
+import CastAiGenerator from "./character-sheet/CastAiGenerator";
 
 function generateCharacterId() {
   return `char-${Math.random().toString(36).slice(2, 10)}`;
@@ -36,11 +38,14 @@ export default function CharacterSheet() {
     setCharacters,
     allowPlayersToViewSheets,
     setAllowPlayersToViewSheets,
+    scenario,
   } = usePeer();
+  const { aiEnabled, generateCast } = useAi();
 
   const [selectedCharacterId, setSelectedCharacterId] = useState("");
   const [isEditingQuestions, setIsEditingQuestions] = useState(false);
   const [editQuestions, setEditQuestions] = useState(DEFAULT_QUESTIONS);
+  const [suggestingQuestions, setSuggestingQuestions] = useState(false);
 
   const selectedCharacter = characters?.[selectedCharacterId];
   const myDeadCharacter = Object.values(characters || {}).find(
@@ -58,15 +63,22 @@ export default function CharacterSheet() {
     }
   }, [selectedCharacter, isEditingQuestions]);
 
-  const handleCreateCharacter = () => {
+  // `overrides` lets an AI-drafted { name, questions } (see
+  // CastAiGenerator) seed a new character with a single CHARACTER_CREATE
+  // message, identical on the wire to a manually-created one - the "New
+  // Character" button below just calls this with no overrides.
+  const handleCreateCharacter = (overrides = {}) => {
     const id = generateCharacterId();
+    const name = overrides.name || "New Character";
     const character = {
       id,
-      name: "New Character",
-      defaultName: "New Character",
+      name,
+      defaultName: name,
       assignedTo: null,
       alive: true,
-      questions: [...DEFAULT_QUESTIONS],
+      questions: overrides.questions?.length
+        ? overrides.questions
+        : [...DEFAULT_QUESTIONS],
       answers: {},
     };
     setCharacters((prev) => ({ ...prev, [id]: character }));
@@ -112,10 +124,7 @@ export default function CharacterSheet() {
   const handleAnswerChange = (characterId, questionIndex, value) => {
     const character = characters?.[characterId];
     if (!character) return;
-    const answers = {
-      ...(character.answers || {}),
-      [questionIndex]: { text: value, approved: false },
-    };
+    const answers = withUpdatedAnswer(character, questionIndex, value);
     setCharacters((prev) => ({
       ...prev,
       [characterId]: { ...prev[characterId], answers },
@@ -165,6 +174,26 @@ export default function CharacterSheet() {
       ...patch,
     });
     setIsEditingQuestions(false);
+  };
+
+  // Reuses the cast-generation prompt/schema (an array of one
+  // { name, questions } draft) for a single character rather than adding a
+  // fourth prompt just for "a few more questions" - appends only questions
+  // not already present into editQuestions, ahead of the existing Save
+  // Questions button, so nothing is sent until the GM explicitly saves.
+  const handleSuggestMoreQuestions = async () => {
+    if (!selectedCharacter) return;
+    setSuggestingQuestions(true);
+    const result = await generateCast({
+      castDescription: `One character named "${selectedCharacter.name}" with these existing questionnaire questions: ${editQuestions.join("; ")}. Suggest 3-5 additional distinct questions for this same character, not overlapping with the existing ones.`,
+      scenario,
+    });
+    setSuggestingQuestions(false);
+    const suggested = result.valid ? result.parsed[0]?.questions : null;
+    if (suggested?.length) {
+      const newQuestions = suggested.filter((q) => !editQuestions.includes(q));
+      setEditQuestions([...editQuestions, ...newQuestions]);
+    }
   };
 
   const handleCancelEditQuestions = () => {
@@ -218,6 +247,10 @@ export default function CharacterSheet() {
           onSaveQuestions={handleSaveQuestions}
           onCancelEditQuestions={handleCancelEditQuestions}
           onApproveAnswer={handleApproveAnswer}
+          aiEnabled={aiEnabled}
+          scenario={scenario}
+          onSuggestMoreQuestions={handleSuggestMoreQuestions}
+          suggestingQuestions={suggestingQuestions}
         />
       ) : (
         <PlayerCharacterPanel
@@ -252,6 +285,10 @@ function GMCharacterPanel({
   onSaveQuestions,
   onCancelEditQuestions,
   onApproveAnswer,
+  aiEnabled,
+  scenario,
+  onSuggestMoreQuestions,
+  suggestingQuestions,
 }) {
   return (
     <div className="gm-controls">
@@ -270,6 +307,8 @@ function GMCharacterPanel({
           </button>
         </div>
       </div>
+
+      {aiEnabled && <CastAiGenerator scenario={scenario} onAccept={onCreate} />}
 
       <CharacterRoster
         characters={characters}
@@ -290,6 +329,10 @@ function GMCharacterPanel({
           onRemoveQuestion={onRemoveQuestion}
           onSave={onSaveQuestions}
           onCancel={onCancelEditQuestions}
+          onSuggestMoreQuestions={
+            aiEnabled ? onSuggestMoreQuestions : undefined
+          }
+          suggesting={suggestingQuestions}
         />
       )}
     </div>

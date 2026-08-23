@@ -6,6 +6,18 @@ export function isCharacterAlive(character) {
   return character?.alive !== false;
 }
 
+// Builds the updated `answers` map for one character after a single
+// question's answer changes. A fresh edit always resets `approved` to
+// false, even if it was previously approved - the GM must re-approve
+// edited content, the same rule whether the edit happens mid-game
+// (CharacterSheet.jsx) or during the pregame lobby (PlayerLobby.jsx).
+export function withUpdatedAnswer(character, questionIndex, value) {
+  return {
+    ...(character.answers || {}),
+    [questionIndex]: { text: value, approved: false },
+  };
+}
+
 // Finds the character a userName should currently be represented by - their
 // alive assignment, if they have one. A player can end up with *multiple*
 // characters assigned to them over a game (a dead one, kept around as a
