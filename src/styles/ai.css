@@ -73,6 +73,20 @@
   font-weight: normal;
 }
 
+.ai-cast-draft {
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid
+    color-mix(in srgb, var(--color-accent, #2196f3) 30%, transparent);
+  border-radius: 6px;
+}
+
+.ai-cast-draft > input {
+  width: 100%;
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+
 .prompt-test-harness {
   text-align: left;
   max-width: 640px;

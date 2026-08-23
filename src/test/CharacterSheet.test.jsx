@@ -1,11 +1,18 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useEffect } from "react";
 import CharacterSheet from "../components/CharacterSheet";
 import { PeerProvider } from "../providers/PeerProvider";
+import { AiProvider } from "../providers/AiProvider";
 import { usePeer } from "../hooks/usePeer";
 import { DEFAULT_QUESTIONS } from "../constants/questions";
+
+vi.mock("../ai/engine/webllmEngine", () => ({
+  createLlmEngine: vi.fn(
+    () => new Promise(() => {}) // never resolves - AI isn't enabled in these tests
+  ),
+}));
 
 // Renders CharacterSheet as the GM by flipping isGM on mount via the real PeerProvider context.
 function GmCharacterSheet() {
@@ -78,9 +85,11 @@ describe("CharacterSheet Component", () => {
 
   it("offers the character picker when no character is assigned yet", () => {
     render(
-      <PeerProvider>
-        <PlayerCharacterSheet />
-      </PeerProvider>
+      <AiProvider>
+        <PeerProvider>
+          <PlayerCharacterSheet />
+        </PeerProvider>
+      </AiProvider>
     );
 
     expect(screen.getByText("Choose a Character")).toBeInTheDocument();
@@ -88,9 +97,11 @@ describe("CharacterSheet Component", () => {
 
   it("renders the player's assigned character sheet", () => {
     render(
-      <PeerProvider>
-        <PlayerCharacterSheet assignedCharacter={makeCharacter()} />
-      </PeerProvider>
+      <AiProvider>
+        <PeerProvider>
+          <PlayerCharacterSheet assignedCharacter={makeCharacter()} />
+        </PeerProvider>
+      </AiProvider>
     );
 
     expect(screen.getByText("Character Sheet")).toBeInTheDocument();
@@ -102,11 +113,13 @@ describe("CharacterSheet Component", () => {
 
   it("offers a new character picker (with a death notice) once the player's character has died", () => {
     render(
-      <PeerProvider>
-        <PlayerCharacterSheet
-          assignedCharacter={makeCharacter({ alive: false })}
-        />
-      </PeerProvider>
+      <AiProvider>
+        <PeerProvider>
+          <PlayerCharacterSheet
+            assignedCharacter={makeCharacter({ alive: false })}
+          />
+        </PeerProvider>
+      </AiProvider>
     );
 
     expect(
@@ -120,9 +133,11 @@ describe("CharacterSheet Component", () => {
 
   it("lets a player type an answer without crashing", async () => {
     render(
-      <PeerProvider>
-        <PlayerCharacterSheet assignedCharacter={makeCharacter()} />
-      </PeerProvider>
+      <AiProvider>
+        <PeerProvider>
+          <PlayerCharacterSheet assignedCharacter={makeCharacter()} />
+        </PeerProvider>
+      </AiProvider>
     );
 
     const [firstAnswer] = screen.getAllByPlaceholderText(
@@ -135,9 +150,11 @@ describe("CharacterSheet Component", () => {
 
   it("does not show other players' sheets unless the GM allows it", () => {
     render(
-      <PeerProvider>
-        <PlayerCharacterSheet assignedCharacter={makeCharacter()} />
-      </PeerProvider>
+      <AiProvider>
+        <PeerProvider>
+          <PlayerCharacterSheet assignedCharacter={makeCharacter()} />
+        </PeerProvider>
+      </AiProvider>
     );
 
     expect(
@@ -147,9 +164,11 @@ describe("CharacterSheet Component", () => {
 
   it("shows GM controls and an empty roster for a new game", () => {
     render(
-      <PeerProvider>
-        <GmCharacterSheet />
-      </PeerProvider>
+      <AiProvider>
+        <PeerProvider>
+          <GmCharacterSheet />
+        </PeerProvider>
+      </AiProvider>
     );
 
     expect(screen.getByText("GM Character Management")).toBeInTheDocument();
@@ -164,9 +183,11 @@ describe("CharacterSheet Component", () => {
 
   it("lets the GM create a character and edit its questions", async () => {
     render(
-      <PeerProvider>
-        <GmCharacterSheet />
-      </PeerProvider>
+      <AiProvider>
+        <PeerProvider>
+          <GmCharacterSheet />
+        </PeerProvider>
+      </AiProvider>
     );
 
     await user.click(screen.getByRole("button", { name: "New Character" }));
@@ -196,9 +217,11 @@ describe("CharacterSheet Component", () => {
 
   it("lets the GM clone and delete a character", async () => {
     render(
-      <PeerProvider>
-        <GmCharacterSheet />
-      </PeerProvider>
+      <AiProvider>
+        <PeerProvider>
+          <GmCharacterSheet />
+        </PeerProvider>
+      </AiProvider>
     );
 
     await user.click(screen.getByRole("button", { name: "New Character" }));
@@ -216,9 +239,11 @@ describe("CharacterSheet Component", () => {
 
   it("marks a newly-typed answer as pending GM approval", async () => {
     render(
-      <PeerProvider>
-        <PlayerCharacterSheet assignedCharacter={makeCharacter()} />
-      </PeerProvider>
+      <AiProvider>
+        <PeerProvider>
+          <PlayerCharacterSheet assignedCharacter={makeCharacter()} />
+        </PeerProvider>
+      </AiProvider>
     );
 
     const [firstAnswer] = screen.getAllByPlaceholderText(
@@ -234,9 +259,11 @@ describe("CharacterSheet Component", () => {
       answers: { 0: { text: "Alice", approved: false } },
     });
     render(
-      <PeerProvider>
-        <GmCharacterSheetWithCharacter character={character} />
-      </PeerProvider>
+      <AiProvider>
+        <PeerProvider>
+          <GmCharacterSheetWithCharacter character={character} />
+        </PeerProvider>
+      </AiProvider>
     );
 
     await user.click(
@@ -257,9 +284,13 @@ describe("CharacterSheet Component", () => {
       answers: { 0: { text: "A secret", approved: false } },
     });
     render(
-      <PeerProvider>
-        <OtherPlayerCharacterSheet characters={{ [character.id]: character }} />
-      </PeerProvider>
+      <AiProvider>
+        <PeerProvider>
+          <OtherPlayerCharacterSheet
+            characters={{ [character.id]: character }}
+          />
+        </PeerProvider>
+      </AiProvider>
     );
 
     expect(screen.getAllByText("No answer provided").length).toBeGreaterThan(0);
@@ -271,9 +302,13 @@ describe("CharacterSheet Component", () => {
       answers: { 0: { text: "A public fact", approved: true } },
     });
     render(
-      <PeerProvider>
-        <OtherPlayerCharacterSheet characters={{ [character.id]: character }} />
-      </PeerProvider>
+      <AiProvider>
+        <PeerProvider>
+          <OtherPlayerCharacterSheet
+            characters={{ [character.id]: character }}
+          />
+        </PeerProvider>
+      </AiProvider>
     );
 
     expect(screen.getByText("A public fact")).toBeInTheDocument();
@@ -281,9 +316,11 @@ describe("CharacterSheet Component", () => {
 
   it("toggles the sheet visibility button label for the GM", async () => {
     render(
-      <PeerProvider>
-        <GmCharacterSheet />
-      </PeerProvider>
+      <AiProvider>
+        <PeerProvider>
+          <GmCharacterSheet />
+        </PeerProvider>
+      </AiProvider>
     );
 
     await user.click(
