@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { usePeer } from "../hooks/usePeer";
 import { useAi } from "../hooks/useAi";
+import { useAutoGm } from "../hooks/useAutoGm";
 import { DEFAULT_QUESTIONS } from "../constants/questions";
 import { MESSAGE_TYPES } from "../constants/messageTypes";
 import {
@@ -47,6 +48,7 @@ export default function CharacterSheet() {
     scenario,
   } = usePeer();
   const { aiEnabled, generateCast } = useAi();
+  const { autoGmEnabled } = useAutoGm();
   const identity = myIdentity({ isGM, hostName, userName });
 
   const [selectedCharacterId, setSelectedCharacterId] = useState("");
@@ -230,31 +232,42 @@ export default function CharacterSheet() {
   return (
     <div className="character-sheet-container">
       {isGM ? (
-        <GMCharacterPanel
-          characters={characters || {}}
-          selectedCharacterId={selectedCharacterId}
-          setSelectedCharacterId={setSelectedCharacterId}
-          selectedCharacter={selectedCharacter}
-          allowPlayersToViewSheets={allowPlayersToViewSheets}
-          isEditingQuestions={isEditingQuestions}
-          setIsEditingQuestions={setIsEditingQuestions}
-          editQuestions={editQuestions}
-          onCreate={handleCreateCharacter}
-          onClone={handleCloneCharacter}
-          onRename={handleRenameCharacter}
-          onDelete={handleDeleteCharacter}
-          onToggleVisibility={toggleSheetVisibility}
-          onQuestionChange={handleQuestionChange}
-          onAddQuestion={handleAddQuestion}
-          onRemoveQuestion={handleRemoveQuestion}
-          onSaveQuestions={handleSaveQuestions}
-          onCancelEditQuestions={handleCancelEditQuestions}
-          onApproveAnswer={handleApproveAnswer}
-          aiEnabled={aiEnabled}
-          scenario={scenario}
-          onSuggestMoreQuestions={handleSuggestMoreQuestions}
-          suggestingQuestions={suggestingQuestions}
-        />
+        <>
+          <GMCharacterPanel
+            characters={characters || {}}
+            selectedCharacterId={selectedCharacterId}
+            setSelectedCharacterId={setSelectedCharacterId}
+            selectedCharacter={selectedCharacter}
+            allowPlayersToViewSheets={allowPlayersToViewSheets}
+            isEditingQuestions={isEditingQuestions}
+            setIsEditingQuestions={setIsEditingQuestions}
+            editQuestions={editQuestions}
+            onCreate={handleCreateCharacter}
+            onClone={handleCloneCharacter}
+            onRename={handleRenameCharacter}
+            onDelete={handleDeleteCharacter}
+            onToggleVisibility={toggleSheetVisibility}
+            onQuestionChange={handleQuestionChange}
+            onAddQuestion={handleAddQuestion}
+            onRemoveQuestion={handleRemoveQuestion}
+            onSaveQuestions={handleSaveQuestions}
+            onCancelEditQuestions={handleCancelEditQuestions}
+            onApproveAnswer={handleApproveAnswer}
+            aiEnabled={aiEnabled}
+            scenario={scenario}
+            onSuggestMoreQuestions={handleSuggestMoreQuestions}
+            suggestingQuestions={suggestingQuestions}
+          />
+          {autoGmEnabled && (
+            <PlayerCharacterPanel
+              myCharacter={myCharacter}
+              myDeadCharacter={myDeadCharacter}
+              characters={characters || {}}
+              allowPlayersToViewSheets={allowPlayersToViewSheets}
+              onAnswerChange={handleAnswerChange}
+            />
+          )}
+        </>
       ) : (
         <PlayerCharacterPanel
           myCharacter={myCharacter}

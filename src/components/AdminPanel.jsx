@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { usePeer } from "../hooks/usePeer";
 import { useWheel } from "../hooks/useWheel";
+import { useAi } from "../hooks/useAi";
+import { useAutoGm } from "../hooks/useAutoGm";
 import { MESSAGE_TYPES } from "../constants/messageTypes";
 import {
   THEME_PRESETS,
@@ -274,6 +276,35 @@ function DeathFlavorTextSection() {
   );
 }
 
+// GM-only AutoGM toggle: hands the GM role to the AI, letting the host
+// claim a character and actually play instead (see CharacterSheet.jsx and
+// docs/autogm-requirements.md). Requires the AI assistant to already be
+// enabled, since AutoGM has no model to run turns with otherwise.
+function AutoGmSection() {
+  const { aiEnabled } = useAi();
+  const { autoGmEnabled, enableAutoGm, disableAutoGm, autoGmError } =
+    useAutoGm();
+
+  return (
+    <div className="admin-field">
+      <label>AutoGM</label>
+      {!aiEnabled && (
+        <p className="no-character-assigned">
+          Enable the AI assistant (top of page) before turning on AutoGM.
+        </p>
+      )}
+      <button
+        className={`btn-toggle ${autoGmEnabled ? "active" : ""}`}
+        disabled={!aiEnabled}
+        onClick={() => (autoGmEnabled ? disableAutoGm() : enableAutoGm())}
+      >
+        {autoGmEnabled ? "Disable AutoGM" : "Enable AutoGM"}
+      </button>
+      {autoGmError && <p className="ai-error-message">{autoGmError}</p>}
+    </div>
+  );
+}
+
 // GM-only game ID / invite link - previously only shown pre-game (in
 // PreGame.jsx's Lobby tab), which meant it vanished the moment the GM
 // started the game, even though a GM might still want to invite someone
@@ -371,6 +402,8 @@ export default function AdminPanel() {
       <ThemeSection />
 
       <DeathFlavorTextSection />
+
+      <AutoGmSection />
 
       <PlayerPresenceSection />
 

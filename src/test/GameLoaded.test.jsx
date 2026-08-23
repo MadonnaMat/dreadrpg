@@ -5,6 +5,8 @@ import { useEffect } from "react";
 import GameLoaded from "../components/GameLoaded";
 import { PeerProvider } from "../providers/PeerProvider";
 import { WheelProvider } from "../providers/WheelProvider";
+import { AiProvider } from "../providers/AiProvider";
+import { AutoGmProvider } from "../providers/AutoGmProvider";
 import { usePeer } from "../hooks/usePeer";
 import React from "react";
 
@@ -51,11 +53,13 @@ vi.mock("../components/CampaignNotes", () => ({
 // Test wrapper that provides all necessary context
 const TestWrapper = ({ children, isGM = false, conn = null }) => {
   return (
-    <PeerProvider>
-      <WheelProvider conn={conn} isGM={isGM}>
-        {children}
-      </WheelProvider>
-    </PeerProvider>
+    <AiProvider>
+      <PeerProvider>
+        <WheelProvider conn={conn} isGM={isGM}>
+          <AutoGmProvider>{children}</AutoGmProvider>
+        </WheelProvider>
+      </PeerProvider>
+    </AiProvider>
   );
 };
 

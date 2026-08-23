@@ -4,6 +4,8 @@ import userEvent from "@testing-library/user-event";
 import PreGame from "../components/PreGame";
 import { PeerProvider } from "../providers/PeerProvider";
 import { WheelProvider } from "../providers/WheelProvider";
+import { AiProvider } from "../providers/AiProvider";
+import { AutoGmProvider } from "../providers/AutoGmProvider";
 import { upsertMyGame, loadGameState } from "../providers/peer/gamePersistence";
 import React from "react";
 
@@ -49,11 +51,15 @@ describe("PreGame Component", () => {
 
   it("should render initial state with create and join buttons", () => {
     render(
-      <PeerProvider>
-        <WheelProvider>
-          <PreGame />
-        </WheelProvider>
-      </PeerProvider>
+      <AiProvider>
+        <PeerProvider>
+          <WheelProvider>
+            <AutoGmProvider>
+              <PreGame />
+            </AutoGmProvider>
+          </WheelProvider>
+        </PeerProvider>
+      </AiProvider>
     );
 
     expect(screen.getByText("Dread RPG")).toBeInTheDocument();
@@ -66,11 +72,15 @@ describe("PreGame Component", () => {
 
   it("should show create game form when create button is clicked", async () => {
     render(
-      <PeerProvider>
-        <WheelProvider>
-          <PreGame />
-        </WheelProvider>
-      </PeerProvider>
+      <AiProvider>
+        <PeerProvider>
+          <WheelProvider>
+            <AutoGmProvider>
+              <PreGame />
+            </AutoGmProvider>
+          </WheelProvider>
+        </PeerProvider>
+      </AiProvider>
     );
 
     await user.click(screen.getByText("Create Game"));
@@ -82,11 +92,15 @@ describe("PreGame Component", () => {
 
   it("should show join game form when join button is clicked", async () => {
     render(
-      <PeerProvider>
-        <WheelProvider>
-          <PreGame />
-        </WheelProvider>
-      </PeerProvider>
+      <AiProvider>
+        <PeerProvider>
+          <WheelProvider>
+            <AutoGmProvider>
+              <PreGame />
+            </AutoGmProvider>
+          </WheelProvider>
+        </PeerProvider>
+      </AiProvider>
     );
 
     await user.click(screen.getByText("Join Game"));
@@ -98,11 +112,15 @@ describe("PreGame Component", () => {
 
   it("should validate create game form inputs", async () => {
     render(
-      <PeerProvider>
-        <WheelProvider>
-          <PreGame />
-        </WheelProvider>
-      </PeerProvider>
+      <AiProvider>
+        <PeerProvider>
+          <WheelProvider>
+            <AutoGmProvider>
+              <PreGame />
+            </AutoGmProvider>
+          </WheelProvider>
+        </PeerProvider>
+      </AiProvider>
     );
 
     await user.click(screen.getByText("Create Game"));
@@ -124,11 +142,15 @@ describe("PreGame Component", () => {
 
   it("should validate join game form inputs", async () => {
     render(
-      <PeerProvider>
-        <WheelProvider>
-          <PreGame />
-        </WheelProvider>
-      </PeerProvider>
+      <AiProvider>
+        <PeerProvider>
+          <WheelProvider>
+            <AutoGmProvider>
+              <PreGame />
+            </AutoGmProvider>
+          </WheelProvider>
+        </PeerProvider>
+      </AiProvider>
     );
 
     await user.click(screen.getByText("Join Game"));
@@ -150,11 +172,15 @@ describe("PreGame Component", () => {
 
   it("shows the player lobby (not the join form) once connected", async () => {
     render(
-      <PeerProvider>
-        <WheelProvider>
-          <PreGame />
-        </WheelProvider>
-      </PeerProvider>
+      <AiProvider>
+        <PeerProvider>
+          <WheelProvider>
+            <AutoGmProvider>
+              <PreGame />
+            </AutoGmProvider>
+          </WheelProvider>
+        </PeerProvider>
+      </AiProvider>
     );
 
     await user.click(screen.getByText("Join Game"));
@@ -174,11 +200,15 @@ describe("PreGame Component", () => {
 
   it("should handle tower size input", async () => {
     render(
-      <PeerProvider>
-        <WheelProvider>
-          <PreGame />
-        </WheelProvider>
-      </PeerProvider>
+      <AiProvider>
+        <PeerProvider>
+          <WheelProvider>
+            <AutoGmProvider>
+              <PreGame />
+            </AutoGmProvider>
+          </WheelProvider>
+        </PeerProvider>
+      </AiProvider>
     );
 
     await user.click(screen.getByText("Create Game"));
@@ -194,11 +224,15 @@ describe("PreGame Component", () => {
 
   it("should show game ID and share URL after creating game", async () => {
     render(
-      <PeerProvider>
-        <WheelProvider>
-          <PreGame />
-        </WheelProvider>
-      </PeerProvider>
+      <AiProvider>
+        <PeerProvider>
+          <WheelProvider>
+            <AutoGmProvider>
+              <PreGame />
+            </AutoGmProvider>
+          </WheelProvider>
+        </PeerProvider>
+      </AiProvider>
     );
 
     await user.click(screen.getByText("Create Game"));
@@ -215,11 +249,15 @@ describe("PreGame Component", () => {
 
   it("should show tabs for GM after creating game", async () => {
     render(
-      <PeerProvider>
-        <WheelProvider>
-          <PreGame />
-        </WheelProvider>
-      </PeerProvider>
+      <AiProvider>
+        <PeerProvider>
+          <WheelProvider>
+            <AutoGmProvider>
+              <PreGame />
+            </AutoGmProvider>
+          </WheelProvider>
+        </PeerProvider>
+      </AiProvider>
     );
 
     await user.click(screen.getByText("Create Game"));
@@ -235,11 +273,15 @@ describe("PreGame Component", () => {
 
   it("should handle tab switching for GM", async () => {
     render(
-      <PeerProvider>
-        <WheelProvider>
-          <PreGame />
-        </WheelProvider>
-      </PeerProvider>
+      <AiProvider>
+        <PeerProvider>
+          <WheelProvider>
+            <AutoGmProvider>
+              <PreGame />
+            </AutoGmProvider>
+          </WheelProvider>
+        </PeerProvider>
+      </AiProvider>
     );
 
     // Create game first
@@ -262,11 +304,15 @@ describe("PreGame Component", () => {
     }));
 
     render(
-      <PeerProvider>
-        <WheelProvider>
-          <PreGame />
-        </WheelProvider>
-      </PeerProvider>
+      <AiProvider>
+        <PeerProvider>
+          <WheelProvider>
+            <AutoGmProvider>
+              <PreGame />
+            </AutoGmProvider>
+          </WheelProvider>
+        </PeerProvider>
+      </AiProvider>
     );
 
     // Should automatically show join form with game ID pre-filled
@@ -285,11 +331,15 @@ describe("PreGame Component", () => {
     }));
 
     render(
-      <PeerProvider>
-        <WheelProvider>
-          <PreGame />
-        </WheelProvider>
-      </PeerProvider>
+      <AiProvider>
+        <PeerProvider>
+          <WheelProvider>
+            <AutoGmProvider>
+              <PreGame />
+            </AutoGmProvider>
+          </WheelProvider>
+        </PeerProvider>
+      </AiProvider>
     );
 
     expect(screen.getByPlaceholderText("Game ID")).toHaveValue(
@@ -300,11 +350,15 @@ describe("PreGame Component", () => {
 
   it("should handle copy share URL functionality", async () => {
     render(
-      <PeerProvider>
-        <WheelProvider>
-          <PreGame />
-        </WheelProvider>
-      </PeerProvider>
+      <AiProvider>
+        <PeerProvider>
+          <WheelProvider>
+            <AutoGmProvider>
+              <PreGame />
+            </AutoGmProvider>
+          </WheelProvider>
+        </PeerProvider>
+      </AiProvider>
     );
 
     await user.click(screen.getByText("Create Game"));
@@ -321,11 +375,15 @@ describe("PreGame Component", () => {
   describe("homepage games list", () => {
     it("does not show a games list when none have been saved", () => {
       render(
-        <PeerProvider>
-          <WheelProvider>
-            <PreGame />
-          </WheelProvider>
-        </PeerProvider>
+        <AiProvider>
+          <PeerProvider>
+            <WheelProvider>
+              <AutoGmProvider>
+                <PreGame />
+              </AutoGmProvider>
+            </WheelProvider>
+          </PeerProvider>
+        </AiProvider>
       );
 
       expect(screen.queryByText("Your Games")).not.toBeInTheDocument();
@@ -335,11 +393,15 @@ describe("PreGame Component", () => {
       upsertMyGame("saved-game-1", "Old Host", "The Lost Expedition");
 
       render(
-        <PeerProvider>
-          <WheelProvider>
-            <PreGame />
-          </WheelProvider>
-        </PeerProvider>
+        <AiProvider>
+          <PeerProvider>
+            <WheelProvider>
+              <AutoGmProvider>
+                <PreGame />
+              </AutoGmProvider>
+            </WheelProvider>
+          </PeerProvider>
+        </AiProvider>
       );
 
       expect(screen.getByText("Your Games")).toBeInTheDocument();
@@ -350,11 +412,15 @@ describe("PreGame Component", () => {
       upsertMyGame("saved-game-1", "Old Host", "The Lost Expedition");
 
       render(
-        <PeerProvider>
-          <WheelProvider>
-            <PreGame />
-          </WheelProvider>
-        </PeerProvider>
+        <AiProvider>
+          <PeerProvider>
+            <WheelProvider>
+              <AutoGmProvider>
+                <PreGame />
+              </AutoGmProvider>
+            </WheelProvider>
+          </PeerProvider>
+        </AiProvider>
       );
 
       await user.click(screen.getByRole("button", { name: "Resume" }));
@@ -372,11 +438,15 @@ describe("PreGame Component", () => {
       upsertMyGame("saved-game-1", "Old Host", "The Lost Expedition");
 
       render(
-        <PeerProvider>
-          <WheelProvider>
-            <PreGame />
-          </WheelProvider>
-        </PeerProvider>
+        <AiProvider>
+          <PeerProvider>
+            <WheelProvider>
+              <AutoGmProvider>
+                <PreGame />
+              </AutoGmProvider>
+            </WheelProvider>
+          </PeerProvider>
+        </AiProvider>
       );
 
       await user.click(screen.getByRole("button", { name: "Delete" }));

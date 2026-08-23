@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import CharacterSheet from "../components/CharacterSheet";
 import { PeerProvider } from "../providers/PeerProvider";
 import { AiProvider } from "../providers/AiProvider";
+import { AutoGmProvider } from "../providers/AutoGmProvider";
 import { usePeer } from "../hooks/usePeer";
 import { useAi } from "../hooks/useAi";
 import { MODEL_TIERS } from "../constants/aiModels";
@@ -58,7 +59,9 @@ function renderPlayerWithAi(character) {
     <AiProvider>
       <EnableAi />
       <PeerProvider>
-        <PlayerCharacterSheet assignedCharacter={character} />
+        <AutoGmProvider>
+          <PlayerCharacterSheet assignedCharacter={character} />
+        </AutoGmProvider>
       </PeerProvider>
     </AiProvider>
   );
@@ -78,7 +81,9 @@ describe("MyCharacterSheet AI answer suggestions", () => {
     render(
       <AiProvider>
         <PeerProvider>
-          <PlayerCharacterSheet assignedCharacter={makeCharacter()} />
+          <AutoGmProvider>
+            <PlayerCharacterSheet assignedCharacter={makeCharacter()} />
+          </AutoGmProvider>
         </PeerProvider>
       </AiProvider>
     );

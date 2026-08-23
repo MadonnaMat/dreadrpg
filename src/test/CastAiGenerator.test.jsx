@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import CharacterSheet from "../components/CharacterSheet";
 import { PeerProvider } from "../providers/PeerProvider";
 import { AiProvider } from "../providers/AiProvider";
+import { AutoGmProvider } from "../providers/AutoGmProvider";
 import { usePeer } from "../hooks/usePeer";
 import { useAi } from "../hooks/useAi";
 import { MODEL_TIERS } from "../constants/aiModels";
@@ -43,7 +44,9 @@ function renderAsGmWithAiEnabled() {
     <AiProvider>
       <EnableAi />
       <PeerProvider>
-        <GmCharacterSheet />
+        <AutoGmProvider>
+          <GmCharacterSheet />
+        </AutoGmProvider>
       </PeerProvider>
     </AiProvider>
   );
@@ -63,7 +66,9 @@ describe("CastAiGenerator (via CharacterSheet)", () => {
     render(
       <AiProvider>
         <PeerProvider>
-          <GmCharacterSheet />
+          <AutoGmProvider>
+            <GmCharacterSheet />
+          </AutoGmProvider>
         </PeerProvider>
       </AiProvider>
     );

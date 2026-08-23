@@ -6,6 +6,7 @@ import AiToggleButton from "./components/ai/AiToggleButton";
 import { PeerProvider } from "./providers/PeerProvider";
 import { WheelProvider } from "./providers/WheelProvider";
 import { AiProvider } from "./providers/AiProvider";
+import { AutoGmProvider } from "./providers/AutoGmProvider";
 import { usePeer } from "./hooks/usePeer";
 import { useWheel } from "./hooks/useWheel";
 import { useThemeEffect } from "./hooks/useThemeEffect";
@@ -39,7 +40,9 @@ function WheelProviderWrapper() {
   const { conn, isGM } = usePeer();
   return (
     <WheelProvider conn={conn} isGM={isGM}>
-      <AppInner />
+      <AutoGmProvider>
+        <AppInner />
+      </AutoGmProvider>
     </WheelProvider>
   );
 }
