@@ -4,7 +4,7 @@ import { fileURLToPath } from "url";
 import path from "path";
 import {
   THEME_PRESETS,
-  THEME_TOKENS,
+  CSS_PRESET_TOKENS,
   THEME_WHEEL_COLORS,
   getWheelColors,
 } from "../constants/themes";
@@ -40,13 +40,13 @@ describe("theme presets", () => {
   );
 
   it.each(cssBlockPresets)(
-    "%s's CSS block sets every theme token",
+    "%s's CSS block sets every CSS-driven theme token",
     (preset) => {
       const block = themesCss.match(
         new RegExp(`\\[data-theme="${preset}"\\]\\s*{([^}]*)}`)
       );
       expect(block).not.toBeNull();
-      THEME_TOKENS.forEach((token) => {
+      CSS_PRESET_TOKENS.forEach((token) => {
         expect(block[1]).toContain(token);
       });
     }
@@ -62,25 +62,33 @@ describe("getWheelColors", () => {
   });
 
   it.each(Object.keys(THEME_WHEEL_COLORS))(
-    "uses %s's own accent/danger colors for the wheel",
+    "uses %s's own wheel colors",
     (preset) => {
       expect(getWheelColors(preset, null)).toEqual(THEME_WHEEL_COLORS[preset]);
     }
   );
 
-  it("uses the GM's live custom colors for a custom theme", () => {
+  it("uses the GM's own --color-wheel-success/-death, independent of --color-accent/-danger", () => {
     expect(
       getWheelColors("custom", {
-        "--color-accent": "#123456",
-        "--color-danger": "#abcdef",
+        "--color-accent": "#111111",
+        "--color-danger": "#222222",
+        "--color-wheel-success": "#123456",
+        "--color-wheel-death": "#abcdef",
       })
     ).toEqual({ success: "#123456", death: "#abcdef" });
   });
 
-  it("falls back to classic colors for a custom theme with no colors set yet", () => {
+  it("falls back to classic colors for a custom theme with no wheel colors set yet", () => {
     expect(getWheelColors("custom", null)).toEqual({
       success: "#00cc00",
       death: "#cc0000",
     });
+    expect(
+      getWheelColors("custom", {
+        "--color-accent": "#111111",
+        "--color-danger": "#222222",
+      })
+    ).toEqual({ success: "#00cc00", death: "#cc0000" });
   });
 });

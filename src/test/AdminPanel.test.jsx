@@ -194,6 +194,10 @@ describe("AdminPanel Component", () => {
     expect(screen.getByText("Text")).toBeInTheDocument();
     expect(screen.getByText("Accent")).toBeInTheDocument();
     expect(screen.getByText("Danger")).toBeInTheDocument();
+    // The wheel's own colors get separate pickers from Accent/Danger, so a
+    // Custom theme's wheel can be set independently of its button/UI colors.
+    expect(screen.getByText("Wheel Success")).toBeInTheDocument();
+    expect(screen.getByText("Wheel Death")).toBeInTheDocument();
   });
 
   it("lists known players with online/offline status, Remove only for offline", () => {
