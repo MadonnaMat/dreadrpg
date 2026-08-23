@@ -300,4 +300,63 @@ describe("Chat Component", () => {
     ).toBeInTheDocument();
     expect(container.querySelector(".chat-message-bot")).toBeInTheDocument();
   });
+
+  it("shows a status-specific label while AutoGM is busy", () => {
+    function ChatWhileUpdatingNotes() {
+      const { setAutoGmThinking } = usePeer();
+      useEffect(() => {
+        setAutoGmThinking("updating_notes");
+      }, [setAutoGmThinking]);
+      return <Chat />;
+    }
+
+    render(
+      <PeerProvider>
+        <ChatWhileUpdatingNotes />
+      </PeerProvider>
+    );
+
+    expect(
+      screen.getByText("is updating its notes", { exact: false })
+    ).toBeInTheDocument();
+  });
+
+  it("disables the chat input and Send button while AutoGM is busy", async () => {
+    function ChatWhileThinking() {
+      const { setAutoGmThinking } = usePeer();
+      useEffect(() => {
+        setAutoGmThinking("thinking");
+      }, [setAutoGmThinking]);
+      return <Chat />;
+    }
+
+    render(
+      <PeerProvider>
+        <ChatWhileThinking />
+      </PeerProvider>
+    );
+
+    expect(screen.getByPlaceholderText("Waiting for the GM...")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+  });
+
+  it("re-enables the chat input and Send button once AutoGM settles", () => {
+    function ChatSettling() {
+      const { setAutoGmThinking } = usePeer();
+      useEffect(() => {
+        setAutoGmThinking("thinking");
+        setAutoGmThinking(false);
+      }, [setAutoGmThinking]);
+      return <Chat />;
+    }
+
+    render(
+      <PeerProvider>
+        <ChatSettling />
+      </PeerProvider>
+    );
+
+    expect(screen.getByPlaceholderText("Type a message...")).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: "Send" })).not.toBeDisabled();
+  });
 });

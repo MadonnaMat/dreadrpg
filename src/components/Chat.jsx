@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { usePeer } from "../hooks/usePeer";
 import { MESSAGE_TYPES } from "../constants/messageTypes";
 import { formatNameForList, myIdentity } from "../helpers/characters";
+import { describeAutoGmStatus } from "../constants/autoGm";
 
 export default function Chat() {
   const {
@@ -65,7 +66,7 @@ export default function Chat() {
       : "Player";
 
   const handleSend = () => {
-    if (!input.trim()) return;
+    if (!input.trim() || autoGmThinking) return;
     sendToPeers({
       type: MESSAGE_TYPES.CHAT,
       from: userDisplayName,
@@ -124,7 +125,7 @@ export default function Chat() {
         ))}
         {autoGmThinking && (
           <div className="chat-message chat-message-bot chat-thinking-indicator">
-            <strong>GM:</strong> is thinking
+            <strong>GM:</strong> {describeAutoGmStatus(autoGmThinking)}
             <span className="chat-thinking-dots">
               <span>.</span>
               <span>.</span>
@@ -141,12 +142,19 @@ export default function Chat() {
           className="chat-input"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Type a message..."
+          placeholder={
+            autoGmThinking ? "Waiting for the GM..." : "Type a message..."
+          }
+          disabled={!!autoGmThinking}
           onKeyDown={(e) => {
             if (e.key === "Enter") handleSend();
           }}
         />
-        <button onClick={handleSend} className="chat-send-button">
+        <button
+          onClick={handleSend}
+          className="chat-send-button"
+          disabled={!!autoGmThinking}
+        >
           Send
         </button>
       </div>

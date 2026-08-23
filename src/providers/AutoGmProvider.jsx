@@ -4,6 +4,7 @@ import { useWheel } from "../hooks/useWheel";
 import { useAi } from "../hooks/useAi";
 import { AutoGmContext } from "../contexts/AutoGmContext";
 import { MESSAGE_TYPES } from "../constants/messageTypes";
+import { AUTOGM_STATUS } from "../constants/autoGm";
 import {
   autoApproveAnswers,
   getActivePullTargets,
@@ -312,9 +313,11 @@ export function AutoGmProvider({ children }) {
   }, [isGM, autoGmEnabled, characters, setCharacters, sendToPeers]);
 
   // Broadcasts AutoGM's busy/idle state so every player (not just the GM's
-  // own browser) can show a "thinking" indicator - the GM applies it to its
-  // own local state directly and separately broadcasts, the same pattern
-  // every other GM-only setting update in this app uses (see AdminPanel.jsx).
+  // own browser) can show what it's currently doing - `value` is one of
+  // AUTOGM_STATUS's status strings while busy, or `false` once idle. The GM
+  // applies it to its own local state directly and separately broadcasts,
+  // the same pattern every other GM-only setting update in this app uses
+  // (see AdminPanel.jsx).
   const setThinking = useCallback(
     (value) => {
       setAutoGmThinking(value);
@@ -436,6 +439,7 @@ export function AutoGmProvider({ children }) {
       const activeTargets = getActivePullTargets({ characters, presence });
       if (!activeTargets.includes(trigger.fromIdentity)) return null;
 
+      setThinking(AUTOGM_STATUS.CHECKING_PULL);
       const context = buildAutoGmPullCheckContext({
         actionText: trigger.text,
         actorName: characterNameFor(characters, trigger.fromIdentity),
@@ -456,7 +460,15 @@ export function AutoGmProvider({ children }) {
       assignSpinner(trigger.fromIdentity, pullsRequired);
       return { targetPlayerName: trigger.fromIdentity, pullsRequired };
     },
-    [awaitingReset, characters, presence, scenario, runPrompt, assignSpinner]
+    [
+      awaitingReset,
+      characters,
+      presence,
+      scenario,
+      runPrompt,
+      assignSpinner,
+      setThinking,
+    ]
   );
 
   // Runs one AutoGM turn: asks the model to react to the given history
@@ -470,6 +482,7 @@ export function AutoGmProvider({ children }) {
     async (history, trigger) => {
       const classifierPull = await checkForPull(trigger);
 
+      setThinking(AUTOGM_STATUS.THINKING);
       const context = buildAutoGmTurnContext({
         scenario,
         characters,
@@ -525,6 +538,7 @@ export function AutoGmProvider({ children }) {
       let reasoning = null;
       let consistent = null;
       if (narration) {
+        setThinking(AUTOGM_STATUS.SELF_CHECKING);
         const checked = await selfCheckNarration(narration);
         finalNarration = checked.finalNarration;
         reasoning = checked.reasoning;
@@ -563,6 +577,7 @@ export function AutoGmProvider({ children }) {
       }
 
       if (campaignNoteUpdates?.length) {
+        setThinking(AUTOGM_STATUS.UPDATING_NOTES);
         setCampaignNotes(await consolidateCampaignNotes(campaignNoteUpdates));
       }
 
@@ -601,6 +616,7 @@ export function AutoGmProvider({ children }) {
       handleRestack,
       setCampaignNotes,
       pushTurnLogEntry,
+      setThinking,
     ]
   );
 
@@ -636,7 +652,7 @@ export function AutoGmProvider({ children }) {
   // for the copyright/original-content constraints this must follow.
   const runRemovalNarration = useCallback(
     async (characterName) => {
-      setThinking(true);
+      setThinking(AUTOGM_STATUS.THINKING);
       try {
         const context = buildAutoGmRemovalNarrationContext({
           characterName,
@@ -678,6 +694,7 @@ export function AutoGmProvider({ children }) {
         setAutoGmError(null);
 
         const draftNarration = result.parsed.narration;
+        setThinking(AUTOGM_STATUS.SELF_CHECKING);
         const { finalNarration, reasoning, consistent } =
           await selfCheckNarration(draftNarration);
         sendSystemChatMessage(finalNarration, { from: "GM", fromBot: true });
@@ -768,7 +785,7 @@ export function AutoGmProvider({ children }) {
   const processIncomingChat = useCallback(
     async (data) => {
       if (!isGM || !autoGmEnabled) return;
-      setThinking(true);
+      setThinking(AUTOGM_STATUS.THINKING);
       try {
         const trigger = {
           from: data.from,
@@ -777,6 +794,7 @@ export function AutoGmProvider({ children }) {
         };
         let history = [...historyRef.current, trigger];
         if (history.length > RAW_HISTORY_COMPACTION_THRESHOLD) {
+          setThinking(AUTOGM_STATUS.COMPACTING);
           history = await compactHistory(history);
           historyRef.current = history;
           setRawHistory(history);
@@ -794,6 +812,7 @@ export function AutoGmProvider({ children }) {
           // compaction. Proactively fold it down to a clean, minimal window
           // and give the model one immediate extra attempt, so a bad
           // context can't permanently wedge the story.
+          setThinking(AUTOGM_STATUS.COMPACTING);
           history = await compactHistory(history);
           historyRef.current = history;
           setRawHistory(history);

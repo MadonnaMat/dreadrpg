@@ -300,10 +300,10 @@ describe("AutoGmProvider", () => {
       );
     });
 
-    it("broadcasts a thinking indicator that's true during the turn and false once it settles", async () => {
+    it("broadcasts a busy status during the turn and false once it settles", async () => {
       const { deliver } = setupEnabled({
         // Long enough that waitFor's polling can actually observe the
-        // intermediate "true" state before it flips back - a same-tick
+        // intermediate busy state before it flips back - a same-tick
         // true->false toggle risks React 18 batching the two updates
         // together and never committing the intermediate render at all.
         runPromptImpl: async () => {
@@ -316,11 +316,88 @@ describe("AutoGmProvider", () => {
       await deliver.current({ from: "Alice", text: "I check the hold." });
 
       await waitFor(() =>
-        expect(screen.getByTestId("autogm-thinking")).toHaveTextContent("true")
+        expect(screen.getByTestId("autogm-thinking")).toHaveTextContent(
+          "thinking"
+        )
       );
       await waitFor(() =>
         expect(screen.getByTestId("autogm-thinking")).toHaveTextContent("false")
       );
+    });
+
+    it("broadcasts more specific statuses for self-checking and updating notes", async () => {
+      const seenStatuses = [];
+      function StatusSpy() {
+        const { autoGmThinking } = usePeer();
+        useEffect(() => {
+          if (autoGmThinking) seenStatuses.push(autoGmThinking);
+        }, [autoGmThinking]);
+        return null;
+      }
+
+      // Each branch waits a beat before resolving - without a real macrotask
+      // boundary between them, React 18 can batch straight through several
+      // same-tick setThinking calls and never actually commit the
+      // intermediate status renders this test needs to observe (see the
+      // busy-status test above for the same consideration).
+      const settleABeat = () =>
+        new Promise((resolve) => setTimeout(resolve, 20));
+      const { deliver } = setupEnabled({
+        runPromptImpl: async ({ systemPromptText }) => {
+          await settleABeat();
+          if (systemPromptText === latest("autogmSelfCheck").text) {
+            return {
+              valid: true,
+              parsed: {
+                consistent: true,
+                reasoning: "Fine.",
+                revisedNarration: "",
+              },
+            };
+          }
+          if (
+            systemPromptText === latest("autogmCampaignNotesConsolidation").text
+          ) {
+            return {
+              valid: true,
+              parsed: [
+                {
+                  name: "Locations",
+                  items: [
+                    {
+                      text: "Old Mill",
+                      description: "Downstream.",
+                      seenBy: [],
+                      takenBy: "",
+                    },
+                  ],
+                },
+              ],
+            };
+          }
+          return validTurnResult({
+            campaignNoteUpdates: [
+              {
+                sectionName: "Locations",
+                itemText: "Old Mill",
+                description: "Downstream.",
+              },
+            ],
+          });
+        },
+        seed: <StatusSpy />,
+      });
+
+      await enable();
+      await deliver.current({ from: "Alice", text: "We find an old mill." });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("campaign-notes")).toHaveTextContent(
+          "Old Mill"
+        )
+      );
+      expect(seenStatuses).toContain("self_checking");
+      expect(seenStatuses).toContain("updating_notes");
     });
 
     it("posts the draft narration unchanged when the self-check finds it consistent", async () => {

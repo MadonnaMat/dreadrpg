@@ -252,9 +252,9 @@ describe("createPlayerDataHandler - GM Admin Panel broadcasts", () => {
 
     handler({
       type: MESSAGE_TYPES.AUTOGM_THINKING_UPDATE,
-      autoGmThinking: true,
+      autoGmThinking: "thinking",
     });
 
-    expect(setAutoGmThinking).toHaveBeenCalledWith(true);
+    expect(setAutoGmThinking).toHaveBeenCalledWith("thinking");
   });
 });
