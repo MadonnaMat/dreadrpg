@@ -68,6 +68,15 @@ export default function CampaignNoteRow({
           type="button"
           className="icon-button"
           aria-label={editAriaLabel}
+          // Without this, clicking the pencil while the title input is
+          // focused fires the input's onBlur (mousedown moves focus first)
+          // before this button's own onClick runs - the toggle then reads
+          // an already-false editingTitle and flips it straight back to
+          // true, so the editor could never be closed this way.
+          // preventDefault on mousedown stops focus from leaving the input
+          // in the first place, so no blur fires and the toggle sees the
+          // real prior state.
+          onMouseDown={(e) => e.preventDefault()}
           onClick={(e) => {
             e.stopPropagation();
             setEditingTitle((prev) => !prev);

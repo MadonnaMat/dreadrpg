@@ -289,9 +289,10 @@ export default function GameLoaded() {
   const [activeTab, setActiveTab] = useState("game");
 
   useEffect(() => {
-    setTimeout(() => {
+    const timeoutId = setTimeout(() => {
       setInternalWedges(wedges);
     }, 10);
+    return () => clearTimeout(timeoutId);
   }, [wedges]);
 
   // Tracks whether the mount-time refetch has actually fired - set only

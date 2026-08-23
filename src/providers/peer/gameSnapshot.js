@@ -32,6 +32,10 @@ export function buildGameSnapshot(type, currentStateRef) {
 // single connection data handler. `handlerRefs` is
 // { wheel, chat, scenario, characterSheet } refs owned by PeerProvider.
 export function dispatchToRegisteredHandlers(data, connection, handlerRefs) {
+  // A malformed/null payload from a peer (a buggy or hand-crafted client)
+  // would otherwise throw on `data.type` below, inside the PeerJS "data"
+  // event callback with no catch around it.
+  if (!data) return;
   if (handlerRefs.wheel.current) {
     handlerRefs.wheel.current(data, connection);
   }
