@@ -51,3 +51,39 @@
 .ai-unsupported-message {
   color: var(--color-danger, #f44336);
 }
+
+.prompt-test-harness {
+  text-align: left;
+  max-width: 640px;
+  margin: 12px auto;
+  padding: 16px;
+  border: 1px dashed
+    color-mix(in srgb, var(--color-text, #ccc) 30%, transparent);
+  border-radius: 8px;
+}
+
+.prompt-test-harness label {
+  display: block;
+  margin-bottom: 10px;
+  font-weight: bold;
+}
+
+.prompt-test-harness select,
+.prompt-test-harness textarea {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  font-weight: normal;
+}
+
+.prompt-test-entry {
+  border-top: 1px solid
+    color-mix(in srgb, var(--color-text, #ccc) 20%, transparent);
+  padding: 8px 0;
+}
+
+.prompt-test-entry pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.85em;
+}
