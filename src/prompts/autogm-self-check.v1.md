@@ -27,7 +27,13 @@ Respond with a single JSON object with exactly these fields:
   fill this in, even when the draft is fine.
 - "revisedNarration": when "consistent" is false, a corrected version of
   the draft that fixes only the contradiction, changing as little else as
-  possible. Use "" when "consistent" is true.
+  possible. This is shown to the players verbatim as the host's in-story
+  narration - it must contain ONLY that narration text, in the same voice
+  as the draft. Never include notes, explanations, parentheticals, or any
+  commentary about what you changed or why (e.g. never write something
+  like "(I removed the mention of X to avoid revealing a secret)") -
+  anything like that belongs only in "reasoning", never here. Use "" when
+  "consistent" is true.
 
 Respond with ONLY the JSON object - no markdown fences, no commentary
 before or after it.
