@@ -16,12 +16,56 @@ function GmCharacterSheet() {
   return <CharacterSheet />;
 }
 
-// Renders CharacterSheet as a named player.
-function PlayerCharacterSheet() {
-  const { setUserName } = usePeer();
+// Renders CharacterSheet as a named player, optionally pre-seeding a
+// character already assigned to them (there's no in-app "claim a character"
+// UI yet - that's a later item - so tests seed the assignment directly via
+// setCharacters, the same way the GM's roster would end up mutating it).
+function PlayerCharacterSheet({ userName = "Alice", assignedCharacter }) {
+  const { setUserName, setCharacters } = usePeer();
   useEffect(() => {
-    setUserName("Alice");
-  }, [setUserName]);
+    setUserName(userName);
+    if (assignedCharacter) {
+      setCharacters({ [assignedCharacter.id]: assignedCharacter });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setUserName, setCharacters]);
+  return <CharacterSheet />;
+}
+
+function makeCharacter(overrides = {}) {
+  return {
+    id: "char-1",
+    name: "Alice's Character",
+    defaultName: "Alice's Character",
+    assignedTo: "Alice",
+    questions: DEFAULT_QUESTIONS,
+    answers: {},
+    ...overrides,
+  };
+}
+
+// Renders CharacterSheet as the GM with a character already pre-seeded
+// (e.g. one with a pending answer to approve), rather than an empty roster.
+function GmCharacterSheetWithCharacter({ character }) {
+  const { setIsGM, setCharacters } = usePeer();
+  useEffect(() => {
+    setIsGM(true);
+    setCharacters({ [character.id]: character });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setIsGM, setCharacters]);
+  return <CharacterSheet />;
+}
+
+// Renders CharacterSheet as a different, unassigned player with sheet
+// visibility already on, so OtherPlayersSheets renders Alice's character.
+function OtherPlayerCharacterSheet({ characters }) {
+  const { setUserName, setCharacters, setAllowPlayersToViewSheets } = usePeer();
+  useEffect(() => {
+    setUserName("Bob");
+    setCharacters(characters);
+    setAllowPlayersToViewSheets(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setUserName, setCharacters, setAllowPlayersToViewSheets]);
   return <CharacterSheet />;
 }
 
@@ -32,10 +76,20 @@ describe("CharacterSheet Component", () => {
     user = userEvent.setup({ skipPointerEventsCheck: true });
   });
 
-  it("renders the player's own sheet using the default questions", () => {
+  it("offers the character picker when no character is assigned yet", () => {
     render(
       <PeerProvider>
         <PlayerCharacterSheet />
+      </PeerProvider>
+    );
+
+    expect(screen.getByText("Choose a Character")).toBeInTheDocument();
+  });
+
+  it("renders the player's assigned character sheet", () => {
+    render(
+      <PeerProvider>
+        <PlayerCharacterSheet assignedCharacter={makeCharacter()} />
       </PeerProvider>
     );
 
@@ -46,10 +100,28 @@ describe("CharacterSheet Component", () => {
     );
   });
 
+  it("offers a new character picker (with a death notice) once the player's character has died", () => {
+    render(
+      <PeerProvider>
+        <PlayerCharacterSheet
+          assignedCharacter={makeCharacter({ alive: false })}
+        />
+      </PeerProvider>
+    );
+
+    expect(
+      screen.getByText(
+        (_, el) => el?.tagName === "P" && el.textContent.includes("has died")
+      )
+    ).toBeInTheDocument();
+    expect(screen.getByText("Choose a Character")).toBeInTheDocument();
+    expect(screen.queryByText("Character Sheet")).not.toBeInTheDocument();
+  });
+
   it("lets a player type an answer without crashing", async () => {
     render(
       <PeerProvider>
-        <PlayerCharacterSheet />
+        <PlayerCharacterSheet assignedCharacter={makeCharacter()} />
       </PeerProvider>
     );
 
@@ -64,7 +136,7 @@ describe("CharacterSheet Component", () => {
   it("does not show other players' sheets unless the GM allows it", () => {
     render(
       <PeerProvider>
-        <PlayerCharacterSheet />
+        <PlayerCharacterSheet assignedCharacter={makeCharacter()} />
       </PeerProvider>
     );
 
@@ -73,29 +145,138 @@ describe("CharacterSheet Component", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows GM controls and the question editor for the GM", async () => {
+  it("shows GM controls and an empty roster for a new game", () => {
     render(
       <PeerProvider>
         <GmCharacterSheet />
       </PeerProvider>
     );
 
+    expect(screen.getByText("GM Character Management")).toBeInTheDocument();
     expect(
-      screen.getByText("GM Character Sheet Management")
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Edit Questions" })
+      screen.getByRole("button", { name: "New Character" })
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Show Sheets to Players" })
     ).toBeInTheDocument();
+    expect(screen.getByText(/No characters yet/)).toBeInTheDocument();
+  });
+
+  it("lets the GM create a character and edit its questions", async () => {
+    render(
+      <PeerProvider>
+        <GmCharacterSheet />
+      </PeerProvider>
+    );
+
+    await user.click(screen.getByRole("button", { name: "New Character" }));
+    // Two matches: the "New Character" create button, and the newly created
+    // character's own default name in the roster.
+    expect(
+      screen.getAllByRole("button", { name: "New Character" })
+    ).toHaveLength(2);
 
     await user.click(screen.getByRole("button", { name: "Edit Questions" }));
-
     expect(screen.getByText("Edit Questionnaire")).toBeInTheDocument();
     expect(screen.getAllByPlaceholderText(/Question \d+/)).toHaveLength(
       DEFAULT_QUESTIONS.length
     );
+
+    await user.click(screen.getByRole("button", { name: "Add Question" }));
+    expect(screen.getAllByPlaceholderText(/Question \d+/)).toHaveLength(
+      DEFAULT_QUESTIONS.length + 1
+    );
+
+    const removeButtons = screen.getAllByRole("button", { name: "Remove" });
+    await user.click(removeButtons[0]);
+    expect(screen.getAllByPlaceholderText(/Question \d+/)).toHaveLength(
+      DEFAULT_QUESTIONS.length
+    );
+  });
+
+  it("lets the GM clone and delete a character", async () => {
+    render(
+      <PeerProvider>
+        <GmCharacterSheet />
+      </PeerProvider>
+    );
+
+    await user.click(screen.getByRole("button", { name: "New Character" }));
+    await user.click(screen.getByRole("button", { name: "Clone" }));
+
+    expect(screen.getByText("New Character (copy)")).toBeInTheDocument();
+
+    // Re-query between clicks - deleting a row unmounts its own button, so a
+    // cached reference from before the first delete is stale afterwards.
+    await user.click(screen.getAllByRole("button", { name: "Delete" })[0]);
+    await user.click(screen.getAllByRole("button", { name: "Delete" })[0]);
+
+    expect(screen.getByText(/No characters yet/)).toBeInTheDocument();
+  });
+
+  it("marks a newly-typed answer as pending GM approval", async () => {
+    render(
+      <PeerProvider>
+        <PlayerCharacterSheet assignedCharacter={makeCharacter()} />
+      </PeerProvider>
+    );
+
+    const [firstAnswer] = screen.getAllByPlaceholderText(
+      "Enter your answer..."
+    );
+    await user.type(firstAnswer, "Alice");
+
+    expect(screen.getByText("Pending GM approval")).toBeInTheDocument();
+  });
+
+  it("lets the GM approve a submitted answer", async () => {
+    const character = makeCharacter({
+      answers: { 0: { text: "Alice", approved: false } },
+    });
+    render(
+      <PeerProvider>
+        <GmCharacterSheetWithCharacter character={character} />
+      </PeerProvider>
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: `${character.name} (Alice)` })
+    );
+    expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Approve" }));
+
+    expect(screen.getByText("Approved")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Approve" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides an unapproved answer from other players even with sheet visibility on", () => {
+    const character = makeCharacter({
+      answers: { 0: { text: "A secret", approved: false } },
+    });
+    render(
+      <PeerProvider>
+        <OtherPlayerCharacterSheet characters={{ [character.id]: character }} />
+      </PeerProvider>
+    );
+
+    expect(screen.getAllByText("No answer provided").length).toBeGreaterThan(0);
+    expect(screen.queryByText("A secret")).not.toBeInTheDocument();
+  });
+
+  it("shows an approved answer to other players once sheet visibility is on", () => {
+    const character = makeCharacter({
+      answers: { 0: { text: "A public fact", approved: true } },
+    });
+    render(
+      <PeerProvider>
+        <OtherPlayerCharacterSheet characters={{ [character.id]: character }} />
+      </PeerProvider>
+    );
+
+    expect(screen.getByText("A public fact")).toBeInTheDocument();
   });
 
   it("toggles the sheet visibility button label for the GM", async () => {
@@ -112,38 +293,5 @@ describe("CharacterSheet Component", () => {
     expect(
       screen.getByRole("button", { name: "Hide Sheets to Players" })
     ).toBeInTheDocument();
-  });
-
-  it("lets the GM add and remove questions in the editor", async () => {
-    render(
-      <PeerProvider>
-        <GmCharacterSheet />
-      </PeerProvider>
-    );
-
-    await user.click(screen.getByRole("button", { name: "Edit Questions" }));
-    await user.click(screen.getByRole("button", { name: "Add Question" }));
-
-    expect(screen.getAllByPlaceholderText(/Question \d+/)).toHaveLength(
-      DEFAULT_QUESTIONS.length + 1
-    );
-
-    const removeButtons = screen.getAllByRole("button", { name: "Remove" });
-    await user.click(removeButtons[0]);
-
-    expect(screen.getAllByPlaceholderText(/Question \d+/)).toHaveLength(
-      DEFAULT_QUESTIONS.length
-    );
-  });
-
-  it("shows a player selector for the GM to review submitted sheets", () => {
-    render(
-      <PeerProvider>
-        <GmCharacterSheet />
-      </PeerProvider>
-    );
-
-    expect(screen.getByText("Player Character Sheets")).toBeInTheDocument();
-    expect(screen.getByText("Select a player...")).toBeInTheDocument();
   });
 });

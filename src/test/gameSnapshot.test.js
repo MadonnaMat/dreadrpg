@@ -12,10 +12,14 @@ function makeStateRef(overrides = {}) {
       towerSize: 25,
       dangerProbability: 0.2,
       awaitingReset: false,
+      designatedSpinner: null,
+      gameStarted: false,
       scenario: null,
-      characterSheets: {},
-      questions: null,
+      gameName: "",
+      characters: {},
       allowPlayersToViewSheets: false,
+      theme: "default",
+      customColors: null,
       ...overrides,
     },
   };
@@ -32,11 +36,33 @@ describe("buildGameSnapshot", () => {
       towerSize: 25,
       dangerProbability: 0.2,
       awaitingReset: false,
+      designatedSpinner: null,
+      gameStarted: false,
       scenario: null,
-      characterSheets: {},
-      questions: null,
+      gameName: "",
+      characters: {},
       allowPlayersToViewSheets: false,
+      theme: "default",
+      customColors: null,
     });
+  });
+
+  it("includes designatedSpinner so a late joiner knows whose turn it is", () => {
+    const snapshot = buildGameSnapshot(
+      "game-data-sync",
+      makeStateRef({ designatedSpinner: "Alice" })
+    );
+
+    expect(snapshot.designatedSpinner).toBe("Alice");
+  });
+
+  it("includes gameStarted so a late joiner can skip the lobby", () => {
+    const snapshot = buildGameSnapshot(
+      "game-data-sync",
+      makeStateRef({ gameStarted: true })
+    );
+
+    expect(snapshot.gameStarted).toBe(true);
   });
 
   it("reflects whatever is currently in the ref, not a stale copy", () => {
@@ -56,6 +82,7 @@ describe("dispatchToRegisteredHandlers", () => {
       chat: { current: vi.fn() },
       scenario: { current: vi.fn() },
       characterSheet: { current: vi.fn() },
+      ping: { current: vi.fn() },
     };
   }
 
@@ -78,13 +105,14 @@ describe("dispatchToRegisteredHandlers", () => {
     expect(handlerRefs.chat.current).not.toHaveBeenCalled();
   });
 
-  it("forwards all four character-sheet-related types to the same handler", () => {
+  it("forwards all five character-sheet-related types to the same handler", () => {
     const handlerRefs = makeHandlerRefs();
     const types = [
-      "character-sheet-update",
-      "questions-update",
+      "character-create",
+      "character-clone",
+      "character-update",
+      "character-delete",
       "sheet-visibility-update",
-      "character-sheets-broadcast",
     ];
 
     types.forEach((type) => {
@@ -95,6 +123,20 @@ describe("dispatchToRegisteredHandlers", () => {
         "conn"
       );
     });
+  });
+
+  it("only forwards presence-pong replies to the ping handler", () => {
+    const handlerRefs = makeHandlerRefs();
+    dispatchToRegisteredHandlers(
+      { type: "presence-ping" },
+      "conn",
+      handlerRefs
+    );
+    expect(handlerRefs.ping.current).not.toHaveBeenCalled();
+
+    const data = { type: "presence-pong", userName: "Bob", sentAt: 123 };
+    dispatchToRegisteredHandlers(data, "conn", handlerRefs);
+    expect(handlerRefs.ping.current).toHaveBeenCalledWith(data, "conn");
   });
 
   it("does nothing for an unregistered handler slot", () => {

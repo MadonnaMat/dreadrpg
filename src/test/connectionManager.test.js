@@ -174,6 +174,37 @@ describe("createHostConnectionManager", () => {
     expect(onData).not.toHaveBeenCalled();
   });
 
+  it("sendToOne targets only the given peerId, unlike sendToPeers' broadcast", () => {
+    manager = createHostConnectionManager({
+      gameId: "game1",
+      onPeerOpen: vi.fn(),
+      onData: vi.fn(),
+      onConnectionClosed: vi.fn(),
+    });
+    const a = new FakeConnection("a");
+    const b = new FakeConnection("b");
+    manager.peer.eventHandlers.connection(a);
+    manager.peer.eventHandlers.connection(b);
+
+    manager.sendToOne("a", { type: "presence-ping" });
+
+    expect(a.sent).toContainEqual({ type: "presence-ping" });
+    expect(b.sent).toEqual([]);
+  });
+
+  it("sendToOne is a silent no-op for a peerId with no live connection", () => {
+    manager = createHostConnectionManager({
+      gameId: "game1",
+      onPeerOpen: vi.fn(),
+      onData: vi.fn(),
+      onConnectionClosed: vi.fn(),
+    });
+
+    expect(() =>
+      manager.sendToOne("no-such-peer", { type: "presence-ping" })
+    ).not.toThrow();
+  });
+
   it("forwards a non-heartbeat message to onData with the source connection", () => {
     const onData = vi.fn();
     manager = createHostConnectionManager({

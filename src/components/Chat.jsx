@@ -1,16 +1,21 @@
 import React, { useState, useEffect, useRef } from "react";
 import { usePeer } from "../hooks/usePeer";
 import { MESSAGE_TYPES } from "../constants/messageTypes";
+import {
+  formatUserWithCharacter,
+  formatNameForList,
+} from "../helpers/characters";
 
 export default function Chat() {
   const {
-    users,
     userName,
     hostName,
     isGM,
     sendToPeers,
     registerChatEventHandler,
     gameId,
+    characters,
+    presence,
   } = usePeer();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -41,8 +46,15 @@ export default function Chat() {
     }
   }, [messages]);
 
-  const userDisplayName =
-    userName || (isGM ? `GM (${hostName || gameId})` : "Player");
+  // Show "<name> <CharacterName>" once the player has claimed a character,
+  // so other players can tell who's speaking as whom in the transcript. The
+  // GM has no character to show, but gets the same "<...>" bracket
+  // treatment via a literal "<GM>" tag instead, for a consistent look.
+  const userDisplayName = userName
+    ? formatUserWithCharacter(characters, userName)
+    : isGM
+      ? `${hostName || gameId} <GM>`
+      : "Player";
 
   const handleSend = () => {
     if (!input.trim()) return;
@@ -62,12 +74,13 @@ export default function Chat() {
       <h2>Chat</h2>
 
       <div className="chat-users-section">
-        <div className="chat-users-title">Connected Users:</div>
+        <div className="chat-users-title">Players:</div>
         <ul className="chat-users-list">
-          {Object.values(users).map((name, idx) => (
-            <li key={idx}>
-              {name}
-              {name === userName ? " (You)" : ""}
+          {Object.entries(presence || {}).map(([name, info]) => (
+            <li key={name}>
+              {formatNameForList(characters, name, hostName)} (
+              {info.connected ? "online" : "offline"})
+              {(isGM ? name === hostName : name === userName) ? " (You)" : ""}
             </li>
           ))}
         </ul>

@@ -117,11 +117,12 @@ so the logic is testable without mounting the whole provider tree:
 
 #### CharacterSheet Component (`src/test/CharacterSheet.test.jsx`)
 
-- Player's own sheet renders using the default (or GM-set) questions
-- Player can type answers
+- A player with no assigned character sees a placeholder instead of a sheet
+- An assigned character's sheet renders using that character's own questions,
+  and the player can type answers
 - Other players' sheets stay hidden until the GM allows viewing
-- GM controls: question editor (add/remove/save questions), sheet-visibility
-  toggle, and the player-sheet selector
+- GM controls: character roster (create/clone/delete), per-character question
+  editor (add/remove/save questions), and the sheet-visibility toggle
 - Exercises the split `character-sheet/` subcomponents together as one unit
 
 #### WheelGraphics Component (`src/test/WheelGraphics.test.jsx`)

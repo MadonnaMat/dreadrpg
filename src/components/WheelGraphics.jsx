@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState } from "react";
 import { useTick } from "@pixi/react";
-import { WEDGE_TYPES, RESULT_TEXT } from "../constants/wheelOutcomes";
+import { WEDGE_TYPES, SUCCESS_TEXT } from "../constants/wheelOutcomes";
+import { hexToPixiColor } from "../helpers/color";
 
 const CENTER = 150;
 const RADIUS = 140;
@@ -30,7 +31,11 @@ export function WheelGraphics({
   onSpinEnd,
   result,
   awaitingReset,
+  successColor = "#00cc00",
+  deathColor = "#cc0000",
 }) {
+  const successFill = hexToPixiColor(successColor, 0x00cc00);
+  const deathFill = hexToPixiColor(deathColor, 0xcc0000);
   const wedgeRefs = useRef([]);
   const lastResultRef = useRef(result);
   const shakeStartRef = useRef(null);
@@ -49,12 +54,14 @@ export function WheelGraphics({
   }, [spinning, spinStartRef]);
 
   // Trigger a shake whenever a fresh "Success!" result comes in, and a
-  // death-flash sequence whenever a fresh "You Died!" result comes in.
+  // death-flash sequence for any other (non-empty) result - death text is
+  // now a per-character message ("<name> Died!"), not a fixed string, so
+  // "anything but success" is the only reliable death check here.
   useEffect(() => {
     if (result && result !== lastResultRef.current) {
-      if (result === RESULT_TEXT.SUCCESS) {
+      if (result === SUCCESS_TEXT) {
         shakeStartRef.current = performance.now();
-      } else if (result === RESULT_TEXT.DEATH) {
+      } else {
         deathFlashStartRef.current = performance.now();
       }
     }
@@ -186,7 +193,7 @@ export function WheelGraphics({
             g.moveTo(CENTER, CENTER);
             g.arc(CENTER, CENTER, RADIUS, start, end);
             g.lineTo(CENTER, CENTER);
-            g.fill(wedge.type === WEDGE_TYPES.DEATH ? 0xcc0000 : 0x00cc00);
+            g.fill(wedge.type === WEDGE_TYPES.DEATH ? deathFill : successFill);
             g.moveTo(CENTER, CENTER);
             g.arc(CENTER, CENTER, RADIUS, start, end);
             g.lineTo(CENTER, CENTER);
@@ -204,7 +211,7 @@ export function WheelGraphics({
           draw={(g) => {
             g.clear();
             g.circle(0, 0, RADIUS);
-            g.fill({ color: 0x990000, alpha: 0.55 });
+            g.fill({ color: deathFill, alpha: 0.55 });
           }}
         />
       )}

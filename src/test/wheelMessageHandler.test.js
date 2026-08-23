@@ -4,6 +4,7 @@ import { createWheelMessageHandler } from "../providers/wheel/wheelMessageHandle
 function makeSetters() {
   return {
     handleHostSpin: vi.fn(),
+    handleHostDecline: vi.fn(),
     spinStartRef: {},
     spinTargetAngleRef: {},
     setSpinning: vi.fn(),
@@ -12,6 +13,9 @@ function makeSetters() {
     setSpinAngle: vi.fn(),
     setDangerProbability: vi.fn(),
     setAwaitingReset: vi.fn(),
+    setDesignatedSpinner: vi.fn(),
+    setPullsRequired: vi.fn(),
+    setPullsRemaining: vi.fn(),
     setShowWheel: vi.fn(),
   };
 }
@@ -28,14 +32,21 @@ describe("createWheelMessageHandler", () => {
     handler({ type: "spin-request", peerId: "abc" });
 
     expect(setters.handleHostSpin).toHaveBeenCalledWith("abc");
-    expect(setters.setShowWheel).toHaveBeenCalledWith(true);
   });
 
-  it("GM: ignores non spin-request messages", () => {
+  it("GM: ignores non spin-request/spin-decline messages", () => {
     const handler = createWheelMessageHandler({ isGM: true, ...setters });
     handler({ type: "spin", result: "death" });
 
     expect(setters.handleHostSpin).not.toHaveBeenCalled();
+    expect(setters.handleHostDecline).not.toHaveBeenCalled();
+  });
+
+  it("GM: forwards a spin-decline to handleHostDecline", () => {
+    const handler = createWheelMessageHandler({ isGM: true, ...setters });
+    handler({ type: "spin-decline" });
+
+    expect(setters.handleHostDecline).toHaveBeenCalled();
   });
 
   it("player: spin-start primes the local animation refs and clears the result", () => {
@@ -54,11 +65,14 @@ describe("createWheelMessageHandler", () => {
     handler({
       type: "spin",
       result: "death",
+      resultText: "Alice Died!",
       awaitingReset: true,
+      designatedSpinner: null,
     });
 
     expect(setters.setAwaitingReset).toHaveBeenCalledWith(true);
-    expect(setters.setResult).toHaveBeenCalledWith("You Died!");
+    expect(setters.setResult).toHaveBeenCalledWith("Alice Died!");
+    expect(setters.setDesignatedSpinner).toHaveBeenCalledWith(null);
   });
 
   it("player: a success spin broadcast sets dangerProbability and result text", () => {
@@ -66,11 +80,51 @@ describe("createWheelMessageHandler", () => {
     handler({
       type: "spin",
       result: "success",
+      resultText: "Success!",
       dangerProbability: 0.42,
     });
 
     expect(setters.setDangerProbability).toHaveBeenCalledWith(0.42);
     expect(setters.setResult).toHaveBeenCalledWith("Success!");
+  });
+
+  it("player: an intermediate multi-pull success broadcast updates pullsRemaining without clearing the designation", () => {
+    const handler = createWheelMessageHandler({ isGM: false, ...setters });
+    handler({
+      type: "spin",
+      result: "success",
+      resultText: "Success!",
+      dangerProbability: 0.5,
+      pullsRemaining: 1,
+    });
+
+    expect(setters.setPullsRemaining).toHaveBeenCalledWith(1);
+    expect(setters.setDesignatedSpinner).not.toHaveBeenCalled();
+  });
+
+  it("player: a spin-assign broadcast sets the designated spinner (defaults to 1 pull)", () => {
+    const handler = createWheelMessageHandler({ isGM: false, ...setters });
+    handler({ type: "spin-assign", targetUserName: "Alice" });
+
+    expect(setters.setDesignatedSpinner).toHaveBeenCalledWith("Alice");
+    expect(setters.setPullsRequired).toHaveBeenCalledWith(1);
+    expect(setters.setPullsRemaining).toHaveBeenCalledWith(1);
+  });
+
+  it("player: a spin-assign broadcast carries a multi-pull requirement", () => {
+    const handler = createWheelMessageHandler({ isGM: false, ...setters });
+    handler({ type: "spin-assign", targetUserName: "Alice", pullsRequired: 3 });
+
+    expect(setters.setPullsRequired).toHaveBeenCalledWith(3);
+    expect(setters.setPullsRemaining).toHaveBeenCalledWith(3);
+  });
+
+  it("player: a spin-assign clearing the designation zeroes pullsRemaining", () => {
+    const handler = createWheelMessageHandler({ isGM: false, ...setters });
+    handler({ type: "spin-assign", targetUserName: null });
+
+    expect(setters.setDesignatedSpinner).toHaveBeenCalledWith(null);
+    expect(setters.setPullsRemaining).toHaveBeenCalledWith(0);
   });
 
   it("player: spin-final snaps the angle and stops spinning", () => {
@@ -100,5 +154,27 @@ describe("createWheelMessageHandler", () => {
     expect(setters.setDangerProbability).toHaveBeenCalledWith(0.3);
     expect(setters.setAwaitingReset).toHaveBeenCalledWith(true);
     expect(setters.setResult).not.toHaveBeenCalled();
+    expect(setters.setShowWheel).not.toHaveBeenCalled();
+  });
+
+  it("player: a game-started broadcast reveals the wheel", () => {
+    const handler = createWheelMessageHandler({ isGM: false, ...setters });
+    handler({ type: "game-started" });
+
+    expect(setters.setShowWheel).toHaveBeenCalledWith(true);
+  });
+
+  it("player: a welcome/game-data-sync snapshot with gameStarted reveals the wheel", () => {
+    const handler = createWheelMessageHandler({ isGM: false, ...setters });
+    handler({ type: "game-data-sync", gameStarted: true });
+
+    expect(setters.setShowWheel).toHaveBeenCalledWith(true);
+  });
+
+  it("player: a snapshot without gameStarted does not reveal the wheel", () => {
+    const handler = createWheelMessageHandler({ isGM: false, ...setters });
+    handler({ type: "game-data-sync", gameStarted: false });
+
+    expect(setters.setShowWheel).not.toHaveBeenCalled();
   });
 });

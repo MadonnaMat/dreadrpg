@@ -1,19 +1,19 @@
 .chat-container {
   min-width: 250px;
   max-width: 350px;
-  margin-left: 24px;
-  background-color: #f8f9fa;
-  border: 1px solid #ddd;
+  background-color: var(--color-surface, #f8f9fa);
+  border: 1px solid color-mix(in srgb, var(--color-text, #ddd) 20%, transparent);
   border-radius: 8px;
   padding: 16px;
+  color: var(--color-text, inherit);
 }
 
 .chat-container h2 {
-  color: #333;
+  color: var(--color-text, #333);
   margin-top: 0;
   margin-bottom: 16px;
   padding-bottom: 8px;
-  border-bottom: 2px solid #2196f3;
+  border-bottom: 2px solid var(--color-accent, #2196f3);
 }
 
 .chat-users-section {
@@ -22,7 +22,7 @@
 
 .chat-users-title {
   font-weight: bold;
-  color: #333;
+  color: var(--color-text, #333);
   margin-bottom: 8px;
 }
 
@@ -30,8 +30,9 @@
   list-style: none;
   padding: 0;
   margin: 0;
-  background-color: #fff;
-  border: 1px solid #e0e0e0;
+  background-color: var(--color-field-bg, #fff);
+  border: 1px solid
+    color-mix(in srgb, var(--color-text, #e0e0e0) 15%, transparent);
   border-radius: 4px;
   padding: 8px;
   max-height: 100px;
@@ -40,18 +41,20 @@
 
 .chat-users-list li {
   padding: 4px 0;
-  color: #555;
+  color: var(--color-text, #555);
+  opacity: 0.9;
   font-size: 14px;
 }
 
 .chat-messages {
   height: 200px;
   overflow-y: auto;
-  border: 1px solid #ccc;
+  border: 1px solid color-mix(in srgb, var(--color-text, #ccc) 25%, transparent);
   border-radius: 4px;
   margin-bottom: 8px;
   padding: 8px;
-  background-color: #fff;
+  background-color: var(--color-field-bg, #fff);
+  color: var(--color-text, inherit);
   font-size: 14px;
   line-height: 1.4;
 }
@@ -62,7 +65,7 @@
 }
 
 .chat-message strong {
-  color: #2196f3;
+  color: var(--color-accent, #2196f3);
 }
 
 .chat-input-container {
@@ -74,41 +77,38 @@
 .chat-input {
   flex: 1;
   padding: 8px;
-  border: 1px solid #ccc;
+  border: 1px solid color-mix(in srgb, var(--color-text, #ccc) 25%, transparent);
   border-radius: 4px;
   font-family: inherit;
   font-size: 14px;
+  background-color: var(--color-field-bg, #fff);
+  color: var(--color-text, #000);
 }
 
 .chat-input:focus {
-  border-color: #2196f3;
+  border-color: var(--color-accent, #2196f3);
   outline: none;
-  box-shadow: 0 0 3px rgba(33, 150, 243, 0.3);
+  box-shadow: 0 0 3px
+    color-mix(in srgb, var(--color-accent, #2196f3) 30%, transparent);
 }
 
 .chat-send-button {
   padding: 8px 16px;
-  background-color: #2196f3;
+  background-color: var(--color-accent, #2196f3);
   color: white;
   border: none;
   border-radius: 4px;
   cursor: pointer;
   font-weight: bold;
   font-size: 14px;
-  transition: background-color 0.2s ease;
+  transition: filter 0.2s ease;
 }
 
 .chat-send-button:hover {
-  background-color: #1976d2;
+  filter: brightness(0.85);
 }
 
 .chat-send-button:disabled {
   background-color: #ccc;
   cursor: not-allowed;
-}
-
-@media (prefers-color-scheme: light) {
-  .chat-container {
-    background-color: #f8f9fa;
-  }
 }

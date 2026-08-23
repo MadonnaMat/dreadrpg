@@ -5,13 +5,14 @@
 }
 
 .scenario-container h2 {
-  color: #333;
-  border-bottom: 2px solid #2196f3;
+  color: var(--color-text, #333);
+  border-bottom: 2px solid var(--color-accent, #2196f3);
   padding-bottom: 8px;
 }
 
 .scenario-container h3 {
-  color: #555;
+  color: var(--color-text, #555);
+  opacity: 0.9;
   margin-top: 20px;
   margin-bottom: 8px;
 }
@@ -24,17 +25,19 @@
   display: block;
   font-weight: bold;
   margin-bottom: 4px;
-  color: #333;
+  color: var(--color-text, #333);
 }
 
 .scenario-field input,
 .scenario-field textarea {
   width: 100%;
   padding: 8px;
-  border: 1px solid #ccc;
+  border: 1px solid color-mix(in srgb, var(--color-text, #ccc) 25%, transparent);
   border-radius: 4px;
   font-family: inherit;
   font-size: 14px;
+  background-color: var(--color-field-bg, #fff);
+  color: var(--color-text, #000);
 }
 
 .scenario-field textarea {

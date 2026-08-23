@@ -2,166 +2,173 @@ import { useState, useEffect } from "react";
 import { usePeer } from "../hooks/usePeer";
 import { DEFAULT_QUESTIONS } from "../constants/questions";
 import { MESSAGE_TYPES } from "../constants/messageTypes";
+import { isCharacterAlive } from "../helpers/characters";
 import QuestionEditor from "./character-sheet/QuestionEditor";
-import PlayerSheetSelector from "./character-sheet/PlayerSheetSelector";
+import CharacterRoster from "./character-sheet/CharacterRoster";
+import CharacterPicker from "./character-sheet/CharacterPicker";
 import MyCharacterSheet from "./character-sheet/MyCharacterSheet";
 import OtherPlayersSheets from "./character-sheet/OtherPlayersSheets";
+
+function generateCharacterId() {
+  return `char-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+// Applies the same "preserve answers by index" remap the old shared-question
+// save flow used, scoped to one character's own questions/answers instead of
+// every player's sheet at once.
+function remapAnswersToQuestions(oldAnswers, newQuestions) {
+  const remapped = {};
+  newQuestions.forEach((_, index) => {
+    remapped[index] = (oldAnswers && oldAnswers[index]) || {
+      text: "",
+      approved: false,
+    };
+  });
+  return remapped;
+}
 
 export default function CharacterSheet() {
   const {
     isGM,
     userName,
-    hostName,
     sendToPeers,
-    registerCharacterSheetEventHandler,
-    characterSheets,
-    setCharacterSheets,
-    questions,
-    setQuestions,
+    characters,
+    setCharacters,
     allowPlayersToViewSheets,
     setAllowPlayersToViewSheets,
-    users,
   } = usePeer();
 
+  const [selectedCharacterId, setSelectedCharacterId] = useState("");
   const [isEditingQuestions, setIsEditingQuestions] = useState(false);
-  const [editQuestions, setEditQuestions] = useState(
-    questions || DEFAULT_QUESTIONS
+  const [editQuestions, setEditQuestions] = useState(DEFAULT_QUESTIONS);
+
+  const selectedCharacter = characters?.[selectedCharacterId];
+  const myDeadCharacter = Object.values(characters || {}).find(
+    (c) => c.assignedTo === userName && !isCharacterAlive(c)
   );
-  const [mySheet, setMySheet] = useState({});
-  const [selectedPlayerSheet, setSelectedPlayerSheet] = useState("");
+  const myCharacter = Object.values(characters || {}).find(
+    (c) => c.assignedTo === userName && isCharacterAlive(c)
+  );
 
-  // Initialize questions (only for GM when starting new game). questions is
-  // deliberately excluded from the dependency array: if the GM removes every
-  // question down to an empty list and saves, `questions` legitimately
-  // becomes `[]` via handleSaveQuestions below - if this effect also re-ran
-  // on that change, its `questions.length === 0` guard would immediately
-  // stomp that deliberate choice back to DEFAULT_QUESTIONS. This effect
-  // should only ever fire once, when the GM first starts a game with no
-  // questions set at all.
+  // Keep the question-editor draft in sync with whichever character is
+  // currently selected, unless the GM is actively editing it.
   useEffect(() => {
-    if (isGM && (!questions || questions.length === 0)) {
-      setQuestions(DEFAULT_QUESTIONS);
+    if (!isEditingQuestions) {
+      setEditQuestions(selectedCharacter?.questions || DEFAULT_QUESTIONS);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isGM, setQuestions]);
+  }, [selectedCharacter, isEditingQuestions]);
 
-  // Update editQuestions when questions change
-  useEffect(() => {
-    if (questions && questions.length > 0) {
-      setEditQuestions(questions);
-    } else if (isGM) {
-      setEditQuestions(DEFAULT_QUESTIONS);
-    }
-  }, [questions, isGM]);
+  const handleCreateCharacter = () => {
+    const id = generateCharacterId();
+    const character = {
+      id,
+      name: "New Character",
+      defaultName: "New Character",
+      assignedTo: null,
+      alive: true,
+      questions: [...DEFAULT_QUESTIONS],
+      answers: {},
+    };
+    setCharacters((prev) => ({ ...prev, [id]: character }));
+    sendToPeers({ type: MESSAGE_TYPES.CHARACTER_CREATE, character });
+    setSelectedCharacterId(id);
+  };
 
-  // Separate effect for character sheet initialization
-  useEffect(() => {
-    if (userName && characterSheets && characterSheets[userName]) {
-      setMySheet(characterSheets[userName]);
-    } else if (userName && questions) {
-      const initialSheet = {};
-      questions.forEach((question, index) => {
-        initialSheet[index] = "";
-      });
-      setMySheet(initialSheet);
-    }
-  }, [questions, characterSheets, userName]);
+  const handleCloneCharacter = (sourceId) => {
+    const source = characters?.[sourceId];
+    if (!source) return;
+    const id = generateCharacterId();
+    const clone = {
+      ...source,
+      id,
+      name: `${source.name} (copy)`,
+      defaultName: `${source.defaultName} (copy)`,
+      assignedTo: null,
+      alive: true,
+      answers: {},
+    };
+    setCharacters((prev) => ({ ...prev, [id]: clone }));
+    sendToPeers({ type: MESSAGE_TYPES.CHARACTER_CLONE, character: clone });
+  };
 
-  // Update editQuestions when questions change (for GM)
-  useEffect(() => {
-    if (questions && !isEditingQuestions) {
-      setEditQuestions(questions);
-    }
-  }, [questions, isEditingQuestions]);
+  const handleRenameCharacter = (id, name) => {
+    setCharacters((prev) => ({ ...prev, [id]: { ...prev[id], name } }));
+    sendToPeers({ type: MESSAGE_TYPES.CHARACTER_UPDATE, id, name });
+  };
 
-  // Register character sheet event handler
-  useEffect(() => {
-    registerCharacterSheetEventHandler((data) => {
-      if (data.type === MESSAGE_TYPES.CHARACTER_SHEET_UPDATE) {
-        setCharacterSheets((prev) => ({
-          ...prev,
-          [data.playerName]: data.sheet,
-        }));
-      } else if (data.type === MESSAGE_TYPES.QUESTIONS_UPDATE) {
-        setQuestions(data.questions);
-        // Update my character sheet structure to match new questions
-        if (userName) {
-          const newSheet = {};
-          data.questions.forEach((question, index) => {
-            // Preserve existing answers if they exist
-            newSheet[index] = mySheet[index] || "";
-          });
-          setMySheet(newSheet);
-
-          // Send updated sheet structure to other players
-          sendToPeers({
-            type: MESSAGE_TYPES.CHARACTER_SHEET_UPDATE,
-            playerName: userName,
-            sheet: newSheet,
-          });
-        }
-      } else if (data.type === MESSAGE_TYPES.SHEET_VISIBILITY_UPDATE) {
-        setAllowPlayersToViewSheets(data.allowPlayersToViewSheets);
-      } else if (data.type === MESSAGE_TYPES.CHARACTER_SHEETS_BROADCAST) {
-        setCharacterSheets(data.characterSheets);
-      }
+  const handleDeleteCharacter = (id) => {
+    setCharacters((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
     });
-  }, [
-    registerCharacterSheetEventHandler,
-    setCharacterSheets,
-    setQuestions,
-    setAllowPlayersToViewSheets,
-    userName,
-    mySheet,
-    sendToPeers,
-  ]);
+    sendToPeers({ type: MESSAGE_TYPES.CHARACTER_DELETE, id });
+    if (selectedCharacterId === id) setSelectedCharacterId("");
+  };
 
-  const handleAnswerChange = (questionIndex, value) => {
-    const updatedSheet = { ...mySheet, [questionIndex]: value };
-    setMySheet(updatedSheet);
-
-    // Send update to GM and other players
+  // A newly-typed answer always reverts to unapproved - the GM has to
+  // explicitly re-approve it (see handleApproveAnswer), even if it was
+  // previously approved before the player changed it.
+  const handleAnswerChange = (characterId, questionIndex, value) => {
+    const character = characters?.[characterId];
+    if (!character) return;
+    const answers = {
+      ...(character.answers || {}),
+      [questionIndex]: { text: value, approved: false },
+    };
+    setCharacters((prev) => ({
+      ...prev,
+      [characterId]: { ...prev[characterId], answers },
+    }));
     sendToPeers({
-      type: MESSAGE_TYPES.CHARACTER_SHEET_UPDATE,
-      playerName: userName,
-      sheet: updatedSheet,
+      type: MESSAGE_TYPES.CHARACTER_UPDATE,
+      id: characterId,
+      answers,
+    });
+  };
+
+  // GM only: marks one answer as officially approved, making it visible to
+  // other players once sheet visibility is on (see OtherPlayersSheets).
+  const handleApproveAnswer = (characterId, questionIndex) => {
+    const character = characters?.[characterId];
+    const existing = character?.answers?.[questionIndex];
+    if (!existing) return;
+    const answers = {
+      ...character.answers,
+      [questionIndex]: { ...existing, approved: true },
+    };
+    setCharacters((prev) => ({
+      ...prev,
+      [characterId]: { ...prev[characterId], answers },
+    }));
+    sendToPeers({
+      type: MESSAGE_TYPES.CHARACTER_UPDATE,
+      id: characterId,
+      answers,
     });
   };
 
   const handleSaveQuestions = () => {
-    setQuestions(editQuestions);
+    if (!selectedCharacterId) return;
+    const answers = remapAnswersToQuestions(
+      selectedCharacter?.answers,
+      editQuestions
+    );
+    const patch = { questions: editQuestions, answers };
+    setCharacters((prev) => ({
+      ...prev,
+      [selectedCharacterId]: { ...prev[selectedCharacterId], ...patch },
+    }));
+    sendToPeers({
+      type: MESSAGE_TYPES.CHARACTER_UPDATE,
+      id: selectedCharacterId,
+      ...patch,
+    });
     setIsEditingQuestions(false);
-
-    // Restructure all existing character sheets to match new questions
-    const updatedCharacterSheets = {};
-    Object.keys(characterSheets || {}).forEach((playerName) => {
-      const existingSheet = characterSheets[playerName];
-      const newSheet = {};
-      editQuestions.forEach((question, index) => {
-        // Preserve existing answers if they exist
-        newSheet[index] = existingSheet[index] || "";
-      });
-      updatedCharacterSheets[playerName] = newSheet;
-    });
-
-    // Update local character sheets
-    setCharacterSheets(updatedCharacterSheets);
-
-    // Send updated questions to all players
-    sendToPeers({
-      type: MESSAGE_TYPES.QUESTIONS_UPDATE,
-      questions: editQuestions,
-    });
-
-    // Send updated character sheets structure to all players
-    sendToPeers({
-      type: MESSAGE_TYPES.CHARACTER_SHEETS_BROADCAST,
-      characterSheets: updatedCharacterSheets,
-    });
   };
 
   const handleCancelEditQuestions = () => {
-    setEditQuestions(questions || DEFAULT_QUESTIONS);
+    setEditQuestions(selectedCharacter?.questions || DEFAULT_QUESTIONS);
     setIsEditingQuestions(false);
   };
 
@@ -182,91 +189,148 @@ export default function CharacterSheet() {
   const toggleSheetVisibility = () => {
     const newVisibility = !allowPlayersToViewSheets;
     setAllowPlayersToViewSheets(newVisibility);
-
-    // Send visibility update to all players
     sendToPeers({
       type: MESSAGE_TYPES.SHEET_VISIBILITY_UPDATE,
       allowPlayersToViewSheets: newVisibility,
     });
-
-    // When enabling sheet visibility, also broadcast all character sheets
-    // so players can immediately see each other's sheets
-    if (newVisibility && characterSheets) {
-      sendToPeers({
-        type: MESSAGE_TYPES.CHARACTER_SHEETS_BROADCAST,
-        characterSheets: characterSheets,
-      });
-    }
   };
-
-  const currentQuestions =
-    questions && questions.length > 0 ? questions : DEFAULT_QUESTIONS;
 
   return (
     <div className="character-sheet-container">
-      {isGM && (
-        <div className="gm-controls">
-          <h2>GM Character Sheet Management</h2>
-
-          <div className="gm-section">
-            <div className="gm-buttons">
-              <button
-                onClick={() => setIsEditingQuestions(true)}
-                className="btn-primary"
-                disabled={isEditingQuestions}
-              >
-                Edit Questions
-              </button>
-              <button
-                onClick={toggleSheetVisibility}
-                className={`btn-toggle ${
-                  allowPlayersToViewSheets ? "active" : ""
-                }`}
-              >
-                {allowPlayersToViewSheets ? "Hide" : "Show"} Sheets to Players
-              </button>
-            </div>
-          </div>
-
-          {isEditingQuestions && (
-            <QuestionEditor
-              questions={editQuestions}
-              onQuestionChange={handleQuestionChange}
-              onAddQuestion={handleAddQuestion}
-              onRemoveQuestion={handleRemoveQuestion}
-              onSave={handleSaveQuestions}
-              onCancel={handleCancelEditQuestions}
-            />
-          )}
-
-          <PlayerSheetSelector
-            users={users}
-            hostName={hostName}
-            selectedPlayerSheet={selectedPlayerSheet}
-            setSelectedPlayerSheet={setSelectedPlayerSheet}
-            characterSheets={characterSheets}
-            questions={currentQuestions}
-          />
-        </div>
-      )}
-
-      {!isGM && (
-        <MyCharacterSheet
-          questions={currentQuestions}
-          mySheet={mySheet}
+      {isGM ? (
+        <GMCharacterPanel
+          characters={characters || {}}
+          selectedCharacterId={selectedCharacterId}
+          setSelectedCharacterId={setSelectedCharacterId}
+          selectedCharacter={selectedCharacter}
+          allowPlayersToViewSheets={allowPlayersToViewSheets}
+          isEditingQuestions={isEditingQuestions}
+          setIsEditingQuestions={setIsEditingQuestions}
+          editQuestions={editQuestions}
+          onCreate={handleCreateCharacter}
+          onClone={handleCloneCharacter}
+          onRename={handleRenameCharacter}
+          onDelete={handleDeleteCharacter}
+          onToggleVisibility={toggleSheetVisibility}
+          onQuestionChange={handleQuestionChange}
+          onAddQuestion={handleAddQuestion}
+          onRemoveQuestion={handleRemoveQuestion}
+          onSaveQuestions={handleSaveQuestions}
+          onCancelEditQuestions={handleCancelEditQuestions}
+          onApproveAnswer={handleApproveAnswer}
+        />
+      ) : (
+        <PlayerCharacterPanel
+          myCharacter={myCharacter}
+          myDeadCharacter={myDeadCharacter}
+          characters={characters || {}}
+          allowPlayersToViewSheets={allowPlayersToViewSheets}
           onAnswerChange={handleAnswerChange}
         />
       )}
+    </div>
+  );
+}
 
-      {!isGM && allowPlayersToViewSheets && (
-        <OtherPlayersSheets
-          users={users}
-          userName={userName}
-          hostName={hostName}
-          characterSheets={characterSheets}
-          questions={currentQuestions}
+function GMCharacterPanel({
+  characters,
+  selectedCharacterId,
+  setSelectedCharacterId,
+  selectedCharacter,
+  allowPlayersToViewSheets,
+  isEditingQuestions,
+  setIsEditingQuestions,
+  editQuestions,
+  onCreate,
+  onClone,
+  onRename,
+  onDelete,
+  onToggleVisibility,
+  onQuestionChange,
+  onAddQuestion,
+  onRemoveQuestion,
+  onSaveQuestions,
+  onCancelEditQuestions,
+  onApproveAnswer,
+}) {
+  return (
+    <div className="gm-controls">
+      <h2>GM Character Management</h2>
+
+      <div className="gm-section">
+        <div className="gm-buttons">
+          <button onClick={onCreate} className="btn-primary">
+            New Character
+          </button>
+          <button
+            onClick={onToggleVisibility}
+            className={`btn-toggle ${allowPlayersToViewSheets ? "active" : ""}`}
+          >
+            {allowPlayersToViewSheets ? "Hide" : "Show"} Sheets to Players
+          </button>
+        </div>
+      </div>
+
+      <CharacterRoster
+        characters={characters}
+        selectedCharacterId={selectedCharacterId}
+        setSelectedCharacterId={setSelectedCharacterId}
+        onClone={onClone}
+        onRename={onRename}
+        onDelete={onDelete}
+        onEditQuestions={() => setIsEditingQuestions(true)}
+        onApproveAnswer={onApproveAnswer}
+      />
+
+      {isEditingQuestions && selectedCharacter && (
+        <QuestionEditor
+          questions={editQuestions}
+          onQuestionChange={onQuestionChange}
+          onAddQuestion={onAddQuestion}
+          onRemoveQuestion={onRemoveQuestion}
+          onSave={onSaveQuestions}
+          onCancel={onCancelEditQuestions}
         />
       )}
     </div>
+  );
+}
+
+function PlayerCharacterPanel({
+  myCharacter,
+  myDeadCharacter,
+  characters,
+  allowPlayersToViewSheets,
+  onAnswerChange,
+}) {
+  return (
+    <>
+      {myCharacter ? (
+        <MyCharacterSheet
+          questions={myCharacter.questions}
+          answers={myCharacter.answers || {}}
+          onAnswerChange={(index, value) =>
+            onAnswerChange(myCharacter.id, index, value)
+          }
+        />
+      ) : (
+        <>
+          {myDeadCharacter && (
+            <p className="character-died-notice">
+              Your character, <strong>{myDeadCharacter.name}</strong>, has died.
+              Choose a new character to keep playing.
+            </p>
+          )}
+          <CharacterPicker />
+        </>
+      )}
+
+      {allowPlayersToViewSheets && (
+        <OtherPlayersSheets
+          characters={characters}
+          excludeCharacterId={myCharacter?.id}
+        />
+      )}
+    </>
   );
 }

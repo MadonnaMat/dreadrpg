@@ -10,14 +10,20 @@ export function buildGameSnapshot(type, currentStateRef) {
   return {
     type,
     hostName: currentStateRef.current.hostName,
+    gameName: currentStateRef.current.gameName,
     users: currentStateRef.current.users,
+    presence: currentStateRef.current.presence,
     towerSize: currentStateRef.current.towerSize,
     dangerProbability: currentStateRef.current.dangerProbability,
     awaitingReset: currentStateRef.current.awaitingReset,
+    designatedSpinner: currentStateRef.current.designatedSpinner,
+    gameStarted: currentStateRef.current.gameStarted,
     scenario: currentStateRef.current.scenario,
-    characterSheets: currentStateRef.current.characterSheets,
-    questions: currentStateRef.current.questions,
+    characters: currentStateRef.current.characters,
     allowPlayersToViewSheets: currentStateRef.current.allowPlayersToViewSheets,
+    theme: currentStateRef.current.theme,
+    customColors: currentStateRef.current.customColors,
+    deathFlavorText: currentStateRef.current.deathFlavorText,
   };
 }
 
@@ -38,13 +44,22 @@ export function dispatchToRegisteredHandlers(data, connection, handlerRefs) {
   ) {
     handlerRefs.scenario.current(data, connection);
   }
+  const characterSheetTypes = [
+    MESSAGE_TYPES.CHARACTER_CREATE,
+    MESSAGE_TYPES.CHARACTER_CLONE,
+    MESSAGE_TYPES.CHARACTER_UPDATE,
+    MESSAGE_TYPES.CHARACTER_DELETE,
+    MESSAGE_TYPES.SHEET_VISIBILITY_UPDATE,
+  ];
   if (
     handlerRefs.characterSheet.current &&
-    (data.type === MESSAGE_TYPES.CHARACTER_SHEET_UPDATE ||
-      data.type === MESSAGE_TYPES.QUESTIONS_UPDATE ||
-      data.type === MESSAGE_TYPES.SHEET_VISIBILITY_UPDATE ||
-      data.type === MESSAGE_TYPES.CHARACTER_SHEETS_BROADCAST)
+    characterSheetTypes.includes(data.type)
   ) {
     handlerRefs.characterSheet.current(data, connection);
+  }
+  // GM-only: a player's reply to a presence ping (see PeerProvider.jsx's
+  // pingUser). Players never receive PRESENCE_PONG themselves.
+  if (handlerRefs.ping.current && data.type === MESSAGE_TYPES.PRESENCE_PONG) {
+    handlerRefs.ping.current(data, connection);
   }
 }

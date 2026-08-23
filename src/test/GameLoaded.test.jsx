@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useEffect } from "react";
 import GameLoaded from "../components/GameLoaded";
 import { PeerProvider } from "../providers/PeerProvider";
 import { WheelProvider } from "../providers/WheelProvider";
+import { usePeer } from "../hooks/usePeer";
 import React from "react";
 
 // Mock PIXI Application and components
@@ -51,6 +53,48 @@ const TestWrapper = ({ children, isGM = false, conn = null }) => {
   );
 };
 
+// Flips the real PeerProvider context to a GM who has already designated
+// themselves as the spinner - "isGM"/"conn" props on WheelProvider above are
+// never actually consumed by it (it reads isGM from usePeer(), not props),
+// so exercising the GM-only spin/decline flow needs the real context setters
+// instead, the same way CharacterSheet.test.jsx's GmCharacterSheet does.
+function GmSelfAssigned({ children }) {
+  const { setIsGM, setHostName, setUsers } = usePeer();
+  useEffect(() => {
+    setIsGM(true);
+    setHostName("Host");
+    setUsers({ "peer-gm": "Host" });
+  }, [setIsGM, setHostName, setUsers]);
+  return children;
+}
+
+// GM with two players - one whose character has died, one still alive -
+// used to test that the spin-assign dropdown excludes a dead character's
+// player and labels the alive one with their character's name.
+function GmWithMixedRoster({ children }) {
+  const { setIsGM, setHostName, setUsers, setCharacters } = usePeer();
+  useEffect(() => {
+    setIsGM(true);
+    setHostName("Host");
+    setUsers({ "peer-gm": "Host", "peer-1": "Alice", "peer-2": "Bob" });
+    setCharacters({
+      "char-1": {
+        id: "char-1",
+        name: "The Drifter",
+        assignedTo: "Alice",
+        alive: true,
+      },
+      "char-2": {
+        id: "char-2",
+        name: "The Ghost",
+        assignedTo: "Bob",
+        alive: false,
+      },
+    });
+  }, [setIsGM, setHostName, setUsers, setCharacters]);
+  return children;
+}
+
 describe("GameLoaded Component", () => {
   let user;
 
@@ -84,7 +128,9 @@ describe("GameLoaded Component", () => {
     expect(screen.getByTestId("pixi-application")).toBeInTheDocument();
     expect(screen.getByTestId("wheel-graphics")).toBeInTheDocument();
     expect(screen.getByTestId("chat-component")).toBeInTheDocument();
-    expect(screen.getByText("Spin the Wheel!")).toBeInTheDocument();
+    // Nobody has been designated to spin yet, and this render isn't a GM, so
+    // neither the assign picker nor a Spin button should be showing.
+    expect(screen.queryByText("Spin the Wheel!")).not.toBeInTheDocument();
   });
 
   it("should handle tab switching", async () => {
@@ -125,12 +171,17 @@ describe("GameLoaded Component", () => {
     expect(pixiApp).toHaveAttribute("backgroundAlpha", "0");
   });
 
-  it("should handle spin button click", async () => {
+  it("should handle spin button click once the GM designates themself", async () => {
     render(
       <TestWrapper isGM={true}>
-        <GameLoaded />
+        <GmSelfAssigned>
+          <GameLoaded />
+        </GmSelfAssigned>
       </TestWrapper>
     );
+
+    await user.selectOptions(screen.getByRole("combobox"), "Host");
+    await user.click(screen.getByRole("button", { name: "Request Pull" }));
 
     const spinButton = screen.getByText("Spin the Wheel!");
     expect(spinButton).not.toBeDisabled();
@@ -139,16 +190,101 @@ describe("GameLoaded Component", () => {
     // The spin logic is handled by WheelProvider, so we just verify the button exists and is clickable
   });
 
-  it("should disable spin button when spinning", () => {
-    // This would require a more complex setup to mock the spinning state
-    // For now, we just verify the button exists
+  it("excludes a dead character's player from the spin-assign dropdown, and labels the alive one with their character name", () => {
     render(
-      <TestWrapper>
-        <GameLoaded />
+      <TestWrapper isGM={true}>
+        <GmWithMixedRoster>
+          <GameLoaded />
+        </GmWithMixedRoster>
       </TestWrapper>
     );
 
-    expect(screen.getByText("Spin the Wheel!")).toBeInTheDocument();
+    const options = screen.getAllByRole("option").map((opt) => opt.textContent);
+    expect(options).toContain("Alice <The Drifter>");
+    expect(options).not.toContain("Bob <The Ghost>");
+    expect(options).not.toContain("Bob");
+  });
+
+  it("tags the GM's own row in the spin-assign dropdown with <GM>", () => {
+    render(
+      <TestWrapper isGM={true}>
+        <GmSelfAssigned>
+          <GameLoaded />
+        </GmSelfAssigned>
+      </TestWrapper>
+    );
+
+    const options = screen.getAllByRole("option").map((opt) => opt.textContent);
+    expect(options).toContain("Host <GM>");
+  });
+
+  it("keeps a player selectable after they replace their dead character with a new one", () => {
+    function GmWithReplacedCharacter({ children }) {
+      const { setIsGM, setHostName, setUsers, setCharacters } = usePeer();
+      useEffect(() => {
+        setIsGM(true);
+        setHostName("Host");
+        setUsers({ "peer-gm": "Host", "peer-1": "Alice" });
+        setCharacters({
+          "char-1": {
+            id: "char-1",
+            name: "The Ghost",
+            assignedTo: "Alice",
+            alive: false,
+          },
+          "char-2": {
+            id: "char-2",
+            name: "The Survivor",
+            assignedTo: "Alice",
+            alive: true,
+          },
+        });
+      }, [setIsGM, setHostName, setUsers, setCharacters]);
+      return children;
+    }
+
+    render(
+      <TestWrapper isGM={true}>
+        <GmWithReplacedCharacter>
+          <GameLoaded />
+        </GmWithReplacedCharacter>
+      </TestWrapper>
+    );
+
+    const options = screen.getAllByRole("option").map((opt) => opt.textContent);
+    expect(options).toContain("Alice <The Survivor>");
+  });
+
+  it("disables the Decline button while a spin is in progress", async () => {
+    render(
+      <TestWrapper isGM={true}>
+        <GmSelfAssigned>
+          <GameLoaded />
+        </GmSelfAssigned>
+      </TestWrapper>
+    );
+
+    await user.selectOptions(screen.getByRole("combobox"), "Host");
+    await user.click(screen.getByRole("button", { name: "Request Pull" }));
+
+    const declineButton = screen.getByRole("button", { name: "Decline" });
+    expect(declineButton).not.toBeDisabled();
+
+    await user.click(screen.getByText("Spin the Wheel!"));
+    expect(declineButton).toBeDisabled();
+  });
+
+  it("shows the assign picker instead of a Spin button before anyone is designated", () => {
+    render(
+      <TestWrapper isGM={true}>
+        <GmSelfAssigned>
+          <GameLoaded />
+        </GmSelfAssigned>
+      </TestWrapper>
+    );
+
+    expect(screen.getByRole("combobox")).toBeInTheDocument();
+    expect(screen.queryByText("Spin the Wheel!")).not.toBeInTheDocument();
   });
 
   it("should show result area", () => {
@@ -190,6 +326,59 @@ describe("GameLoaded Component", () => {
     expect(screen.getByText("Dread RPG")).toBeInTheDocument();
 
     vi.useRealTimers();
+  });
+
+  it("shows a rejoin-link copy button for a player, but not for the GM", () => {
+    const { rerender } = render(
+      <TestWrapper>
+        <GameLoaded />
+      </TestWrapper>
+    );
+    expect(
+      screen.getByRole("button", { name: "Copy my rejoin link" })
+    ).toBeInTheDocument();
+
+    rerender(
+      <TestWrapper isGM={true}>
+        <GmSelfAssigned>
+          <GameLoaded />
+        </GmSelfAssigned>
+      </TestWrapper>
+    );
+    expect(
+      screen.queryByRole("button", { name: "Copy my rejoin link" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("copies a rejoin link containing the game id and player's own name", async () => {
+    const writeText = vi
+      .spyOn(navigator.clipboard, "writeText")
+      .mockResolvedValue();
+
+    function PlayerSeeded({ children }) {
+      const { setUserName, setGameId } = usePeer();
+      useEffect(() => {
+        setUserName("Bob");
+        setGameId("game-abc");
+      }, [setUserName, setGameId]);
+      return children;
+    }
+
+    render(
+      <TestWrapper>
+        <PlayerSeeded>
+          <GameLoaded />
+        </PlayerSeeded>
+      </TestWrapper>
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Copy my rejoin link" })
+    );
+
+    expect(writeText).toHaveBeenCalledWith(
+      expect.stringMatching(/gameId=game-abc.*userName=Bob/)
+    );
   });
 
   it("should apply active tab styling", async () => {

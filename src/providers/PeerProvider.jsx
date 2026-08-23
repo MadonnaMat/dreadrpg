@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import { PeerContext } from "../contexts/PeerContext";
 import {
   createHostConnectionManager,
@@ -13,7 +13,33 @@ import { usePeerSession } from "./peer/usePeerSession";
 import { useGameState } from "./peer/useGameState";
 import { useRegisteredHandlers } from "./peer/useRegisteredHandlers";
 import { useCurrentStateRef } from "./peer/useCurrentStateRef";
+import { applyCharacterEvent } from "./peer/characterEvents";
+import {
+  saveGameState,
+  loadGameState,
+  upsertMyGame,
+} from "./peer/gamePersistence";
 import { MESSAGE_TYPES } from "../constants/messageTypes";
+import { DEFAULT_DEATH_FLAVOR_TEXT } from "../constants/wheelOutcomes";
+
+// Resolves the values createGame should seed its state with: a previously
+// saved game's fields when resuming, or the plain new-game defaults
+// otherwise. Pulled out of createGame itself purely to keep that function's
+// cyclomatic complexity within lint's limit - each `??` below is one branch.
+function deriveGameDefaults(restoredState, towerSizeArg, gameNameArg) {
+  const saved = restoredState || {};
+  return {
+    gameName: saved.gameName ?? gameNameArg,
+    towerSize: saved.towerSize ?? towerSizeArg,
+    gameStarted: saved.gameStarted ?? false,
+    scenario: saved.scenario ?? null,
+    characters: saved.characters ?? {},
+    allowPlayersToViewSheets: saved.allowPlayersToViewSheets ?? false,
+    theme: saved.theme ?? "default",
+    customColors: saved.customColors ?? null,
+    deathFlavorText: saved.deathFlavorText ?? DEFAULT_DEATH_FLAVOR_TEXT,
+  };
+}
 
 export const PeerProvider = ({ children }) => {
   const session = usePeerSession();
@@ -22,8 +48,8 @@ export const PeerProvider = ({ children }) => {
 
   const currentStateRef = useCurrentStateRef({
     scenario: gameState.scenario,
-    characterSheets: gameState.characterSheets,
-    questions: gameState.questions,
+    gameName: gameState.gameName,
+    characters: gameState.characters,
     allowPlayersToViewSheets: gameState.allowPlayersToViewSheets,
     users: session.users,
     hostName: session.hostName,
@@ -31,6 +57,12 @@ export const PeerProvider = ({ children }) => {
     isGM: session.isGM,
     dangerProbability: gameState.dangerProbability,
     awaitingReset: gameState.awaitingReset,
+    designatedSpinner: gameState.designatedSpinner,
+    gameStarted: gameState.gameStarted,
+    presence: gameState.presence,
+    theme: gameState.theme,
+    customColors: gameState.customColors,
+    deathFlavorText: gameState.deathFlavorText,
   });
 
   const peerRef = useRef(null);
@@ -48,6 +80,47 @@ export const PeerProvider = ({ children }) => {
     managerRef.current?.sendToPeers(msg);
   }, []);
 
+  // Explicitly tear down the current peer/connection when the tab is
+  // actually going away (close, refresh, navigate). Without this, a plain
+  // browser refresh just kills the page mid-flight - the PeerJS cloud
+  // signaling server doesn't necessarily notice right away, which causes
+  // two different problems downstream: (1) whoever's on the other end of
+  // that connection has to wait out the full heartbeat timeout
+  // (connectionManager.js, ~15-20s) before their presence flips to
+  // offline, and (2) if it's the GM refreshing, a same-gameId peer ID they
+  // try to reclaim a moment later (e.g. via "Resume") can still be held by
+  // the stale registration, so the new Peer never actually opens and
+  // `users`/`presence` stay stuck at their empty just-mounted defaults
+  // (nobody - not even the GM - shows up anywhere). `pagehide` fires more
+  // reliably than `beforeunload` across browsers (notably mobile Safari),
+  // including on the *other* participant's side too, so both host and
+  // player benefit from the earlier signal.
+  useEffect(() => {
+    const handlePageHide = () => {
+      managerRef.current?.destroy?.();
+    };
+    window.addEventListener("pagehide", handlePageHide);
+    return () => window.removeEventListener("pagehide", handlePageHide);
+  }, []);
+
+  // Lets any component (e.g. WheelProvider narrating a spin/decline) inject
+  // a system-authored chat message without needing direct access to Chat.jsx's
+  // own local `messages` state. Invoking the registered chat handler
+  // directly - the same function Chat.jsx registers to process an inbound
+  // network message - reuses its existing append-locally-and-(if GM)-
+  // forward-to-everyone-else logic exactly, rather than duplicating it here.
+  const { handlerRefs } = handlers;
+  const sendSystemChatMessage = useCallback(
+    (text) => {
+      handlerRefs.chat.current?.({
+        type: MESSAGE_TYPES.CHAT,
+        from: "System",
+        text,
+      });
+    },
+    [handlerRefs]
+  );
+
   // Non-GM clients re-request a full snapshot whenever their tab becomes
   // visible again, on top of GameLoaded's one-shot mount-time refetch.
   useVisibilityResync({
@@ -57,18 +130,67 @@ export const PeerProvider = ({ children }) => {
     peerId: session.peerId,
   });
 
-  // Host: create game
-  const createGame = (newGameId, hostNameArg, towerSizeArg = 25) => {
+  // Character events are registered here (always active for the whole app
+  // session) rather than from whichever component currently renders
+  // character UI - a player claiming a character in the pre-game lobby, or
+  // another player answering questions, needs to be applied and (GM only)
+  // forwarded on to everyone else even when nobody has a character-related
+  // tab open. Mirrors Chat.jsx's forwarding pattern since the GM is the only
+  // hub every player is connected to.
+  const { registerCharacterSheetEventHandler } = handlers;
+  useEffect(() => {
+    registerCharacterSheetEventHandler((data) => {
+      applyCharacterEvent(
+        data,
+        gameState.setCharacters,
+        gameState.setAllowPlayersToViewSheets
+      );
+      if (session.isGM) sendToPeers(data);
+    });
+  }, [
+    registerCharacterSheetEventHandler,
+    gameState.setCharacters,
+    gameState.setAllowPlayersToViewSheets,
+    session.isGM,
+    sendToPeers,
+  ]);
+
+  // Host: create game. `restoredState` (from gamePersistence.js), when
+  // present, seeds fields from a previously-saved game instead of the
+  // hard-coded new-game defaults - used by resumeGame below.
+  const createGame = (
+    newGameId,
+    hostNameArg,
+    towerSizeArg = 25,
+    gameNameArg = "Untitled Campaign",
+    restoredState = null
+  ) => {
+    const defaults = deriveGameDefaults(
+      restoredState,
+      towerSizeArg,
+      gameNameArg
+    );
     session.setGameId(newGameId);
     session.setHostName(hostNameArg);
     session.setIsGM(true);
-    gameState.setTowerSize(towerSizeArg);
+    gameState.setGameName(defaults.gameName);
+    gameState.setTowerSize(defaults.towerSize);
     gameState.setDangerProbability(0);
     gameState.setAwaitingReset(false);
-    gameState.setScenario(null); // Reset scenario for new game
-    gameState.setCharacterSheets({}); // Reset character sheets for new game
-    gameState.setQuestions(null); // Reset questions for new game
-    gameState.setAllowPlayersToViewSheets(false); // Reset sheet visibility for new game
+    gameState.setDesignatedSpinner(null);
+    gameState.setGameStarted(defaults.gameStarted);
+    gameState.setScenario(defaults.scenario);
+    gameState.setCharacters(defaults.characters);
+    gameState.setAllowPlayersToViewSheets(defaults.allowPlayersToViewSheets);
+    gameState.setTheme(defaults.theme);
+    gameState.setCustomColors(defaults.customColors);
+    gameState.setDeathFlavorText(defaults.deathFlavorText);
+    // The GM never goes through the JOIN handshake that normally creates a
+    // presence entry, so seed their own here - otherwise they'd never show
+    // up in the online/offline roster at all. A resumed game's saved
+    // presence map is stale (everyone was disconnected when it was saved),
+    // so always start fresh with just the GM online.
+    gameState.setPresence({ [hostNameArg]: { connected: true } });
     session.setConnectionStatus("Waiting for players...");
     session.setUsers({});
 
@@ -79,6 +201,7 @@ export const PeerProvider = ({ children }) => {
     const onData = createHostDataHandler({
       currentStateRef,
       setUsers: session.setUsers,
+      setPresence: gameState.setPresence,
       handlerRefs: handlers.handlerRefs,
       sendToPeers: (msg, opts) => manager.sendToPeers(msg, opts),
     });
@@ -96,11 +219,26 @@ export const PeerProvider = ({ children }) => {
       onConnectionClosed: (droppedPeerId) => {
         session.setUsers((prev) => {
           if (!(droppedPeerId in prev)) return prev;
+          const droppedUserName = prev[droppedPeerId];
           const next = { ...prev };
           delete next[droppedPeerId];
           manager.sendToPeers({
             type: MESSAGE_TYPES.USER_LIST_UPDATE,
             users: next,
+          });
+          // Mark presence disconnected rather than deleting it - the name
+          // stays visible in the roster (as offline) and reclaimable by the
+          // same player reconnecting, instead of just vanishing.
+          gameState.setPresence((prevPresence) => {
+            const nextPresence = {
+              ...prevPresence,
+              [droppedUserName]: { connected: false },
+            };
+            manager.sendToPeers({
+              type: MESSAGE_TYPES.PRESENCE_UPDATE,
+              presence: nextPresence,
+            });
+            return nextPresence;
           });
           return next;
         });
@@ -110,11 +248,27 @@ export const PeerProvider = ({ children }) => {
     peerRef.current = manager.peer;
   };
 
+  // Host: resume a previously-created game from its saved localStorage
+  // state. Reuses createGame with the same gameId, which reproduces the
+  // same PeerJS pairing code (see connectionManager.js), plus the saved
+  // blob as `restoredState`.
+  const resumeGame = (gameIdArg, hostNameArg) => {
+    const saved = loadGameState(gameIdArg, hostNameArg);
+    createGame(
+      gameIdArg,
+      hostNameArg,
+      saved?.towerSize,
+      saved?.gameName,
+      saved
+    );
+  };
+
   // Player: join game
   const joinGame = (gameIdArg, peerIdArg, userNameArg) => {
     session.setGameId(gameIdArg);
     session.setUserName(userNameArg);
     session.setConnectionStatus("Connecting to game...");
+    session.setJoinError(null);
     let resolvedPeerId = peerIdArg;
 
     const manager = createPlayerConnectionManager({
@@ -146,20 +300,80 @@ export const PeerProvider = ({ children }) => {
       onData: createPlayerDataHandler({
         handlerRefs: handlers.handlerRefs,
         setUsers: session.setUsers,
+        setPresence: gameState.setPresence,
         setConnectionStatus: session.setConnectionStatus,
+        setConn: session.setConn,
+        setJoinError: session.setJoinError,
+        setGameName: gameState.setGameName,
         setTowerSize: gameState.setTowerSize,
         setDangerProbability: gameState.setDangerProbability,
         setAwaitingReset: gameState.setAwaitingReset,
+        setDesignatedSpinner: gameState.setDesignatedSpinner,
+        setGameStarted: gameState.setGameStarted,
         setScenario: gameState.setScenario,
-        setCharacterSheets: gameState.setCharacterSheets,
-        setQuestions: gameState.setQuestions,
+        setCharacters: gameState.setCharacters,
         setAllowPlayersToViewSheets: gameState.setAllowPlayersToViewSheets,
+        setTheme: gameState.setTheme,
+        setCustomColors: gameState.setCustomColors,
+        setDeathFlavorText: gameState.setDeathFlavorText,
+        userName: userNameArg,
       }),
       onStatusChange: (status) => session.setConnectionStatus(status),
     });
     managerRef.current = manager;
     peerRef.current = manager.peer;
   };
+
+  // GM only: actively checks whether a specific player's connection is
+  // really alive, rather than waiting on the passive heartbeat's own
+  // ~15-20s detection window (connectionManager.js) to eventually notice
+  // and update presence - useful when the GM wants an immediate answer
+  // (e.g. presence still says "online" and they want to confirm it isn't
+  // just lagging). Silently does nothing if the userName isn't currently
+  // in the GM's own users map (already offline, or never existed).
+  const pingUser = (targetUserName) => {
+    const peerId = Object.keys(session.users || {}).find(
+      (id) => session.users[id] === targetUserName
+    );
+    if (!peerId) return;
+    managerRef.current?.sendToOne?.(peerId, {
+      type: MESSAGE_TYPES.PRESENCE_PING,
+      sentAt: Date.now(),
+    });
+  };
+
+  // Keep the GM's saved game state up to date as the game progresses, so a
+  // page refresh or homepage "Resume" picks up where things left off. Only
+  // the GM persists - a player's own state is always derived from the GM's
+  // broadcasts, so there's nothing distinct to save on their side.
+  useEffect(() => {
+    if (!session.isGM || !session.gameId || !session.hostName) return;
+    saveGameState(session.gameId, session.hostName, {
+      gameName: gameState.gameName,
+      towerSize: gameState.towerSize,
+      scenario: gameState.scenario,
+      characters: gameState.characters,
+      allowPlayersToViewSheets: gameState.allowPlayersToViewSheets,
+      theme: gameState.theme,
+      customColors: gameState.customColors,
+      deathFlavorText: gameState.deathFlavorText,
+      gameStarted: gameState.gameStarted,
+    });
+    upsertMyGame(session.gameId, session.hostName, gameState.gameName);
+  }, [
+    session.isGM,
+    session.gameId,
+    session.hostName,
+    gameState.gameName,
+    gameState.towerSize,
+    gameState.scenario,
+    gameState.characters,
+    gameState.allowPlayersToViewSheets,
+    gameState.theme,
+    gameState.customColors,
+    gameState.deathFlavorText,
+    gameState.gameStarted,
+  ]);
 
   return (
     <PeerContext.Provider
@@ -168,13 +382,15 @@ export const PeerProvider = ({ children }) => {
         ...gameState,
         peerRef,
         createGame,
+        resumeGame,
         joinGame,
         registerWheelEventHandler: handlers.registerWheelEventHandler,
         registerChatEventHandler: handlers.registerChatEventHandler,
         registerScenarioEventHandler: handlers.registerScenarioEventHandler,
-        registerCharacterSheetEventHandler:
-          handlers.registerCharacterSheetEventHandler,
+        registerPingEventHandler: handlers.registerPingEventHandler,
         sendToPeers,
+        sendSystemChatMessage,
+        pingUser,
       }}
     >
       {children}

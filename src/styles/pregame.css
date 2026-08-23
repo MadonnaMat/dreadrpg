@@ -1,18 +1,21 @@
 /* PreGame input styling */
 .pregame-input {
   padding: 8px;
-  border: 1px solid #ccc;
+  border: 1px solid color-mix(in srgb, var(--color-text, #ccc) 25%, transparent);
   border-radius: 4px;
   font-family: inherit;
   font-size: 14px;
   margin: 4px;
   min-width: 180px;
+  background-color: var(--color-field-bg, #fff);
+  color: var(--color-text, #000);
 }
 
 .pregame-input:focus {
-  border-color: #2196f3;
+  border-color: var(--color-accent, #2196f3);
   outline: none;
-  box-shadow: 0 0 3px rgba(33, 150, 243, 0.3);
+  box-shadow: 0 0 3px
+    color-mix(in srgb, var(--color-accent, #2196f3) 30%, transparent);
 }
 
 /* Dread RPG Info styling */
@@ -76,29 +79,36 @@
 
 /* PreGame lobby styling */
 .lobby-info {
-  background-color: #f9f9f9;
-  border: 1px solid #ddd;
+  background-color: var(--color-surface, #f9f9f9);
+  border: 1px solid color-mix(in srgb, var(--color-text, #ddd) 20%, transparent);
   border-radius: 8px;
   padding: 16px;
   margin-bottom: 16px;
   text-align: left;
+  color: var(--color-text, inherit);
 }
 
 .lobby-info strong {
-  color: #333;
+  color: var(--color-text, #333);
 }
 
 .lobby-tip {
-  background-color: #e8f4fd;
-  border: 1px solid #b3d9ff;
+  background-color: color-mix(
+    in srgb,
+    var(--color-accent, #2196f3) 12%,
+    transparent
+  );
+  border: 1px solid
+    color-mix(in srgb, var(--color-accent, #2196f3) 35%, transparent);
   border-radius: 8px;
   padding: 16px;
   margin-top: 16px;
   text-align: left;
+  color: var(--color-text, inherit);
 }
 
 .lobby-tip strong {
-  color: #1976d2;
+  color: var(--color-accent, #1976d2);
 }
 
 .url-input-container {
@@ -111,10 +121,12 @@
 .url-input-container input {
   flex: 1;
   padding: 8px;
-  border: 1px solid #ccc;
+  border: 1px solid color-mix(in srgb, var(--color-text, #ccc) 25%, transparent);
   border-radius: 4px;
   font-family: monospace;
   font-size: 14px;
+  background-color: var(--color-field-bg, #fff);
+  color: var(--color-text, #000);
 }
 
 .url-input-container button {
@@ -129,4 +141,97 @@
 
 .url-input-container button:hover {
   background-color: #45a049;
+}
+
+.join-error {
+  color: #f44336;
+  font-weight: bold;
+  margin-top: 8px;
+}
+
+/* Admin Panel */
+.admin-panel {
+  text-align: left;
+}
+
+.admin-field {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.admin-field label {
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.theme-custom-colors {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.theme-color-field {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 12px;
+  font-weight: normal;
+  gap: 4px;
+}
+
+.ping-status {
+  font-size: 12px;
+  font-weight: normal;
+  font-style: italic;
+  opacity: 0.75;
+}
+
+.rejoin-link-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0;
+  flex-wrap: wrap;
+}
+
+.rejoin-link-hint {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+/* Homepage "Your Games" list */
+#my-games-list {
+  max-width: 400px;
+  margin: 20px auto 0;
+  text-align: left;
+}
+
+#my-games-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+}
+
+#my-games-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  background-color: var(--color-surface, #fff);
+  border: 1px solid color-mix(in srgb, var(--color-text, #ddd) 20%, transparent);
+  border-radius: 4px;
+  margin-bottom: 6px;
+}
+
+#my-games-list li > span {
+  flex: 1;
+  text-align: left;
+}
+
+#my-games-list li .btn-danger-small {
+  margin-left: 8px;
 }

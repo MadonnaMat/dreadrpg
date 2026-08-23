@@ -9,6 +9,10 @@ citations are from [`example-scenario-metal-sky.md`](./example-scenario-metal-sk
 
 Verdict legend: ✅ Matches · 🟡 Intentional simplification (by design, not a bug) · 🔧 Fixed this pass · 🔷 Gap — needs a product decision
 
+See [`compliance-fix-plan.md`](./compliance-fix-plan.md) for the ordered,
+in-progress plan closing out the remaining 🔷 items below (plus related
+character/admin/persistence features built on the same foundation).
+
 ## GM / host model
 
 **✅ Matches.** The rules' "Host" (creates the framework, adjudicates
@@ -71,106 +75,131 @@ re-stack round trip).
 
 ## Declining a pull vs. a tower collapse (two different severities)
 
-**🔷 Gap.** The rules distinguish two outcomes with very different stakes:
+**🔧 Fixed this pass.** The rules distinguish two outcomes with very
+different stakes:
 
 - _Declining/failing a pull_ → the action just fails; "This failure can not
   be so drastic that it would remove the character from the game."
 - _A tower collapse_ → the character is removed from the game.
 
-The app's wheel collapses these into one binary outcome per spin: landing on
-`success` = "Success!", landing on `death` = "You Died!"
-(`src/providers/WheelProvider.jsx` `handleSpinEnd`). There's no app-level
-concept of "the character failed this one action but is still alive and
-in the game" as a distinct, less-severe result from a spin — nor is there a
-way to _decline_ a requested spin the way the rules allow declining a pull.
-Not fixed this pass: this is a meaningful game-design decision (would need a
-third wheel-outcome type, or a "decline" affordance in `GameLoaded.jsx`/
-`WheelGraphics.jsx`), not a mechanical bug.
+The GM now explicitly designates who spins next (`assignSpinner` in
+`src/providers/WheelProvider.jsx`) — only that player's client renders the
+Spin/Decline buttons (`SpinControls` in `src/components/GameLoaded.jsx`).
+Declining sends `SPIN_DECLINE` (player → GM) or resolves locally (GM
+self-assigned), clearing the assignment via `SPIN_ASSIGN{targetUserName:
+null}` without ever putting the character at risk — the wheel itself is
+never spun, so there's no death-probability exposure at all, closer to the
+rule's own "declining just means nothing happens" framing than adding a
+third wheel-outcome type would have been. Every spin/decline/result is also
+now narrated in chat (`sendSystemChatMessage`, reusing the existing chat
+message pipeline). See `docs/rules/compliance-fix-plan.md` item 7.
 
 ## "Ways to remove a character" (death is only one option)
 
-**🔷 Gap** (cosmetic/content, not mechanical). The rulebook lists ~25
-host-narrated outcomes for a removed character — death is just one. The
-app always shows the literal text `"You Died!"`
-(`src/providers/WheelProvider.jsx` `handleSpinEnd`). Not fixed this pass:
-deliberately **not** copying the rulebook's own copyrighted flavor-text list
-into shipped UI — if pursued, this needs originally-written flavor text (or
-simply a GM-editable "what happens on death" field), not a straight port of
-the source material.
+**🔧 Fixed this pass** (cosmetic/content, not mechanical). The rulebook
+lists ~25 host-narrated outcomes for a removed character — death is just
+one. The app's death message already named the actual character as of item
+7 (`` `${characterName} Died!` ``); the GM can now also rewrite the
+narration template itself from the Admin Panel (`deathFlavorText` in
+`src/providers/peer/useGameState.js`, a `{name}` placeholder substituted by
+`deathText` in `src/constants/wheelOutcomes.js`), synced like the other
+Admin Panel settings. Deliberately **not** copying the rulebook's own
+copyrighted flavor-text list into shipped UI — the GM writes their own
+instead of picking from a canned list.
 
 ## Elective pulls
 
-**✅ Matches** (incidentally, not by explicit design). "Players always have
-the option to pull a block without being asked." The app's spin button
-(`id="spin-btn"`, `src/components/GameLoaded.jsx:109-110`) is never gated
-behind a "you must be asked" check — any player can request a spin at any
-time via `handleSpin` → `spin-request` (`WheelProvider.jsx`). There's no
-labeled "elective spin" affordance distinguishing it from a required one,
-but nothing blocks the underlying behavior the rule describes.
+**🟡 Deliberate trade-off this pass** (was ✅, incidentally). "Players
+always have the option to pull a block without being asked." Before this
+pass, the app's spin button was never gated — any player could request a
+spin at any time. To support GM-directed turns and a Decline affordance
+(previous section), the GM must now explicitly designate who spins next;
+an un-designated player has no Spin button at all. This is a deliberate,
+requested product decision (`compliance-fix-plan.md` item 7), not a silent
+regression — elective, ask-nobody spinning is no longer possible, in
+exchange for the decline-severity fix above.
 
 ## Multi-pull complex/difficult tasks
 
-**🔷 Gap.** The host can require several pulls for one complex action, each
-representing a distinct step. The app has no concept of chaining multiple
-spins to a single declared action — every spin is independent
-(`WheelGraphics.jsx` → `onSpinEnd` → `WheelProvider.handleSpinEnd`). Not
-fixed this pass: would need new state to track "this spin is step N of an
-in-progress multi-step action," plus GM-facing UI to declare step counts.
+**🔧 Fixed this pass.** The host can require several pulls for one complex
+action, each representing a distinct step. The GM's "Request Pull" control
+(`SpinControls` in `src/components/GameLoaded.jsx`) now takes an optional
+pull count; `WheelProvider.jsx` tracks `pullsRequired`/`pullsRemaining` and
+keeps the same player designated across every step (`handleSpinEnd`),
+decrementing on each success and only clearing the assignment once
+`pullsRemaining` reaches 0. A death at any step still ends the action
+immediately and removes the character, same as a single-pull action. Chat
+narrates progress ("step X of N"), and both the GM's assign panel and the
+designated player's own view show the current step count. Not peer-synced
+via the snapshot mechanism other wheel state uses (it's GM-local,
+recomputed and re-broadcast on every spin) — a late joiner mid-sequence
+sees that someone is designated but not the step count until the next spin
+resolves; a minor, acceptable display gap for this pass.
 
 ## Conflict between players' characters
 
-**🔷 Gap.** The rulebook's escalating pull-off procedure (aggressor pulls
-and declares intent → target accepts or pulls to defend → repeat until
-someone declines or the tower falls) isn't modeled at all. Every spin in the
-app is a single player vs. the wheel; there's no second-party
-accept/defend/escalate flow. Not fixed this pass: would need new PeerJS
-message types and turn-based UI, a nontrivial feature addition explicitly
-out of scope for a "safe fix."
+**🟡 Intentional simplification** (was 🔷 gap). The rulebook's escalating
+pull-off procedure (aggressor pulls and declares intent → target accepts or
+pulls to defend → repeat until someone declines or the tower falls) has no
+dedicated feature, by design: everyone always pulls from the same shared
+tower/wheel — there's no separate PvP resolution system to build. A
+conflict between two characters is something the GM narrates/adjudicates at
+the table (or in chat) using the same designate-a-spinner mechanism
+(`assignSpinner`, previous sections) as any other risky action — the GM
+just designates first the aggressor, then the target, back and forth,
+narrating who's "winning." No targeted player-to-player messaging or
+accept/defend turn UI was added.
 
 ## Mismatched opponents (variable pull counts)
 
-**🔷 Gap.** "If one character clearly has an advantage... his or her player
-may be required to make fewer pulls" (aggressor still needs at least one).
-The app has no situational weighting of a spin's difficulty or count —
-every spin draws from the same shared wheel regardless of context. Not
-fixed this pass: would need a way for the host to attach a modifier to an
-individual spin.
+**🟡 Intentional simplification** (was 🔷 gap), for the same reason as
+above. "If one character clearly has an advantage... his or her player may
+be required to make fewer pulls" only really applies within a PvP conflict,
+which is itself a GM-narrated use of the existing designate-a-spinner +
+pulls-required mechanism (see the multi-pull item below) rather than a
+dedicated feature — the GM can already narrate "you only need one pull,
+they need three" by assigning different `pullsRequired` counts to each
+side's spin.
 
 ## Initial pre-pull scaled to player count
 
-**🔷 Gap.** "Stack the tower and pre-pull 3 blocks for every player you
-have less than 5" — a game with fewer than 5 players should start harder.
-`PeerProvider.createGame` (`src/providers/PeerProvider.jsx`) always starts a
-new game with `Array(numWedgesArg).fill("success")` regardless of player
-count (the host sets `numWedges` manually, unrelated to who's actually
-joined). Not fixed this pass: would need to either delay initial wheel setup
-until players have joined, or retroactively apply pre-pulls as the lobby
-fills — a real behavior change to game start, not a one-line fix.
+**🔧 Fixed this pass.** "Stack the tower and pre-pull 3 blocks for every
+player you have less than 5" — a game with fewer than 5 players should
+start harder. Item 1's explicit lobby → Start Game transition made this
+possible: `startGame()` (`src/providers/WheelProvider.jsx`) now reads the
+actual joined player count at that moment and feeds
+`initialVirtualPullsForPlayerCount(joinedPlayerCount)` (`src/helpers/
+index.js`, `3 * max(0, 5 - joinedPlayerCount)`) into
+`computeDangerProbability` as extra virtual pulls — the same mechanism
+`charactersRemoved` already used, not a separate curve. Already-connected
+players get the recomputed probability immediately via the
+`game-started` broadcast. Verified in `src/test/helpers.test.js`
+(`initialVirtualPullsForPlayerCount`'s own cases, and that it folds into
+`computeDangerProbability` identically to an equivalent `pullsSinceReset`
+offset) and `src/test/WheelProvider.test.jsx` (`startGame` reading the real
+joined-player count from `users`).
 
 ## Questionnaires: unique per character vs. one shared list
 
-**🔷 Gap — the largest one.** "The host creates a unique character
-questionnaire for each of the players' characters." The "Beneath a Metal
-Sky" example proves this in practice: 6 characters, 6 completely distinct
-~11-question sheets built around each character's specific role and secrets
-(see [`example-scenario-metal-sky.md`](./example-scenario-metal-sky.md)).
+**🔧 Fixed this pass.** "The host creates a unique character questionnaire
+for each of the players' characters." The "Beneath a Metal Sky" example
+proves this in practice: 6 characters, 6 completely distinct ~11-question
+sheets built around each character's specific role and secrets (see
+[`example-scenario-metal-sky.md`](./example-scenario-metal-sky.md)).
 
-The app has exactly one shared questionnaire for the whole game:
-`DEFAULT_QUESTIONS` (`src/constants/questions.js:1`), editable only as one
-set by the GM via `QuestionEditor`
-(`src/components/character-sheet/QuestionEditor.jsx`), applied to every
-player identically (`src/components/CharacterSheet.jsx:35`, `:77`, `:123`).
-There is no per-player question data model at all — `questions` is a single
-array in `PeerProvider`/`PeerContext`, not a map keyed by player.
-
-Not fixed this pass — this is a real data-model and UI change (`questions`
-would need to become `{ [playerName]: Question[] }`, plus new GM UI to
-author/edit one questionnaire per joined player, plus migration of the
-"send default questions to a new joiner" flow in `PeerProvider.jsx`). Flagged
-for a product decision: is per-character uniqueness worth the added GM
-setup burden for this app's use case, or is one shared questionnaire an
-acceptable, deliberate simplification (similar to the wheel-for-tower
-swap)? Worth an explicit call rather than a silent implementation.
+`questions`/`characterSheets` used to be one shared array + a map keyed by
+player name, applied identically to everyone. Characters are now first-class
+entities (`characters: { [characterId]: { id, name, defaultName, assignedTo,
+questions, answers } }` in `src/providers/peer/useGameState.js`) that the GM
+creates, clones, renames, and deletes independently via a roster
+(`src/components/character-sheet/CharacterRoster.jsx`), each with its own
+questionnaire edited through the same `QuestionEditor`
+(`src/components/character-sheet/QuestionEditor.jsx`) scoped to one
+character at a time (`src/components/CharacterSheet.jsx`). See
+`docs/rules/compliance-fix-plan.md` item 2. Not yet wired up: a UI for a
+player to actually claim one of these characters (that's plan item 3, next)
+— until then `assignedTo` only ever gets set by direct state manipulation
+(exercised in tests), not by an in-app flow.
 
 ## Question count guidance ("a baker's dozen")
 
@@ -182,12 +211,16 @@ average ~11). Not a gap.
 
 ## Host approval of questionnaire answers
 
-**🔷 Gap** (minor). "The host has to approve any answer a player puts on a
-questionnaire." The app has no approval/review step — a player's answers in
-`MyCharacterSheet.jsx` sync directly to everyone the instant they're typed
-(`handleAnswerChange` in `src/components/CharacterSheet.jsx`) with no GM
-gate. Not fixed this pass: minor scope, would need an approval/flag state
-per answer.
+**🔧 Fixed this pass.** "The host has to approve any answer a player puts on
+a questionnaire." An answer is now `{ text, approved }`
+(`src/components/CharacterSheet.jsx` `handleAnswerChange`) — still synced
+to the GM on every keystroke (unchanged UX for the player and GM, who
+always see the live draft), but always reset to `approved: false` on
+change. The GM's character roster (`CharacterRoster.jsx`) shows an
+"Approve" button per answer; `OtherPlayersSheets.jsx` — the only place
+another player ever sees someone else's answers — shows an unapproved
+answer as "No answer provided," identical to a genuinely blank one, until
+the GM approves it.
 
 ## Scenario structure vs. GM-craft advice
 
@@ -203,19 +236,19 @@ either way.
 
 ## Summary
 
-| Area                                 | Verdict                                            |
-| ------------------------------------ | -------------------------------------------------- |
-| GM/host model                        | ✅                                                 |
-| Tower → wheel                        | 🟡 by design                                       |
-| Escalating danger after a collapse   | 🔧 fixed this pass                                 |
-| Decline-a-pull vs. collapse severity | 🔷 gap                                             |
-| "Ways to remove a character" flavor  | 🔷 gap (cosmetic)                                  |
-| Elective pulls                       | ✅                                                 |
-| Multi-pull complex tasks             | 🔷 gap                                             |
-| Conflict between characters          | 🔷 gap                                             |
-| Mismatched opponents                 | 🔷 gap                                             |
-| Initial pre-pull by player count     | 🔷 gap                                             |
-| Unique per-character questionnaires  | 🔷 **gap — biggest one, needs a product decision** |
-| Question count                       | ✅                                                 |
-| Host approval of answers             | 🔷 gap (minor)                                     |
-| Scenario structure                   | 🟡 by design                                       |
+| Area                                 | Verdict                             |
+| ------------------------------------ | ----------------------------------- |
+| GM/host model                        | ✅                                  |
+| Tower → wheel                        | 🟡 by design                        |
+| Escalating danger after a collapse   | 🔧 fixed this pass                  |
+| Decline-a-pull vs. collapse severity | 🔧 fixed this pass                  |
+| "Ways to remove a character" flavor  | 🔧 fixed this pass                  |
+| Elective pulls                       | 🟡 deliberate trade-off (see notes) |
+| Multi-pull complex tasks             | 🔧 fixed this pass                  |
+| Conflict between characters          | 🟡 by design                        |
+| Mismatched opponents                 | 🟡 by design                        |
+| Initial pre-pull by player count     | 🔧 fixed this pass                  |
+| Unique per-character questionnaires  | 🔧 fixed this pass                  |
+| Question count                       | ✅                                  |
+| Host approval of answers             | 🔧 fixed this pass                  |
+| Scenario structure                   | 🟡 by design                        |

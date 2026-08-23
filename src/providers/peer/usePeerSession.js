@@ -12,6 +12,10 @@ export function usePeerSession() {
   const [isGM, setIsGM] = useState(false);
   const [conn, setConn] = useState(null);
   const [users, setUsers] = useState({}); // { peerId: userName }
+  // Set when the GM rejects a join because the chosen userName is already in
+  // active use in this game (see dataHandlers.js's JOIN handling) - cleared
+  // at the start of every joinGame() attempt.
+  const [joinError, setJoinError] = useState(null);
 
   return {
     gameId,
@@ -30,5 +34,7 @@ export function usePeerSession() {
     setConn,
     users,
     setUsers,
+    joinError,
+    setJoinError,
   };
 }

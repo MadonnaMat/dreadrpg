@@ -6,12 +6,14 @@ import { PeerProvider } from "./providers/PeerProvider";
 import { WheelProvider } from "./providers/WheelProvider";
 import { usePeer } from "./hooks/usePeer";
 import { useWheel } from "./hooks/useWheel";
+import { useThemeEffect } from "./hooks/useThemeEffect";
 import "./App.css";
 
 extend({ Graphics, Container });
 
 function AppInner() {
   const { showWheel } = useWheel();
+  useThemeEffect();
   return showWheel ? <GameLoaded /> : <PreGame />;
 }
 

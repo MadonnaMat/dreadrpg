@@ -1,0 +1,51 @@
+/* Game screen (GameLoaded.jsx) - the wheel, spin/decline/assign controls,
+   and result text. Previously entirely unstyled (relying on browser default
+   inline flow), which left the assign-picker row cramped/misaligned and the
+   pulls-required number field stretched to the same 180px min-width as a
+   full-size text input. */
+#wheel-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 300px;
+}
+
+#spin-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  text-align: center;
+}
+
+#spin-assign-section {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+#pulls-required-input {
+  min-width: 0;
+  width: 56px;
+  text-align: center;
+  margin: 0;
+}
+
+#result {
+  margin-top: 12px;
+  min-height: 1.4em;
+  font-weight: bold;
+  font-size: 1.1em;
+}
+
+#restack-btn {
+  margin-top: 8px;
+}
+
+.rejoin-link-btn {
+  margin: 8px 0;
+}

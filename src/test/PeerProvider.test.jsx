@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import Peer from "peerjs";
 import { PeerProvider } from "../providers/PeerProvider";
 import { usePeer } from "../hooks/usePeer";
 import React from "react";
@@ -23,8 +24,7 @@ const TestComponent = () => {
     dangerProbability,
     awaitingReset,
     scenario,
-    characterSheets,
-    questions,
+    characters,
     allowPlayersToViewSheets,
   } = usePeer();
 
@@ -40,10 +40,7 @@ const TestComponent = () => {
       <div data-testid="danger-probability">{dangerProbability}</div>
       <div data-testid="awaiting-reset">{awaitingReset.toString()}</div>
       <div data-testid="scenario">{JSON.stringify(scenario)}</div>
-      <div data-testid="character-sheets">
-        {JSON.stringify(characterSheets)}
-      </div>
-      <div data-testid="questions">{JSON.stringify(questions)}</div>
+      <div data-testid="characters">{JSON.stringify(characters)}</div>
       <div data-testid="allow-players-view">
         {allowPlayersToViewSheets.toString()}
       </div>
@@ -92,8 +89,7 @@ describe("PeerProvider", () => {
     expect(screen.getByTestId("danger-probability")).toHaveTextContent("0");
     expect(screen.getByTestId("awaiting-reset")).toHaveTextContent("false");
     expect(screen.getByTestId("scenario")).toHaveTextContent("null");
-    expect(screen.getByTestId("character-sheets")).toHaveTextContent("{}");
-    expect(screen.getByTestId("questions")).toHaveTextContent("null");
+    expect(screen.getByTestId("characters")).toHaveTextContent("{}");
     expect(screen.getByTestId("allow-players-view")).toHaveTextContent("false");
   });
 
@@ -154,6 +150,24 @@ describe("PeerProvider", () => {
     await act(() => new Promise((resolve) => setTimeout(resolve, 30)));
   });
 
+  it("destroys the underlying peer on pagehide, so a refresh releases the connection instead of leaving a zombie behind", async () => {
+    const destroySpy = vi.spyOn(Peer.prototype, "destroy");
+
+    render(
+      <PeerProvider>
+        <TestComponent />
+      </PeerProvider>
+    );
+
+    await user.click(screen.getByText("Create Game"));
+    await act(() => new Promise((resolve) => setTimeout(resolve, 30)));
+
+    window.dispatchEvent(new Event("pagehide"));
+
+    expect(destroySpy).toHaveBeenCalled();
+    destroySpy.mockRestore();
+  });
+
   it("should normalize game IDs correctly", () => {
     // This is testing the internal normalizedId function behavior
     // by checking that games with different formats can be created
@@ -165,16 +179,5 @@ describe("PeerProvider", () => {
 
     // The normalization should happen internally when creating games
     expect(screen.getByTestId("is-gm")).toHaveTextContent("false");
-  });
-
-  it("should handle default questions correctly", () => {
-    render(
-      <PeerProvider>
-        <TestComponent />
-      </PeerProvider>
-    );
-
-    // Initially questions should be null, will be set to defaults when needed
-    expect(screen.getByTestId("questions")).toHaveTextContent("null");
   });
 });

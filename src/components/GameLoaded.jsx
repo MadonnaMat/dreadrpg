@@ -3,17 +3,167 @@ import { WheelGraphics } from "./WheelGraphics";
 import Chat from "./Chat";
 import Scenario from "./Scenario";
 import CharacterSheet from "./CharacterSheet";
+import AdminPanel from "./AdminPanel";
 import { usePeer } from "../hooks/usePeer";
 import { useWheel } from "../hooks/useWheel";
+import {
+  characterNameFor,
+  formatNameForList,
+  isCharacterAlive,
+} from "../helpers/characters";
+import { buildRejoinUrl } from "../helpers/rejoinLink";
+import { getWheelColors } from "../constants/themes";
 import { useEffect, useRef, useState } from "react";
 import { MESSAGE_TYPES } from "../constants/messageTypes";
 
+// GM's "who spins next" picker plus the Spin/Decline buttons, shown only to
+// whoever is currently designated - split out of GameLoaded purely to keep
+// that component's own branching complexity down.
+function SpinControls({
+  isGM,
+  users,
+  characters,
+  myName,
+  hostName,
+  designatedSpinner,
+  assignSpinner,
+  pullsRequired,
+  pullsRemaining,
+  handleSpin,
+  handleDecline,
+  spinning,
+  awaitingReset,
+}) {
+  const [selectedName, setSelectedName] = useState("");
+  const [requiredPulls, setRequiredPulls] = useState(1);
+  const isMyTurn = designatedSpinner && myName === designatedSpinner;
+
+  // A dead character can't be asked to spin again - but a player can end up
+  // with *multiple* assigned characters over a game (a dead one, kept as a
+  // historical record, plus whatever they picked afterward via
+  // CharacterPicker), so this has to check whether *any* of their
+  // assignments is still alive, not just the first one found. Someone with
+  // no character assigned at all remains selectable too.
+  const eligibleNames = Object.values(users || {}).filter((name) => {
+    const assignedCharacters = Object.values(characters || {}).filter(
+      (c) => c.assignedTo === name
+    );
+    return (
+      assignedCharacters.length === 0 ||
+      assignedCharacters.some(isCharacterAlive)
+    );
+  });
+
+  return (
+    <div id="spin-controls">
+      {isGM && !awaitingReset && !designatedSpinner && (
+        <div id="spin-assign-section">
+          <select
+            className="pregame-input"
+            value={selectedName}
+            onChange={(e) => setSelectedName(e.target.value)}
+          >
+            <option value="">Choose a player...</option>
+            {eligibleNames.map((name) => (
+              <option key={name} value={name}>
+                {formatNameForList(characters, name, hostName)}
+              </option>
+            ))}
+          </select>
+          <input
+            id="pulls-required-input"
+            className="pregame-input"
+            type="number"
+            min={1}
+            max={10}
+            value={requiredPulls}
+            onChange={(e) => setRequiredPulls(Number(e.target.value) || 1)}
+            title="Pulls required for this action"
+          />
+          <button
+            id="request-pull-btn"
+            onClick={() => {
+              assignSpinner(selectedName, requiredPulls);
+              setSelectedName("");
+              setRequiredPulls(1);
+            }}
+            disabled={!selectedName}
+          >
+            Request Pull
+          </button>
+        </div>
+      )}
+      {isGM && !awaitingReset && designatedSpinner && !isMyTurn && (
+        <p>
+          Waiting on {characterNameFor(characters, designatedSpinner)} to spin
+          or decline...
+          {pullsRequired > 1 &&
+            ` (step ${pullsRequired - pullsRemaining + 1} of ${pullsRequired})`}
+        </p>
+      )}
+      {!awaitingReset && isMyTurn && (
+        <>
+          <button id="spin-btn" onClick={handleSpin} disabled={spinning}>
+            Spin the Wheel!
+          </button>
+          <button id="decline-btn" onClick={handleDecline} disabled={spinning}>
+            Decline
+          </button>
+          {pullsRequired > 1 && (
+            <p>
+              Step {pullsRequired - pullsRemaining + 1} of {pullsRequired}
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// Lets a joined player (never the GM, who resumes via the homepage list
+// instead - see gamePersistence.js) copy a link that logs them back in as
+// themselves. Split out purely to keep GameLoaded's own complexity down.
+function RejoinLinkButton({ isGM, gameId, userName }) {
+  if (isGM) return null;
+  return (
+    <button
+      className="btn-secondary btn-small rejoin-link-btn"
+      onClick={() =>
+        navigator.clipboard.writeText(buildRejoinUrl(gameId, userName))
+      }
+    >
+      Copy my rejoin link
+    </button>
+  );
+}
+
 export default function GameLoaded() {
-  const { peerId, isGM, conn, sendToPeers } = usePeer();
+  const {
+    peerId,
+    isGM,
+    conn,
+    sendToPeers,
+    gameName,
+    gameId,
+    userName,
+    hostName,
+    users,
+    characters,
+    theme,
+    customColors,
+  } = usePeer();
+  const { success: successColor, death: deathColor } = getWheelColors(
+    theme,
+    customColors
+  );
   const {
     wedges,
     dangerProbability,
     awaitingReset,
+    designatedSpinner,
+    assignSpinner,
+    pullsRequired,
+    pullsRemaining,
     result,
     spinning,
     spinAngle,
@@ -25,9 +175,11 @@ export default function GameLoaded() {
     spinTargetAngleRef,
     spinResultIdxRef,
     handleSpin,
+    handleDecline,
     handleSpinEnd,
     handleRestack,
   } = useWheel();
+  const myName = userName || hostName;
 
   const [internalWedges, setInternalWedges] = useState(wedges);
   const [activeTab, setActiveTab] = useState("game");
@@ -68,6 +220,8 @@ export default function GameLoaded() {
   return (
     <div className="App">
       <h1>Dread RPG</h1>
+      {gameName && <h2>{gameName}</h2>}
+      <RejoinLinkButton isGM={isGM} gameId={gameId} userName={userName} />
 
       {/* Tab Navigation */}
       <div className="tab-navigation">
@@ -89,20 +243,29 @@ export default function GameLoaded() {
         >
           Characters
         </button>
+        {isGM && (
+          <button
+            className={`tab-button ${activeTab === "admin" ? "active" : ""}`}
+            onClick={() => setActiveTab("admin")}
+          >
+            Admin
+          </button>
+        )}
       </div>
 
-      {/* Tab Content - all three panels stay mounted regardless of which
-          tab is active, only visibility toggles. Scenario/CharacterSheet/
-          Chat each register a handler for their own live network messages
-          only while mounted; unmounting on every tab switch would silently
-          drop any broadcast that arrives while a player isn't looking at
-          that tab. */}
+      {/* Tab Content - all panels stay mounted regardless of which tab is
+          active, only visibility toggles. Scenario/CharacterSheet/Chat each
+          register a handler for their own live network messages only while
+          mounted; unmounting on every tab switch would silently drop any
+          broadcast that arrives while a player isn't looking at that tab. */}
       <div className="tab-content">
         <div
           style={{
             display: activeTab === "game" ? "flex" : "none",
             flexDirection: "row",
+            flexWrap: "wrap",
             alignItems: "flex-start",
+            gap: "24px",
           }}
         >
           <div id="wheel-section">
@@ -125,13 +288,25 @@ export default function GameLoaded() {
                 conn={conn}
                 isGM={isGM}
                 peerId={peerId}
+                successColor={successColor}
+                deathColor={deathColor}
               />
             </Application>
-            {!awaitingReset && (
-              <button id="spin-btn" onClick={handleSpin} disabled={spinning}>
-                Spin the Wheel!
-              </button>
-            )}
+            <SpinControls
+              isGM={isGM}
+              users={users}
+              characters={characters}
+              myName={myName}
+              hostName={hostName}
+              designatedSpinner={designatedSpinner}
+              assignSpinner={assignSpinner}
+              pullsRequired={pullsRequired}
+              pullsRemaining={pullsRemaining}
+              handleSpin={handleSpin}
+              handleDecline={handleDecline}
+              spinning={spinning}
+              awaitingReset={awaitingReset}
+            />
             {isGM && awaitingReset && (
               <button id="restack-btn" onClick={handleRestack}>
                 Re-stack Tower
@@ -148,6 +323,11 @@ export default function GameLoaded() {
         <div style={{ display: activeTab === "characters" ? "block" : "none" }}>
           <CharacterSheet />
         </div>
+        {isGM && (
+          <div style={{ display: activeTab === "admin" ? "block" : "none" }}>
+            <AdminPanel showRoster={false} />
+          </div>
+        )}
       </div>
     </div>
   );

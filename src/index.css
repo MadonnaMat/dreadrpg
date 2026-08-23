@@ -1,11 +1,23 @@
+/* Without this, every "width: 100%" form field with its own padding/border
+   (character-answer, question-input, scenario-field input/textarea,
+   pregame-input, chat-input, ...) computes its content box at 100% and then
+   adds padding+border on top, overflowing its container by exactly
+   (padding + border) * 2 - eating into, or entirely erasing, the right-hand
+   gap a reader would expect to see against the panel it sits in. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
 
   color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  color: var(--color-text, rgba(255, 255, 255, 0.87));
+  background-color: var(--color-bg, #242424);
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -42,27 +54,28 @@ button {
   font-size: 1em;
   font-weight: 500;
   font-family: inherit;
-  background-color: #1a1a1a;
+  background-color: var(--color-accent, #1a1a1a);
+  color: white;
   cursor: pointer;
-  transition: border-color 0.25s;
+  transition:
+    border-color 0.25s,
+    filter 0.2s;
 }
 button:hover {
-  border-color: #646cff;
+  filter: brightness(0.85);
 }
 button:focus,
 button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
 }
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: none;
+}
 
 @media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
   a:hover {
     color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
   }
 }

@@ -1,0 +1,75 @@
+/* Theme tokens - see src/constants/themes.js for the JS-side list this must
+   stay in sync with. Defaults here match the app's original hardcoded
+   colors exactly, so a game that never touches the Admin Panel's theme
+   picker looks unchanged. Preset blocks below only need to override the
+   handful of tokens that define a theme's identity. */
+:root {
+  --color-bg: #242424;
+  --color-text: rgba(255, 255, 255, 0.87);
+  --color-accent: #2196f3;
+  --color-danger: #f44336;
+  /* Derived surfaces, not independently themeable - a panel/form-field
+     background needs to read as visibly distinct from the page behind it in
+     *both* light and dark themes, which a fixed lean toward literal white
+     (previously used here and there) can't do: on an already-near-white
+     light background it's imperceptible, which is exactly what made panels
+     and inputs look "unstyled" in the default light theme. Mixing toward
+     --color-text instead moves the shade away from --color-bg in whichever
+     direction actually has contrast, symmetrically for any theme.
+     --color-surface is for panels sitting directly on the page;
+     --color-field-bg is one step further for the interactive controls
+     inside them (inputs/textareas/selects), so a field still reads as
+     distinct from its own panel, not just from the page. */
+  --color-surface: color-mix(
+    in srgb,
+    var(--color-bg) 92%,
+    var(--color-text) 8%
+  );
+  --color-field-bg: color-mix(
+    in srgb,
+    var(--color-bg) 85%,
+    var(--color-text) 15%
+  );
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    --color-bg: #ffffff;
+    --color-text: #213547;
+  }
+}
+
+[data-theme="scifi"] {
+  --color-bg: #0a1128;
+  --color-text: #c7d3ff;
+  --color-accent: #00e5ff;
+  --color-danger: #ff2b5e;
+}
+
+[data-theme="slasher"] {
+  --color-bg: #1a0000;
+  --color-text: #f5e6e6;
+  --color-accent: #8b0000;
+  --color-danger: #ff0000;
+}
+
+[data-theme="halloween"] {
+  --color-bg: #1a0f2e;
+  --color-text: #ffb347;
+  --color-accent: #ff7518;
+  --color-danger: #39ff14;
+}
+
+[data-theme="cosmic"] {
+  --color-bg: #04050d;
+  --color-text: #c9d6e3;
+  --color-accent: #6a3fb5;
+  --color-danger: #00e6a8;
+}
+
+[data-theme="gothic"] {
+  --color-bg: #120306;
+  --color-text: #e8d9c5;
+  --color-accent: #b8860b;
+  --color-danger: #8b0020;
+}
