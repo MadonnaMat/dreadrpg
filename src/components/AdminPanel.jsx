@@ -3,6 +3,7 @@ import { usePeer } from "../hooks/usePeer";
 import { useWheel } from "../hooks/useWheel";
 import { useAi } from "../hooks/useAi";
 import { useAutoGm } from "../hooks/useAutoGm";
+import AutoGmDebugPanel from "./autogm/AutoGmDebugPanel";
 import { MESSAGE_TYPES } from "../constants/messageTypes";
 import {
   THEME_PRESETS,
@@ -282,8 +283,7 @@ function DeathFlavorTextSection() {
 // enabled, since AutoGM has no model to run turns with otherwise.
 function AutoGmSection() {
   const { aiEnabled } = useAi();
-  const { autoGmEnabled, enableAutoGm, disableAutoGm, autoGmError } =
-    useAutoGm();
+  const { autoGmEnabled, enableAutoGm, disableAutoGm } = useAutoGm();
 
   return (
     <div className="admin-field">
@@ -300,7 +300,7 @@ function AutoGmSection() {
       >
         {autoGmEnabled ? "Disable AutoGM" : "Enable AutoGM"}
       </button>
-      {autoGmError && <p className="ai-error-message">{autoGmError}</p>}
+      {autoGmEnabled && <AutoGmDebugPanel />}
     </div>
   );
 }

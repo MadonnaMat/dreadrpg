@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useEffect } from "react";
@@ -8,6 +8,22 @@ import { WheelProvider } from "../providers/WheelProvider";
 import { AiProvider } from "../providers/AiProvider";
 import { AutoGmProvider } from "../providers/AutoGmProvider";
 import { usePeer } from "../hooks/usePeer";
+import { useAi } from "../hooks/useAi";
+import { MODEL_TIERS } from "../constants/aiModels";
+
+vi.mock("../ai/engine/webllmEngine", () => ({
+  createLlmEngine: vi.fn(() =>
+    Promise.resolve({ chatCompletion: vi.fn(), dispose: vi.fn() })
+  ),
+}));
+
+function EnableAi() {
+  const { enableAi } = useAi();
+  useEffect(() => {
+    enableAi(MODEL_TIERS.MEDIUM);
+  }, [enableAi]);
+  return null;
+}
 
 // Renders AdminPanel as the GM with a starting campaign name/tower size,
 // mirroring how a real game would have these set via createGame().
@@ -291,5 +307,50 @@ describe("AdminPanel Component", () => {
     expect(
       screen.getByDisplayValue("{name} vanishes into the dark.")
     ).toBeInTheDocument();
+  });
+
+  it("disables the AutoGM toggle until the AI assistant is enabled", () => {
+    render(
+      <AiProvider>
+        <PeerProvider>
+          <WheelProvider>
+            <AutoGmProvider>
+              <GmAdminPanel />
+            </AutoGmProvider>
+          </WheelProvider>
+        </PeerProvider>
+      </AiProvider>
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Enable AutoGM" })
+    ).toBeDisabled();
+    expect(screen.getByText(/Enable the AI assistant/)).toBeInTheDocument();
+  });
+
+  it("enables AutoGM and shows the debug panel once the AI assistant is on", async () => {
+    render(
+      <AiProvider>
+        <EnableAi />
+        <PeerProvider>
+          <WheelProvider>
+            <AutoGmProvider>
+              <GmAdminPanel />
+            </AutoGmProvider>
+          </WheelProvider>
+        </PeerProvider>
+      </AiProvider>
+    );
+
+    const toggle = await screen.findByRole("button", { name: "Enable AutoGM" });
+    expect(toggle).not.toBeDisabled();
+
+    await user.click(toggle);
+
+    expect(
+      screen.getByRole("button", { name: "Disable AutoGM" })
+    ).toBeInTheDocument();
+    expect(screen.getByText("AutoGM Debug")).toBeInTheDocument();
+    expect(screen.getByText("No summary yet.")).toBeInTheDocument();
   });
 });
