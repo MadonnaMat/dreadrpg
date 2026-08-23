@@ -113,15 +113,21 @@ export const PeerProvider = ({ children }) => {
   // logic exactly, rather than duplicating it here. `fromBot` lets Chat.jsx
   // style AutoGM's own narration distinctly from the "System" mechanical
   // narration WheelProvider posts today.
+  //
+  // `notifyAutoGm` additionally forwards this same message to AutoGM's own
+  // `autoGmChat` observer - used by WheelProvider for spin outcomes (a
+  // decline, or a successful pull) so AutoGM always reacts to what just
+  // happened, not only to a player's next typed message. AutoGM's own
+  // narration (posted via this same function) never sets this flag, so it
+  // can never re-trigger itself.
   const { handlerRefs } = handlers;
   const sendSystemChatMessage = useCallback(
-    (text, { from = "System", fromBot = false } = {}) => {
-      handlerRefs.chat.current?.({
-        type: MESSAGE_TYPES.CHAT,
-        from,
-        text,
-        fromBot,
-      });
+    (text, { from = "System", fromBot = false, notifyAutoGm = false } = {}) => {
+      const data = { type: MESSAGE_TYPES.CHAT, from, text, fromBot };
+      handlerRefs.chat.current?.(data);
+      if (notifyAutoGm) {
+        handlerRefs.autoGmChat.current?.(data);
+      }
     },
     [handlerRefs]
   );
@@ -337,6 +343,7 @@ export const PeerProvider = ({ children }) => {
         setTheme: gameState.setTheme,
         setCustomColors: gameState.setCustomColors,
         setDeathFlavorText: gameState.setDeathFlavorText,
+        setAutoGmThinking: gameState.setAutoGmThinking,
         userName: userNameArg,
       }),
       onStatusChange: (status) => session.setConnectionStatus(status),

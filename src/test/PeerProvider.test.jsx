@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import Peer from "peerjs";
 import { PeerProvider } from "../providers/PeerProvider";
 import { usePeer } from "../hooks/usePeer";
-import React from "react";
+import React, { useEffect } from "react";
 
 // Test component to access PeerProvider context
 const TestComponent = () => {
@@ -179,5 +179,70 @@ describe("PeerProvider", () => {
 
     // The normalization should happen internally when creating games
     expect(screen.getByTestId("is-gm")).toHaveTextContent("false");
+  });
+
+  describe("sendSystemChatMessage's notifyAutoGm option", () => {
+    function ChatHandlersComponent({ onChat, onAutoGmChat }) {
+      const {
+        sendSystemChatMessage,
+        registerChatEventHandler,
+        registerAutoGmChatEventHandler,
+      } = usePeer();
+      useEffect(() => {
+        registerChatEventHandler(onChat);
+        registerAutoGmChatEventHandler(onAutoGmChat);
+      }, [
+        registerChatEventHandler,
+        registerAutoGmChatEventHandler,
+        onChat,
+        onAutoGmChat,
+      ]);
+      return (
+        <>
+          <button onClick={() => sendSystemChatMessage("mechanical line")}>
+            send plain
+          </button>
+          <button
+            onClick={() =>
+              sendSystemChatMessage("spin outcome", { notifyAutoGm: true })
+            }
+          >
+            send notifying
+          </button>
+        </>
+      );
+    }
+
+    it("only reaches the chat handler by default", async () => {
+      const onChat = vi.fn();
+      const onAutoGmChat = vi.fn();
+      render(
+        <PeerProvider>
+          <ChatHandlersComponent onChat={onChat} onAutoGmChat={onAutoGmChat} />
+        </PeerProvider>
+      );
+
+      await user.click(screen.getByText("send plain"));
+
+      expect(onChat).toHaveBeenCalledTimes(1);
+      expect(onAutoGmChat).not.toHaveBeenCalled();
+    });
+
+    it("also reaches the autoGmChat handler when notifyAutoGm is set", async () => {
+      const onChat = vi.fn();
+      const onAutoGmChat = vi.fn();
+      render(
+        <PeerProvider>
+          <ChatHandlersComponent onChat={onChat} onAutoGmChat={onAutoGmChat} />
+        </PeerProvider>
+      );
+
+      await user.click(screen.getByText("send notifying"));
+
+      expect(onChat).toHaveBeenCalledTimes(1);
+      expect(onAutoGmChat).toHaveBeenCalledWith(
+        expect.objectContaining({ text: "spin outcome" })
+      );
+    });
   });
 });

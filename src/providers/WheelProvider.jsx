@@ -190,7 +190,9 @@ export const WheelProvider = ({ children }) => {
       setPullsRequired(1);
       setPullsRemaining(0);
       sendToPeers({ type: MESSAGE_TYPES.SPIN_ASSIGN, targetUserName: null });
-      if (chatText) sendSystemChatMessage(chatText);
+      if (chatText) {
+        sendSystemChatMessage(chatText, { notifyAutoGm: true });
+      }
     },
     [sendToPeers, setPeerDesignatedSpinner, sendSystemChatMessage]
   );
@@ -395,7 +397,8 @@ export const WheelProvider = ({ children }) => {
           ? `${spinnerCharacterName} succeeds (step ${stepNumber} of ${pullsRequired})${
               actionComplete ? " - action complete!" : "."
             }`
-          : `${spinnerCharacterName} survives.`
+          : `${spinnerCharacterName} survives.`,
+        { notifyAutoGm: true }
       );
       setPullsRemaining(remaining);
 
