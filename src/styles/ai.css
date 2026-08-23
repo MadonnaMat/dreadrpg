@@ -1,0 +1,53 @@
+.ai-settings-toggle {
+  margin: 8px 0;
+  text-align: right;
+}
+
+.ai-settings-panel {
+  text-align: left;
+  max-width: 480px;
+  margin: 12px auto;
+  padding: 16px;
+  border: 1px solid color-mix(in srgb, var(--color-text, #ccc) 25%, transparent);
+  border-radius: 8px;
+  background-color: var(--color-field-bg, #fff);
+  color: var(--color-text, #000);
+}
+
+.ai-tier-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.ai-tier-option {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, var(--color-text, #ccc) 20%, transparent);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.ai-tier-description {
+  font-size: 0.85em;
+  opacity: 0.8;
+}
+
+.ai-download-progress {
+  margin: 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ai-download-progress progress {
+  width: 100%;
+}
+
+.ai-error-message,
+.ai-unsupported-message {
+  color: var(--color-danger, #f44336);
+}

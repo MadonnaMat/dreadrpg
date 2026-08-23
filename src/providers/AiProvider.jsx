@@ -104,7 +104,9 @@ export function AiProvider({ children }) {
     engineRef.current = null;
     setEngineStatus(ENGINE_STATUS.IDLE);
     setDownloadProgress(null);
-    saveAiPreference({ optedIn: false, tier: modelTier });
+    const preference = { optedIn: false, tier: modelTier };
+    saveAiPreference(preference);
+    setSavedPreference(preference);
   }, [modelTier]);
 
   const runPrompt = useCallback(

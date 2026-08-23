@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { extend } from "@pixi/react";
 import { Graphics, Container } from "pixi.js";
 import PreGame from "./components/PreGame";
 import GameLoaded from "./components/GameLoaded";
+import AiSettingsPanel from "./components/ai/AiSettingsPanel";
 import { PeerProvider } from "./providers/PeerProvider";
 import { WheelProvider } from "./providers/WheelProvider";
 import { AiProvider } from "./providers/AiProvider";
@@ -15,7 +17,22 @@ extend({ Graphics, Container });
 function AppInner() {
   const { showWheel } = useWheel();
   useThemeEffect();
-  return showWheel ? <GameLoaded /> : <PreGame />;
+  const [showAiSettings, setShowAiSettings] = useState(false);
+
+  return (
+    <>
+      <div className="ai-settings-toggle">
+        <button
+          className="btn-secondary btn-small"
+          onClick={() => setShowAiSettings((prev) => !prev)}
+        >
+          {showAiSettings ? "Hide AI Assistant" : "AI Assistant"}
+        </button>
+      </div>
+      {showAiSettings && <AiSettingsPanel />}
+      {showWheel ? <GameLoaded /> : <PreGame />}
+    </>
+  );
 }
 
 export default function App() {
