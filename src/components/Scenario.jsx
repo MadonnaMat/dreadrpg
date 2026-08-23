@@ -1,6 +1,124 @@
 import React, { useState, useEffect } from "react";
 import { usePeer } from "../hooks/usePeer";
+import { useAi } from "../hooks/useAi";
 import { MESSAGE_TYPES } from "../constants/messageTypes";
+
+// Drafts a scenario via AI into the parent's editScenario for the GM to
+// review and adjust - handleSaveScenario/handleCancelEdit in Scenario stay
+// completely unaware of where editScenario's current values came from, so a
+// draft is saved or discarded through the exact same path as a hand-typed
+// one. Split out purely to keep Scenario's own complexity under lint's
+// limit, mirroring how e.g. CharacterSheet.jsx splits GM/player panels out.
+function ScenarioAiGenerator({ onGenerated }) {
+  const { generateScenario } = useAi();
+  const [premise, setPremise] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [errors, setErrors] = useState([]);
+
+  const handleGenerate = async () => {
+    setGenerating(true);
+    setErrors([]);
+    const result = await generateScenario({ premise });
+    setGenerating(false);
+    if (result.valid) {
+      onGenerated(result.parsed);
+    } else {
+      setErrors(
+        result.errors.length
+          ? result.errors
+          : ["The AI didn't return a usable scenario. Try again."]
+      );
+    }
+  };
+
+  return (
+    <div className="ai-generate-section">
+      <label>
+        Premise for AI-generated scenario (optional):
+        <textarea
+          value={premise}
+          onChange={(e) => setPremise(e.target.value)}
+          rows={2}
+          placeholder="e.g. A remote lighthouse keeper stops responding to radio contact."
+        />
+      </label>
+      <button
+        type="button"
+        className="btn-secondary"
+        disabled={generating}
+        onClick={handleGenerate}
+      >
+        {generating ? "Generating…" : "Generate with AI"}
+      </button>
+      {errors.length > 0 && (
+        <ul className="ai-error-message">
+          {errors.map((error) => (
+            <li key={error}>{error}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// Read-only rendering of a saved scenario's fields. Split out purely to
+// keep Scenario's own complexity under lint's limit - each optional field
+// below is one more branch that used to live directly in Scenario.
+function ScenarioDisplay({ scenario }) {
+  return (
+    <div>
+      <h2>{scenario.title || "Untitled Scenario"}</h2>
+
+      {scenario.description && (
+        <div style={{ marginBottom: 16 }}>
+          <h3>Description</h3>
+          <p style={{ whiteSpace: "pre-wrap" }}>{scenario.description}</p>
+        </div>
+      )}
+
+      {scenario.setting && (
+        <div style={{ marginBottom: 16 }}>
+          <h3>Setting</h3>
+          <p style={{ whiteSpace: "pre-wrap" }}>{scenario.setting}</p>
+        </div>
+      )}
+
+      {scenario.characters && (
+        <div style={{ marginBottom: 16 }}>
+          <h3>Characters & Roles</h3>
+          <p style={{ whiteSpace: "pre-wrap" }}>{scenario.characters}</p>
+        </div>
+      )}
+
+      {scenario.goals && (
+        <div style={{ marginBottom: 16 }}>
+          <h3>Goals & Objectives</h3>
+          <p style={{ whiteSpace: "pre-wrap" }}>{scenario.goals}</p>
+        </div>
+      )}
+
+      {scenario.threats && (
+        <div style={{ marginBottom: 16 }}>
+          <h3>Threats & Dangers</h3>
+          <p style={{ whiteSpace: "pre-wrap" }}>{scenario.threats}</p>
+        </div>
+      )}
+
+      {scenario.rules && (
+        <div style={{ marginBottom: 16 }}>
+          <h3>Special Rules & Notes</h3>
+          <p style={{ whiteSpace: "pre-wrap" }}>{scenario.rules}</p>
+        </div>
+      )}
+
+      {scenario.lastUpdated && (
+        <div style={{ fontSize: "0.8em", color: "#666", marginTop: 16 }}>
+          Last updated: {new Date(scenario.lastUpdated).toLocaleString()}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function Scenario() {
   const {
@@ -10,6 +128,7 @@ export default function Scenario() {
     scenario,
     setScenario,
   } = usePeer();
+  const { aiEnabled } = useAi();
 
   const [isEditing, setIsEditing] = useState(false);
   const [editScenario, setEditScenario] = useState({
@@ -80,6 +199,14 @@ export default function Scenario() {
     return (
       <div className="scenario-container">
         <h2>Setup Scenario</h2>
+
+        {aiEnabled && (
+          <ScenarioAiGenerator
+            onGenerated={(parsed) =>
+              setEditScenario((prev) => ({ ...prev, ...parsed }))
+            }
+          />
+        )}
 
         <div className="scenario-field">
           <label>Scenario Title:</label>
@@ -174,57 +301,7 @@ export default function Scenario() {
       )}
 
       {scenario ? (
-        <div>
-          <h2>{scenario.title || "Untitled Scenario"}</h2>
-
-          {scenario.description && (
-            <div style={{ marginBottom: 16 }}>
-              <h3>Description</h3>
-              <p style={{ whiteSpace: "pre-wrap" }}>{scenario.description}</p>
-            </div>
-          )}
-
-          {scenario.setting && (
-            <div style={{ marginBottom: 16 }}>
-              <h3>Setting</h3>
-              <p style={{ whiteSpace: "pre-wrap" }}>{scenario.setting}</p>
-            </div>
-          )}
-
-          {scenario.characters && (
-            <div style={{ marginBottom: 16 }}>
-              <h3>Characters & Roles</h3>
-              <p style={{ whiteSpace: "pre-wrap" }}>{scenario.characters}</p>
-            </div>
-          )}
-
-          {scenario.goals && (
-            <div style={{ marginBottom: 16 }}>
-              <h3>Goals & Objectives</h3>
-              <p style={{ whiteSpace: "pre-wrap" }}>{scenario.goals}</p>
-            </div>
-          )}
-
-          {scenario.threats && (
-            <div style={{ marginBottom: 16 }}>
-              <h3>Threats & Dangers</h3>
-              <p style={{ whiteSpace: "pre-wrap" }}>{scenario.threats}</p>
-            </div>
-          )}
-
-          {scenario.rules && (
-            <div style={{ marginBottom: 16 }}>
-              <h3>Special Rules & Notes</h3>
-              <p style={{ whiteSpace: "pre-wrap" }}>{scenario.rules}</p>
-            </div>
-          )}
-
-          {scenario.lastUpdated && (
-            <div style={{ fontSize: "0.8em", color: "#666", marginTop: 16 }}>
-              Last updated: {new Date(scenario.lastUpdated).toLocaleString()}
-            </div>
-          )}
-        </div>
+        <ScenarioDisplay scenario={scenario} />
       ) : (
         <div>
           <h2>Scenario</h2>
