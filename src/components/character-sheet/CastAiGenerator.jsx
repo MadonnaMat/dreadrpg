@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAi } from "../../hooks/useAi";
+import AiRefineBox from "../ai/AiRefineBox";
 
 function generateDraftId(index) {
   return `draft-${Date.now()}-${index}`;
@@ -10,19 +11,24 @@ function generateDraftId(index) {
 // becomes a real character through the parent's onAccept -> the same
 // handleCreateCharacter path (and CHARACTER_CREATE message) a manually
 // created character already uses, so nothing new crosses the network here.
+//
+// `conversation` tracks the whole batch's own conversation (not per-draft) -
+// a follow-up refinement ("make them all more paranoid") regenerates the
+// full array in one continued exchange, replacing whatever drafts haven't
+// been accepted/discarded yet.
 export default function CastAiGenerator({ scenario, onAccept }) {
-  const { generateCast } = useAi();
+  const { generateCast, refineCast } = useAi();
   const [castDescription, setCastDescription] = useState("");
   const [generating, setGenerating] = useState(false);
   const [errors, setErrors] = useState([]);
   const [drafts, setDrafts] = useState([]);
+  const [conversation, setConversation] = useState(null);
 
-  const handleGenerate = async () => {
-    setGenerating(true);
-    setErrors([]);
-    const result = await generateCast({ castDescription, scenario });
+  const applyResult = (result) => {
     setGenerating(false);
     if (result.valid) {
+      setErrors([]);
+      setConversation(result.messages);
       setDrafts(
         result.parsed.map((draft, index) => ({
           ...draft,
@@ -36,6 +42,16 @@ export default function CastAiGenerator({ scenario, onAccept }) {
           : ["The AI didn't return a usable cast. Try again."]
       );
     }
+  };
+
+  const handleGenerate = async () => {
+    setGenerating(true);
+    applyResult(await generateCast({ castDescription, scenario }));
+  };
+
+  const handleRefine = async (refinementText) => {
+    setGenerating(true);
+    applyResult(await refineCast({ history: conversation, refinementText }));
   };
 
   const updateDraft = (draftId, patch) => {
@@ -98,8 +114,9 @@ export default function CastAiGenerator({ scenario, onAccept }) {
   return (
     <div className="ai-generate-section">
       <label>
-        Describe the cast you want (optional):
+        Describe the cast you want (optional)
         <textarea
+          className="ai-textarea"
           value={castDescription}
           onChange={(e) => setCastDescription(e.target.value)}
           rows={2}
@@ -112,7 +129,11 @@ export default function CastAiGenerator({ scenario, onAccept }) {
         disabled={generating}
         onClick={handleGenerate}
       >
-        {generating ? "Generating…" : "Generate Cast with AI"}
+        {generating
+          ? "Generating…"
+          : conversation
+            ? "Start Over with AI"
+            : "Generate Cast with AI"}
       </button>
       {errors.length > 0 && (
         <ul className="ai-error-message">
@@ -120,6 +141,13 @@ export default function CastAiGenerator({ scenario, onAccept }) {
             <li key={error}>{error}</li>
           ))}
         </ul>
+      )}
+      {conversation && drafts.length > 0 && (
+        <AiRefineBox
+          onRefine={handleRefine}
+          disabled={generating}
+          placeholder="e.g. make them all more paranoid, add a medic"
+        />
       )}
 
       {drafts.map((draft) => (

@@ -243,6 +243,7 @@ export default function PromptTestHarness() {
       <label>
         Override input (JSON, optional)
         <textarea
+          className="ai-textarea"
           value={overrideInput}
           onChange={(e) => setOverrideInput(e.target.value)}
           placeholder={JSON.stringify(fixtures[fixtureIndex]?.input, null, 2)}

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { usePeer } from "../../hooks/usePeer";
 import { useAi } from "../../hooks/useAi";
+import AiRefineBox from "../ai/AiRefineBox";
 
 export default function MyCharacterSheet({
   questions,
@@ -8,34 +9,57 @@ export default function MyCharacterSheet({
   onAnswerChange,
 }) {
   const { scenario } = usePeer();
-  const { aiEnabled, suggestAnswer } = useAi();
+  const { aiEnabled, suggestAnswer, refineAnswer } = useAi();
   const [suggestions, setSuggestions] = useState({});
 
   // Drafts a suggested answer for one question into local preview state -
   // never touches `answers` directly, so it's Accept/Discard that decides
-  // whether onAnswerChange (the existing send path) ever fires.
-  const handleSuggest = async (index, question) => {
-    setSuggestions((prev) => ({
-      ...prev,
-      [index]: { loading: true, text: null, errors: [] },
-    }));
-    const result = await suggestAnswer({
-      question,
-      otherAnswers: answers,
-      scenario,
-    });
+  // whether onAnswerChange (the existing send path) ever fires. Each
+  // question tracks its own `conversation` so a follow-up refinement
+  // ("make it more dramatic") continues that specific suggestion rather
+  // than starting over.
+  const applySuggestionResult = (index, result) => {
     setSuggestions((prev) => ({
       ...prev,
       [index]: result.valid
-        ? { loading: false, text: result.parsed.answer, errors: [] }
+        ? {
+            loading: false,
+            text: result.parsed.answer,
+            errors: [],
+            conversation: result.messages,
+          }
         : {
             loading: false,
             text: null,
             errors: result.errors.length
               ? result.errors
               : ["The AI didn't return a usable answer. Try again."],
+            conversation: prev[index]?.conversation || null,
           },
     }));
+  };
+
+  const handleSuggest = async (index, question) => {
+    setSuggestions((prev) => ({
+      ...prev,
+      [index]: { loading: true, text: null, errors: [], conversation: null },
+    }));
+    applySuggestionResult(
+      index,
+      await suggestAnswer({ question, otherAnswers: answers, scenario })
+    );
+  };
+
+  const handleRefine = async (index, refinementText) => {
+    const conversation = suggestions[index]?.conversation;
+    setSuggestions((prev) => ({
+      ...prev,
+      [index]: { ...prev[index], loading: true },
+    }));
+    applySuggestionResult(
+      index,
+      await refineAnswer({ history: conversation, refinementText })
+    );
   };
 
   const acceptSuggestion = (index) => {
@@ -110,20 +134,27 @@ export default function MyCharacterSheet({
               {suggestion.text && (
                 <div className="ai-suggestion-preview">
                   <p>{suggestion.text}</p>
-                  <button
-                    type="button"
-                    className="btn-success btn-small"
-                    onClick={() => acceptSuggestion(index)}
-                  >
-                    Accept
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-danger btn-small"
-                    onClick={() => discardSuggestion(index)}
-                  >
-                    Discard
-                  </button>
+                  <div className="ai-suggestion-actions">
+                    <button
+                      type="button"
+                      className="btn-success btn-small"
+                      onClick={() => acceptSuggestion(index)}
+                    >
+                      Accept
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-danger btn-small"
+                      onClick={() => discardSuggestion(index)}
+                    >
+                      Discard
+                    </button>
+                  </div>
+                  <AiRefineBox
+                    onRefine={(text) => handleRefine(index, text)}
+                    disabled={suggestion.loading}
+                    placeholder="e.g. make it more dramatic"
+                  />
                 </div>
               )}
             </div>

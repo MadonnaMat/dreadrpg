@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { usePeer } from "../hooks/usePeer";
 import { useAi } from "../hooks/useAi";
 import { MESSAGE_TYPES } from "../constants/messageTypes";
+import AiRefineBox from "./ai/AiRefineBox";
 
 // Drafts a scenario via AI into the parent's editScenario for the GM to
 // review and adjust - handleSaveScenario/handleCancelEdit in Scenario stay
@@ -9,18 +10,23 @@ import { MESSAGE_TYPES } from "../constants/messageTypes";
 // draft is saved or discarded through the exact same path as a hand-typed
 // one. Split out purely to keep Scenario's own complexity under lint's
 // limit, mirroring how e.g. CharacterSheet.jsx splits GM/player panels out.
+//
+// `conversation` (the last successful result's own `messages`) lets a
+// follow-up refinement ("make it scarier") continue the same conversation
+// instead of starting over - see AiRefineBox and promptRunner.js's
+// `history` param.
 function ScenarioAiGenerator({ onGenerated }) {
-  const { generateScenario } = useAi();
+  const { generateScenario, refineScenario } = useAi();
   const [premise, setPremise] = useState("");
   const [generating, setGenerating] = useState(false);
   const [errors, setErrors] = useState([]);
+  const [conversation, setConversation] = useState(null);
 
-  const handleGenerate = async () => {
-    setGenerating(true);
-    setErrors([]);
-    const result = await generateScenario({ premise });
+  const applyResult = (result) => {
     setGenerating(false);
     if (result.valid) {
+      setErrors([]);
+      setConversation(result.messages);
       onGenerated(result.parsed);
     } else {
       setErrors(
@@ -31,11 +37,24 @@ function ScenarioAiGenerator({ onGenerated }) {
     }
   };
 
+  const handleGenerate = async () => {
+    setGenerating(true);
+    applyResult(await generateScenario({ premise }));
+  };
+
+  const handleRefine = async (refinementText) => {
+    setGenerating(true);
+    applyResult(
+      await refineScenario({ history: conversation, refinementText })
+    );
+  };
+
   return (
     <div className="ai-generate-section">
       <label>
-        Premise for AI-generated scenario (optional):
+        Premise for AI-generated scenario (optional)
         <textarea
+          className="ai-textarea"
           value={premise}
           onChange={(e) => setPremise(e.target.value)}
           rows={2}
@@ -48,7 +67,11 @@ function ScenarioAiGenerator({ onGenerated }) {
         disabled={generating}
         onClick={handleGenerate}
       >
-        {generating ? "Generating…" : "Generate with AI"}
+        {generating
+          ? "Generating…"
+          : conversation
+            ? "Start Over with AI"
+            : "Generate with AI"}
       </button>
       {errors.length > 0 && (
         <ul className="ai-error-message">
@@ -56,6 +79,9 @@ function ScenarioAiGenerator({ onGenerated }) {
             <li key={error}>{error}</li>
           ))}
         </ul>
+      )}
+      {conversation && (
+        <AiRefineBox onRefine={handleRefine} disabled={generating} />
       )}
     </div>
   );

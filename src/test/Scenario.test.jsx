@@ -208,6 +208,77 @@ describe("Scenario Component", () => {
       expect(screen.getByText("AI description.")).toBeInTheDocument();
     });
 
+    it("does not show the refine box until a draft exists, then lets a follow-up revise it", async () => {
+      mockEngine.chatCompletion
+        .mockResolvedValueOnce({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  title: "AI Title",
+                  description: "AI description.",
+                  setting: "AI setting.",
+                  characters: "AI characters.",
+                  goals: "AI goals.",
+                  threats: "AI threats.",
+                  rules: "",
+                }),
+              },
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  title: "Scarier AI Title",
+                  description: "AI description.",
+                  setting: "AI setting.",
+                  characters: "AI characters.",
+                  goals: "AI goals.",
+                  threats: "AI threats.",
+                  rules: "",
+                }),
+              },
+            },
+          ],
+        });
+
+      renderAsGmWithAiEnabled();
+
+      await user.click(screen.getByRole("button", { name: "Setup Scenario" }));
+      await waitFor(() =>
+        expect(screen.getByText("Generate with AI")).toBeInTheDocument()
+      );
+      expect(
+        screen.queryByPlaceholderText(/make it scarier/)
+      ).not.toBeInTheDocument();
+
+      await user.click(screen.getByText("Generate with AI"));
+      await waitFor(() =>
+        expect(
+          screen.getByPlaceholderText("Enter scenario title...")
+        ).toHaveValue("AI Title")
+      );
+
+      const refineInput = screen.getByPlaceholderText(/make it scarier/);
+      await user.type(refineInput, "make it scarier");
+      await user.click(screen.getByRole("button", { name: "Refine" }));
+
+      await waitFor(() =>
+        expect(
+          screen.getByPlaceholderText("Enter scenario title...")
+        ).toHaveValue("Scarier AI Title")
+      );
+
+      const secondCallMessages = mockEngine.chatCompletion.mock.calls[1][0];
+      expect(secondCallMessages[0].role).toBe("system");
+      expect(
+        secondCallMessages.some((m) => m.content === "make it scarier")
+      ).toBe(true);
+    });
+
     it("shows an inline error and leaves the form untouched when the AI returns an invalid draft", async () => {
       mockEngine.chatCompletion.mockResolvedValue({
         choices: [{ message: { content: "not json" } }],

@@ -130,6 +130,80 @@ describe("CastAiGenerator (via CharacterSheet)", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("lets a follow-up refine the whole drafted batch", async () => {
+    mockEngine.chatCompletion
+      .mockResolvedValueOnce(
+        completionWith(
+          JSON.stringify([
+            { name: "The Technician", questions: ["What is your name?"] },
+          ])
+        )
+      )
+      .mockResolvedValueOnce(
+        completionWith(
+          JSON.stringify([
+            {
+              name: "The Paranoid Technician",
+              questions: ["What is your name?"],
+            },
+          ])
+        )
+      );
+
+    renderAsGmWithAiEnabled();
+
+    await waitFor(() =>
+      expect(screen.getByText("Generate Cast with AI")).toBeInTheDocument()
+    );
+    expect(
+      screen.queryByPlaceholderText(/more paranoid/)
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByText("Generate Cast with AI"));
+    await waitFor(() =>
+      expect(screen.getByDisplayValue("The Technician")).toBeInTheDocument()
+    );
+
+    const refineInput = screen.getByPlaceholderText(/more paranoid/);
+    await user.type(refineInput, "make them more paranoid");
+    await user.click(screen.getByRole("button", { name: "Refine" }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByDisplayValue("The Paranoid Technician")
+      ).toBeInTheDocument()
+    );
+    const secondCallMessages = mockEngine.chatCompletion.mock.calls[1][0];
+    expect(
+      secondCallMessages.some((m) => m.content === "make them more paranoid")
+    ).toBe(true);
+  });
+
+  it("hides the refine box once every draft has been accepted or discarded", async () => {
+    mockEngine.chatCompletion.mockResolvedValue(
+      completionWith(
+        JSON.stringify([{ name: "Solo Draft", questions: ["Q1?"] }])
+      )
+    );
+
+    renderAsGmWithAiEnabled();
+
+    await waitFor(() =>
+      expect(screen.getByText("Generate Cast with AI")).toBeInTheDocument()
+    );
+    await user.click(screen.getByText("Generate Cast with AI"));
+    await waitFor(() =>
+      expect(screen.getByDisplayValue("Solo Draft")).toBeInTheDocument()
+    );
+    expect(screen.getByPlaceholderText(/more paranoid/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Create Character" }));
+
+    expect(
+      screen.queryByPlaceholderText(/more paranoid/)
+    ).not.toBeInTheDocument();
+  });
+
   it("shows an error and no drafts when the AI returns invalid JSON", async () => {
     mockEngine.chatCompletion.mockResolvedValue(completionWith("not json"));
 

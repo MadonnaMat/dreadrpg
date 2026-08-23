@@ -119,6 +119,46 @@ describe("MyCharacterSheet AI answer suggestions", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("lets a follow-up refine a suggestion before accepting it", async () => {
+    mockEngine.chatCompletion
+      .mockResolvedValueOnce(
+        completionWith(JSON.stringify({ answer: "Riley Voss" }))
+      )
+      .mockResolvedValueOnce(
+        completionWith(JSON.stringify({ answer: "Riley 'Doc' Voss" }))
+      );
+
+    renderPlayerWithAi(makeCharacter());
+
+    await waitFor(() =>
+      expect(screen.getAllByText("Suggest an answer").length).toBeGreaterThan(0)
+    );
+    const [firstSuggestButton] = screen.getAllByText("Suggest an answer");
+    await user.click(firstSuggestButton);
+
+    await waitFor(() =>
+      expect(screen.getByText("Riley Voss")).toBeInTheDocument()
+    );
+
+    const refineInput = screen.getByPlaceholderText(/more dramatic/);
+    await user.type(refineInput, "add a nickname");
+    await user.click(screen.getByRole("button", { name: "Refine" }));
+
+    await waitFor(() =>
+      expect(screen.getByText("Riley 'Doc' Voss")).toBeInTheDocument()
+    );
+    const secondCallMessages = mockEngine.chatCompletion.mock.calls[1][0];
+    expect(secondCallMessages.some((m) => m.content === "add a nickname")).toBe(
+      true
+    );
+
+    await user.click(screen.getByRole("button", { name: "Accept" }));
+    const [firstTextarea] = screen.getAllByPlaceholderText(
+      "Enter your answer..."
+    );
+    expect(firstTextarea).toHaveValue("Riley 'Doc' Voss");
+  });
+
   it("discarding a suggestion clears the preview and leaves the textarea untouched", async () => {
     mockEngine.chatCompletion.mockResolvedValue(
       completionWith(JSON.stringify({ answer: "Unwanted suggestion" }))
