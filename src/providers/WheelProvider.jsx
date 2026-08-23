@@ -183,27 +183,34 @@ export const WheelProvider = ({ children }) => {
   // PeerJS-assigned c.peer) to look up who sent it - never a self-reported
   // field in the message payload, which any client could forge to spin (or
   // decline, see handleHostDecline) on another player's behalf.
-  const handleHostSpin = useCallback((connection) => {
-    if (spinningRef.current || awaitingResetRef.current) return;
-    if (connection) {
-      const senderName = usersRef.current?.[connection.peer];
-      if (!senderName || senderName !== designatedSpinnerRef.current) return;
-    }
-    const currentAngle = spinAngleRef.current;
-    spinStartRef.currentAngle = currentAngle;
-    const minSpins = 3;
-    const maxSpins = 6;
-    const spins = Math.random() * (maxSpins - minSpins) + minSpins;
-    const randomOffset = Math.random() * 2 * Math.PI;
-    const targetAngle = currentAngle + spins * 2 * Math.PI + randomOffset;
-    spinTargetAngleRef.current = targetAngle;
-    spinStartRef.current = performance.now();
-    setSpinning(true);
-    setResult("");
-    setPointerIdx(null);
-    // Use PeerProvider to send
-    sendToPeers({ type: MESSAGE_TYPES.SPIN_START, currentAngle, targetAngle });
-  }, [sendToPeers]);
+  const handleHostSpin = useCallback(
+    (connection) => {
+      if (spinningRef.current || awaitingResetRef.current) return;
+      if (connection) {
+        const senderName = usersRef.current?.[connection.peer];
+        if (!senderName || senderName !== designatedSpinnerRef.current) return;
+      }
+      const currentAngle = spinAngleRef.current;
+      spinStartRef.currentAngle = currentAngle;
+      const minSpins = 3;
+      const maxSpins = 6;
+      const spins = Math.random() * (maxSpins - minSpins) + minSpins;
+      const randomOffset = Math.random() * 2 * Math.PI;
+      const targetAngle = currentAngle + spins * 2 * Math.PI + randomOffset;
+      spinTargetAngleRef.current = targetAngle;
+      spinStartRef.current = performance.now();
+      setSpinning(true);
+      setResult("");
+      setPointerIdx(null);
+      // Use PeerProvider to send
+      sendToPeers({
+        type: MESSAGE_TYPES.SPIN_START,
+        currentAngle,
+        targetAngle,
+      });
+    },
+    [sendToPeers]
+  );
 
   // GM only: clears the current assignment, broadcasts it, and narrates why
   // in chat. Shared by the GM's own Decline click and by a remote player's
