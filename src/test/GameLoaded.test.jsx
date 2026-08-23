@@ -131,8 +131,9 @@ function GmAwaitingReset({ children }) {
 // GM with AutoGM actually enabled (via the real AiProvider/AutoGmProvider,
 // same as a real session - webllmEngine is mocked at module scope above) -
 // used to check that manual wheel controls disappear once AutoGM is
-// running the GM role. `awaitingReset` optionally frozen too, to also cover
-// the Re-stack Tower button.
+// running the GM role, except Re-stack Tower, which stays available as a
+// manual override since AutoGM's own readyToRestack judgment isn't always
+// reliable. `awaitingReset` optionally frozen too, to also cover that button.
 function GmWithAutoGmEnabled({ children, awaitingReset = false }) {
   const { setIsGM, setHostName, setUsers, setAwaitingReset } = usePeer();
   const { aiEnabled, enableAi } = useAi();
@@ -375,9 +376,12 @@ describe("GameLoaded Component", () => {
     expect(
       screen.getByRole("button", { name: "Re-stack Tower" })
     ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/AutoGM will also restack on its own/)
+    ).not.toBeInTheDocument();
   });
 
-  it("hides the manual assign-pull form and Re-stack Tower once AutoGM is enabled", async () => {
+  it("hides the manual assign-pull form once AutoGM is enabled", async () => {
     render(
       <TestWrapper isGM={true}>
         <GmWithAutoGmEnabled awaitingReset={true}>
@@ -389,6 +393,17 @@ describe("GameLoaded Component", () => {
     await waitFor(() =>
       expect(screen.queryByRole("combobox")).not.toBeInTheDocument()
     );
+  });
+
+  it("keeps Re-stack Tower available as a manual override once AutoGM is enabled", async () => {
+    render(
+      <TestWrapper isGM={true}>
+        <GmWithAutoGmEnabled awaitingReset={true}>
+          <GameLoaded />
+        </GmWithAutoGmEnabled>
+      </TestWrapper>
+    );
+
     // The GM's own `awaitingReset` update has to propagate from
     // PeerProvider's synced state into WheelProvider's own local mirror
     // (see WheelProvider.jsx's `peerAwaitingReset` sync effect) before
@@ -396,8 +411,16 @@ describe("GameLoaded Component", () => {
     // pass from the one that flips autoGmEnabled above.
     await waitFor(() =>
       expect(
-        screen.queryByRole("button", { name: "Re-stack Tower" })
-      ).not.toBeInTheDocument()
+        screen.getByRole("button", { name: "Re-stack Tower" })
+      ).toBeInTheDocument()
+    );
+    // The button itself no longer depends on autoGmEnabled, so it can
+    // render before AutoGM has actually finished enabling - the hint below
+    // it does depend on autoGmEnabled, so it needs its own wait.
+    await waitFor(() =>
+      expect(
+        screen.getByText(/AutoGM will also restack on its own/)
+      ).toBeInTheDocument()
     );
   });
 

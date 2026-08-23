@@ -410,10 +410,18 @@ export default function GameLoaded() {
               autoGmEnabled={autoGmEnabled}
               autoGmThinking={autoGmThinking}
             />
-            {isGM && !autoGmEnabled && awaitingReset && (
-              <button id="restack-btn" onClick={handleRestack}>
-                Re-stack Tower
-              </button>
+            {isGM && awaitingReset && (
+              <div id="restack-controls">
+                <button id="restack-btn" onClick={handleRestack}>
+                  Re-stack Tower
+                </button>
+                {autoGmEnabled && (
+                  <p className="restack-autogm-hint">
+                    AutoGM will also restack on its own once it judges the table
+                    is ready - use this if it's taking too long.
+                  </p>
+                )}
+              </div>
             )}
             <div id="result">{result}</div>
           </div>

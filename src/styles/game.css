@@ -42,8 +42,19 @@
   font-size: 1.1em;
 }
 
-#restack-btn {
+#restack-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
   margin-top: 8px;
+}
+
+.restack-autogm-hint {
+  margin: 0;
+  font-size: 0.85em;
+  opacity: 0.75;
+  max-width: 320px;
 }
 
 .rejoin-link-btn {
