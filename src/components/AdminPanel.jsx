@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { usePeer } from "../hooks/usePeer";
 import { useWheel } from "../hooks/useWheel";
 import { MESSAGE_TYPES } from "../constants/messageTypes";
@@ -79,10 +79,77 @@ function ThemeSection() {
 // disconnected player outright - freeing any character they held, since
 // otherwise that character would stay permanently assigned to someone
 // who's never coming back. Not offered for a currently-connected player.
+// How long to wait for a PRESENCE_PONG reply before telling the GM the
+// player didn't respond - generous enough to tolerate a slow connection
+// without making the GM wait too long for an answer.
+const PING_TIMEOUT_MS = 4000;
+
 function PlayerPresenceSection() {
-  const { presence, setPresence, characters, setCharacters, sendToPeers } =
-    usePeer();
+  const {
+    presence,
+    setPresence,
+    characters,
+    setCharacters,
+    sendToPeers,
+    pingUser,
+    registerPingEventHandler,
+    hostName,
+  } = usePeer();
   const entries = Object.entries(presence || {});
+
+  // GM-local, ephemeral: which players have an in-flight or just-resolved
+  // ping check, and the result. Never synced - this is purely a "check now"
+  // affordance for whoever's looking at the Admin Panel, not shared state.
+  const [pingResults, setPingResults] = useState({});
+  const timeoutsRef = useRef({});
+
+  useEffect(() => {
+    registerPingEventHandler((data) => {
+      clearTimeout(timeoutsRef.current[data.userName]);
+      setPingResults((prev) => ({
+        ...prev,
+        [data.userName]: {
+          status: "online",
+          latencyMs: Date.now() - data.sentAt,
+        },
+      }));
+    });
+  }, [registerPingEventHandler]);
+
+  // Clear any pending timeouts on unmount so a stale one can't fire setState
+  // after the Admin Panel (and this section) is gone.
+  useEffect(() => {
+    const timeouts = timeoutsRef.current;
+    return () => {
+      Object.values(timeouts).forEach(clearTimeout);
+    };
+  }, []);
+
+  const ping = (playerName) => {
+    setPingResults((prev) => ({
+      ...prev,
+      [playerName]: { status: "pinging" },
+    }));
+    pingUser(playerName);
+    clearTimeout(timeoutsRef.current[playerName]);
+    timeoutsRef.current[playerName] = setTimeout(() => {
+      setPingResults((prev) =>
+        prev[playerName]?.status === "pinging"
+          ? { ...prev, [playerName]: { status: "timeout" } }
+          : prev
+      );
+    }, PING_TIMEOUT_MS);
+  };
+
+  const pingStatusLabel = (playerName) => {
+    const result = pingResults[playerName];
+    if (!result) return null;
+    if (result.status === "pinging") return "Pinging...";
+    if (result.status === "online")
+      return `Confirmed online (${result.latencyMs}ms)`;
+    if (result.status === "timeout") return "No response - may be offline";
+    return null;
+  };
 
   const removePlayer = (playerName) => {
     const nextPresence = { ...presence };
@@ -120,7 +187,22 @@ function PlayerPresenceSection() {
           <li key={playerName} className="character-roster-row">
             <span className="character-roster-name">
               {playerName} ({info.connected ? "online" : "offline"})
+              {pingStatusLabel(playerName) && (
+                <span className="ping-status">
+                  {" "}
+                  - {pingStatusLabel(playerName)}
+                </span>
+              )}
             </span>
+            {info.connected && playerName !== hostName && (
+              <button
+                className="btn-secondary btn-small"
+                onClick={() => ping(playerName)}
+                disabled={pingResults[playerName]?.status === "pinging"}
+              >
+                Ping
+              </button>
+            )}
             {!info.connected && (
               <button
                 className="btn-danger-small"

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import Peer from "peerjs";
 import { PeerProvider } from "../providers/PeerProvider";
 import { usePeer } from "../hooks/usePeer";
 import React from "react";
@@ -147,6 +148,24 @@ describe("PeerProvider", () => {
     // Let the mock Peer/Connection's chained async "open" events fire while
     // the test environment is still alive, instead of leaking past teardown.
     await act(() => new Promise((resolve) => setTimeout(resolve, 30)));
+  });
+
+  it("destroys the underlying peer on pagehide, so a refresh releases the connection instead of leaving a zombie behind", async () => {
+    const destroySpy = vi.spyOn(Peer.prototype, "destroy");
+
+    render(
+      <PeerProvider>
+        <TestComponent />
+      </PeerProvider>
+    );
+
+    await user.click(screen.getByText("Create Game"));
+    await act(() => new Promise((resolve) => setTimeout(resolve, 30)));
+
+    window.dispatchEvent(new Event("pagehide"));
+
+    expect(destroySpy).toHaveBeenCalled();
+    destroySpy.mockRestore();
   });
 
   it("should normalize game IDs correctly", () => {

@@ -28,7 +28,7 @@
 
 /* GM Controls */
 .gm-controls {
-  background-color: color-mix(in srgb, var(--color-bg, #f5f5f5) 85%, white 15%);
+  background-color: var(--color-surface, #f5f5f5);
   border: 1px solid color-mix(in srgb, var(--color-text, #ddd) 20%, transparent);
   border-radius: 8px;
   padding: 20px;
@@ -47,7 +47,7 @@
 
 /* Question Editor */
 .question-editor {
-  background-color: color-mix(in srgb, var(--color-bg, #fff) 90%, white 10%);
+  background-color: var(--color-surface, #fff);
   border: 1px solid color-mix(in srgb, var(--color-text, #ddd) 20%, transparent);
   border-radius: 8px;
   padding: 16px;
@@ -67,7 +67,7 @@
   border: 1px solid color-mix(in srgb, var(--color-text, #ccc) 25%, transparent);
   border-radius: 4px;
   font-size: 14px;
-  background-color: var(--color-bg, #fff);
+  background-color: var(--color-field-bg, #fff);
   color: var(--color-text, #000);
 }
 
@@ -127,7 +127,7 @@
 }
 
 .player-sheet-display {
-  background-color: color-mix(in srgb, var(--color-bg, #fff) 90%, white 10%);
+  background-color: var(--color-surface, #fff);
   border: 1px solid color-mix(in srgb, var(--color-text, #ddd) 20%, transparent);
   border-radius: 8px;
   padding: 16px;
@@ -135,7 +135,7 @@
 
 /* Character Sheet Form */
 .character-sheet-form {
-  background-color: color-mix(in srgb, var(--color-bg, #fff) 90%, white 10%);
+  background-color: var(--color-surface, #fff);
   border: 1px solid color-mix(in srgb, var(--color-text, #ddd) 20%, transparent);
   border-radius: 8px;
   padding: 20px;
@@ -162,7 +162,7 @@
   font-size: 14px;
   resize: vertical;
   min-height: 50px;
-  background-color: var(--color-bg, #fff);
+  background-color: var(--color-field-bg, #fff);
   color: var(--color-text, #000);
 }
 
@@ -179,7 +179,7 @@
 }
 
 .answer-display {
-  background-color: color-mix(in srgb, var(--color-bg, #f9f9f9) 92%, black 8%);
+  background-color: var(--color-field-bg, #f9f9f9);
   border: 1px solid
     color-mix(in srgb, var(--color-text, #e0e0e0) 15%, transparent);
   border-radius: 4px;
@@ -198,20 +198,22 @@
   font-style: italic;
 }
 
-.answer-approved-badge {
-  display: inline-block;
-  margin-top: 4px;
+.answer-approved-badge,
+.answer-pending-badge {
+  display: block;
+  margin-top: 8px;
   font-size: 12px;
+}
+
+.answer-approved-badge {
   font-weight: bold;
   color: #4caf50;
 }
 
 .answer-pending-badge {
-  display: inline-block;
-  margin-top: 4px;
-  font-size: 12px;
   font-style: italic;
-  color: #999;
+  color: var(--color-text, #999);
+  opacity: 0.6;
 }
 
 /* Other Players Section */
@@ -223,7 +225,7 @@
 }
 
 .other-player-sheet {
-  background-color: color-mix(in srgb, var(--color-bg, #f8f9fa) 90%, white 10%);
+  background-color: var(--color-surface, #f8f9fa);
   border: 1px solid
     color-mix(in srgb, var(--color-text, #e9ecef) 15%, transparent);
   border-radius: 8px;

@@ -8,6 +8,28 @@
   --color-text: rgba(255, 255, 255, 0.87);
   --color-accent: #2196f3;
   --color-danger: #f44336;
+  /* Derived surfaces, not independently themeable - a panel/form-field
+     background needs to read as visibly distinct from the page behind it in
+     *both* light and dark themes, which a fixed lean toward literal white
+     (previously used here and there) can't do: on an already-near-white
+     light background it's imperceptible, which is exactly what made panels
+     and inputs look "unstyled" in the default light theme. Mixing toward
+     --color-text instead moves the shade away from --color-bg in whichever
+     direction actually has contrast, symmetrically for any theme.
+     --color-surface is for panels sitting directly on the page;
+     --color-field-bg is one step further for the interactive controls
+     inside them (inputs/textareas/selects), so a field still reads as
+     distinct from its own panel, not just from the page. */
+  --color-surface: color-mix(
+    in srgb,
+    var(--color-bg) 92%,
+    var(--color-text) 8%
+  );
+  --color-field-bg: color-mix(
+    in srgb,
+    var(--color-bg) 85%,
+    var(--color-text) 15%
+  );
 }
 
 @media (prefers-color-scheme: light) {

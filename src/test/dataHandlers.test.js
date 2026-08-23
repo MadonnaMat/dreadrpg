@@ -12,6 +12,7 @@ function makeHandlerRefs() {
     chat: { current: null },
     scenario: { current: null },
     characterSheet: { current: null },
+    ping: { current: null },
   };
 }
 
@@ -165,6 +166,29 @@ describe("createPlayerDataHandler - join-rejected handling", () => {
     expect(setJoinError).toHaveBeenCalledWith(expect.any(String));
     expect(setConn).toHaveBeenCalledWith(null);
     expect(setUsers).not.toHaveBeenCalled();
+  });
+});
+
+describe("createPlayerDataHandler - presence ping", () => {
+  it("replies to a presence-ping with the player's own userName and the echoed sentAt, without dispatching it further", () => {
+    const handlerRefs = makeHandlerRefs();
+    handlerRefs.wheel.current = vi.fn();
+    const handler = createPlayerDataHandler({
+      handlerRefs,
+      setUsers: vi.fn(),
+      setConnectionStatus: vi.fn(),
+      userName: "Bob",
+    });
+    const connection = { send: vi.fn() };
+
+    handler({ type: MESSAGE_TYPES.PRESENCE_PING, sentAt: 1000 }, connection);
+
+    expect(connection.send).toHaveBeenCalledWith({
+      type: MESSAGE_TYPES.PRESENCE_PONG,
+      userName: "Bob",
+      sentAt: 1000,
+    });
+    expect(handlerRefs.wheel.current).not.toHaveBeenCalled();
   });
 });
 

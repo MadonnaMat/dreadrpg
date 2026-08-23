@@ -1,3 +1,15 @@
+/* Without this, every "width: 100%" form field with its own padding/border
+   (character-answer, question-input, scenario-field input/textarea,
+   pregame-input, chat-input, ...) computes its content box at 100% and then
+   adds padding+border on top, overflowing its container by exactly
+   (padding + border) * 2 - eating into, or entirely erasing, the right-hand
+   gap a reader would expect to see against the panel it sits in. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;

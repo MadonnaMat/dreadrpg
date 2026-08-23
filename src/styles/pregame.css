@@ -7,7 +7,7 @@
   font-size: 14px;
   margin: 4px;
   min-width: 180px;
-  background-color: var(--color-bg, #fff);
+  background-color: var(--color-field-bg, #fff);
   color: var(--color-text, #000);
 }
 
@@ -79,7 +79,7 @@
 
 /* PreGame lobby styling */
 .lobby-info {
-  background-color: color-mix(in srgb, var(--color-bg, #f9f9f9) 90%, white 10%);
+  background-color: var(--color-surface, #f9f9f9);
   border: 1px solid color-mix(in srgb, var(--color-text, #ddd) 20%, transparent);
   border-radius: 8px;
   padding: 16px;
@@ -125,7 +125,7 @@
   border-radius: 4px;
   font-family: monospace;
   font-size: 14px;
-  background-color: var(--color-bg, #fff);
+  background-color: var(--color-field-bg, #fff);
   color: var(--color-text, #000);
 }
 
@@ -182,6 +182,13 @@
   gap: 4px;
 }
 
+.ping-status {
+  font-size: 12px;
+  font-weight: normal;
+  font-style: italic;
+  opacity: 0.75;
+}
+
 .rejoin-link-section {
   display: flex;
   align-items: center;
@@ -214,6 +221,7 @@
   justify-content: space-between;
   gap: 8px;
   padding: 8px 12px;
+  background-color: var(--color-surface, #fff);
   border: 1px solid color-mix(in srgb, var(--color-text, #ddd) 20%, transparent);
   border-radius: 4px;
   margin-bottom: 6px;

@@ -112,12 +112,20 @@ export function createHostConnectionManager({
     }
   }
 
+  // Targets a single connected player by their (normalized) peerId - used
+  // for a GM-triggered presence ping, which only makes sense addressed to
+  // one specific player rather than broadcast to everyone.
+  function sendToOne(peerId, msg) {
+    const entry = connections.get(peerId);
+    if (entry) trySend(entry.connection, msg);
+  }
+
   function destroy() {
     stopHeartbeat();
     peer.destroy();
   }
 
-  return { peer, sendToPeers, destroy };
+  return { peer, sendToPeers, sendToOne, destroy };
 }
 
 // Player side: owns the Peer used to dial the GM, and reconnects with a

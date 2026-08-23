@@ -30,4 +30,6 @@ export const MESSAGE_TYPES = {
   TOWER_SIZE_UPDATE: "tower-size-update",
   THEME_UPDATE: "theme-update",
   DEATH_FLAVOR_TEXT_UPDATE: "death-flavor-text-update",
+  PRESENCE_PING: "presence-ping",
+  PRESENCE_PONG: "presence-pong",
 };

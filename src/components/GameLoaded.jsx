@@ -63,6 +63,7 @@ function SpinControls({
           </select>
           <input
             id="pulls-required-input"
+            className="pregame-input"
             type="number"
             min={1}
             max={10}

@@ -82,6 +82,7 @@ describe("dispatchToRegisteredHandlers", () => {
       chat: { current: vi.fn() },
       scenario: { current: vi.fn() },
       characterSheet: { current: vi.fn() },
+      ping: { current: vi.fn() },
     };
   }
 
@@ -122,6 +123,20 @@ describe("dispatchToRegisteredHandlers", () => {
         "conn"
       );
     });
+  });
+
+  it("only forwards presence-pong replies to the ping handler", () => {
+    const handlerRefs = makeHandlerRefs();
+    dispatchToRegisteredHandlers(
+      { type: "presence-ping" },
+      "conn",
+      handlerRefs
+    );
+    expect(handlerRefs.ping.current).not.toHaveBeenCalled();
+
+    const data = { type: "presence-pong", userName: "Bob", sentAt: 123 };
+    dispatchToRegisteredHandlers(data, "conn", handlerRefs);
+    expect(handlerRefs.ping.current).toHaveBeenCalledWith(data, "conn");
   });
 
   it("does nothing for an unregistered handler slot", () => {

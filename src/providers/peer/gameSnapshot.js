@@ -57,4 +57,9 @@ export function dispatchToRegisteredHandlers(data, connection, handlerRefs) {
   ) {
     handlerRefs.characterSheet.current(data, connection);
   }
+  // GM-only: a player's reply to a presence ping (see PeerProvider.jsx's
+  // pingUser). Players never receive PRESENCE_PONG themselves.
+  if (handlerRefs.ping.current && data.type === MESSAGE_TYPES.PRESENCE_PONG) {
+    handlerRefs.ping.current(data, connection);
+  }
 }

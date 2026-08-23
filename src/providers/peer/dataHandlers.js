@@ -165,10 +165,29 @@ const LIVE_UPDATE_HANDLERS = {
 // - full-state snapshots (welcome/game-data-sync), user-list updates, and
 // forwarding everything else to whichever component registered interest.
 export function createPlayerDataHandler(setters) {
-  const { handlerRefs, setUsers, setConnectionStatus, setConn, setJoinError } =
-    setters;
+  const {
+    handlerRefs,
+    setUsers,
+    setConnectionStatus,
+    setConn,
+    setJoinError,
+    userName, // own display name, captured once at joinGame() time
+  } = setters;
 
   return (data, connection) => {
+    // A GM-triggered presence check (see PeerProvider.jsx's pingUser) -
+    // reply immediately, echoing back sentAt so the GM can show a latency,
+    // and skip the rest of the normal message pipeline entirely since this
+    // carries no other state to apply.
+    if (data && data.type === MESSAGE_TYPES.PRESENCE_PING) {
+      connection.send({
+        type: MESSAGE_TYPES.PRESENCE_PONG,
+        userName,
+        sentAt: data.sentAt,
+      });
+      return;
+    }
+
     dispatchToRegisteredHandlers(data, connection, handlerRefs);
 
     if (

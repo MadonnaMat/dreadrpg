@@ -80,6 +80,29 @@ export const PeerProvider = ({ children }) => {
     managerRef.current?.sendToPeers(msg);
   }, []);
 
+  // Explicitly tear down the current peer/connection when the tab is
+  // actually going away (close, refresh, navigate). Without this, a plain
+  // browser refresh just kills the page mid-flight - the PeerJS cloud
+  // signaling server doesn't necessarily notice right away, which causes
+  // two different problems downstream: (1) whoever's on the other end of
+  // that connection has to wait out the full heartbeat timeout
+  // (connectionManager.js, ~15-20s) before their presence flips to
+  // offline, and (2) if it's the GM refreshing, a same-gameId peer ID they
+  // try to reclaim a moment later (e.g. via "Resume") can still be held by
+  // the stale registration, so the new Peer never actually opens and
+  // `users`/`presence` stay stuck at their empty just-mounted defaults
+  // (nobody - not even the GM - shows up anywhere). `pagehide` fires more
+  // reliably than `beforeunload` across browsers (notably mobile Safari),
+  // including on the *other* participant's side too, so both host and
+  // player benefit from the earlier signal.
+  useEffect(() => {
+    const handlePageHide = () => {
+      managerRef.current?.destroy?.();
+    };
+    window.addEventListener("pagehide", handlePageHide);
+    return () => window.removeEventListener("pagehide", handlePageHide);
+  }, []);
+
   // Lets any component (e.g. WheelProvider narrating a spin/decline) inject
   // a system-authored chat message without needing direct access to Chat.jsx's
   // own local `messages` state. Invoking the registered chat handler
@@ -293,11 +316,30 @@ export const PeerProvider = ({ children }) => {
         setTheme: gameState.setTheme,
         setCustomColors: gameState.setCustomColors,
         setDeathFlavorText: gameState.setDeathFlavorText,
+        userName: userNameArg,
       }),
       onStatusChange: (status) => session.setConnectionStatus(status),
     });
     managerRef.current = manager;
     peerRef.current = manager.peer;
+  };
+
+  // GM only: actively checks whether a specific player's connection is
+  // really alive, rather than waiting on the passive heartbeat's own
+  // ~15-20s detection window (connectionManager.js) to eventually notice
+  // and update presence - useful when the GM wants an immediate answer
+  // (e.g. presence still says "online" and they want to confirm it isn't
+  // just lagging). Silently does nothing if the userName isn't currently
+  // in the GM's own users map (already offline, or never existed).
+  const pingUser = (targetUserName) => {
+    const peerId = Object.keys(session.users || {}).find(
+      (id) => session.users[id] === targetUserName
+    );
+    if (!peerId) return;
+    managerRef.current?.sendToOne?.(peerId, {
+      type: MESSAGE_TYPES.PRESENCE_PING,
+      sentAt: Date.now(),
+    });
   };
 
   // Keep the GM's saved game state up to date as the game progresses, so a
@@ -345,8 +387,10 @@ export const PeerProvider = ({ children }) => {
         registerWheelEventHandler: handlers.registerWheelEventHandler,
         registerChatEventHandler: handlers.registerChatEventHandler,
         registerScenarioEventHandler: handlers.registerScenarioEventHandler,
+        registerPingEventHandler: handlers.registerPingEventHandler,
         sendToPeers,
         sendSystemChatMessage,
+        pingUser,
       }}
     >
       {children}
