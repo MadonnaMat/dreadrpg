@@ -33,7 +33,7 @@ test.describe("Full gameplay flows (real WebRTC)", () => {
 
     // GM creates a character before anyone can claim one - characters are
     // first-class entities the GM authors, not an implicit shared sheet.
-    await gm.getByRole("button", { name: "Admin" }).click();
+    await gm.getByRole("button", { name: "Characters" }).click();
     await createCharacter(gm);
 
     await joinGameAsPlayer(player, gameId, "Player Henry");
@@ -41,10 +41,10 @@ test.describe("Full gameplay flows (real WebRTC)", () => {
     await chooseCharacter(player, "New Character");
 
     // Chat already works pre-game, in the lobby - not just once the game
-    // starts. The GM is still on the Admin tab from creating the character
-    // above; switch back to Lobby (where Chat is shown) to see it - Chat
-    // itself stays mounted the whole time regardless of tab, so the message
-    // isn't lost while the GM was looking elsewhere.
+    // starts. The GM is still on the Characters tab from creating the
+    // character above; switch back to Lobby (where Chat is shown) to see it
+    // - Chat itself stays mounted the whole time regardless of tab, so the
+    // message isn't lost while the GM was looking elsewhere.
     await sendChat(player, "Player Henry says hi from the lobby");
     await gm.getByRole("button", { name: "Lobby" }).click();
     await expect(
