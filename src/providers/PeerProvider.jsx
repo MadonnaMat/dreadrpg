@@ -270,6 +270,7 @@ export const PeerProvider = ({ children }) => {
           return next;
         });
       },
+      onStatusChange: (status) => session.setConnectionStatus(status),
     });
     managerRef.current = manager;
     peerRef.current = manager.peer;
