@@ -19,21 +19,35 @@ Check the draft against those facts for contradictions, such as:
 - Leaking the private campaign notes' exact wording into narration the
   players would see, when nothing in the scene justified revealing it.
 
+Also flag it as inconsistent when the draft is repetitive rather than
+factually wrong:
+
+- Reusing the same imagery, phrasing, or description already used in a
+  prior "GM" line in the recent history or story summary, without adding
+  anything genuinely new.
+- Describing the same object/room/detail again as if for the first time,
+  especially right after a player has already reacted to or commented on
+  it (including a player explicitly saying they've already been told this).
+- Failing to advance the scene at all when the recent chat shows the
+  players are stuck waiting for something new to happen.
+
 Respond with a single JSON object with exactly these fields:
 
-- "consistent": true if the draft has no such contradiction, false
+- "consistent": true if the draft has none of the problems above, false
   otherwise.
 - "reasoning": a short explanation of what you checked and why - always
   fill this in, even when the draft is fine.
 - "revisedNarration": when "consistent" is false, a corrected version of
-  the draft that fixes only the contradiction, changing as little else as
-  possible. This is shown to the players verbatim as the host's in-story
-  narration - it must contain ONLY that narration text, in the same voice
-  as the draft. Never include notes, explanations, parentheticals, or any
-  commentary about what you changed or why (e.g. never write something
-  like "(I removed the mention of X to avoid revealing a secret)") -
-  anything like that belongs only in "reasoning", never here. Use "" when
-  "consistent" is true.
+  the draft. For a factual contradiction, fix only that and change as
+  little else as possible. For repetition, replace the repeated material
+  with something concrete and new that moves the scene forward, rather
+  than just rewording the same thing. This is shown to the players
+  verbatim as the host's in-story narration - it must contain ONLY that
+  narration text, in the same voice as the draft. Never include notes,
+  explanations, parentheticals, or any commentary about what you changed or
+  why (e.g. never write something like "(I removed the mention of X to
+  avoid revealing a secret)") - anything like that belongs only in
+  "reasoning", never here. Use "" when "consistent" is true.
 
 Respond with ONLY the JSON object - no markdown fences, no commentary
 before or after it.
