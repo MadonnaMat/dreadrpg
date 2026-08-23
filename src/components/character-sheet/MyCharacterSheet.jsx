@@ -81,6 +81,15 @@ export default function MyCharacterSheet({
     });
   };
 
+  // A hand-edit to the textarea means the player is no longer interested in
+  // whatever suggestion is currently previewed - drop it so its Accept
+  // button (which would otherwise still be sitting there) can't clobber the
+  // player's own typed answer with stale AI text.
+  const handleAnswerChange = (index, value) => {
+    onAnswerChange(index, value);
+    if (suggestions[index]) discardSuggestion(index);
+  };
+
   return (
     <div className="player-sheet-section">
       <h2>Character Sheet</h2>
@@ -95,7 +104,7 @@ export default function MyCharacterSheet({
               <label className="question-label">{question}</label>
               <textarea
                 value={answerText}
-                onChange={(e) => onAnswerChange(index, e.target.value)}
+                onChange={(e) => handleAnswerChange(index, e.target.value)}
                 placeholder="Enter your answer..."
                 rows={question.includes("weaknesses") ? 4 : 2}
                 className="character-answer"
