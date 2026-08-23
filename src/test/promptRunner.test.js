@@ -124,6 +124,55 @@ describe("runStructuredPrompt", () => {
     expect(result.attempts).toBe(1);
   });
 
+  it("returns messages ending with the accepted assistant turn on success", async () => {
+    const engine = {
+      chatCompletion: vi.fn().mockResolvedValue(completionWith('{"a":1}')),
+    };
+
+    const result = await runStructuredPrompt({
+      engine,
+      systemPromptText: "system",
+      userContent: "user",
+      schema: { type: "object" },
+      validate: passthroughValidate,
+    });
+
+    expect(result.messages).toEqual([
+      { role: "system", content: "system" },
+      { role: "user", content: "user" },
+      { role: "assistant", content: '{"a":1}' },
+    ]);
+  });
+
+  it("continues from a supplied history instead of starting a fresh system+user pair", async () => {
+    const engine = {
+      chatCompletion: vi.fn().mockResolvedValue(completionWith('{"a":2}')),
+    };
+    const history = [
+      { role: "system", content: "system" },
+      { role: "user", content: "first request" },
+      { role: "assistant", content: '{"a":1}' },
+    ];
+
+    const result = await runStructuredPrompt({
+      engine,
+      userContent: "make it better",
+      schema: { type: "object" },
+      validate: passthroughValidate,
+      history,
+    });
+
+    expect(engine.chatCompletion).toHaveBeenCalledWith(
+      [...history, { role: "user", content: "make it better" }],
+      expect.anything()
+    );
+    expect(result.messages).toEqual([
+      ...history,
+      { role: "user", content: "make it better" },
+      { role: "assistant", content: '{"a":2}' },
+    ]);
+  });
+
   it("always includes latencyMs as a number", async () => {
     const engine = {
       chatCompletion: vi.fn().mockResolvedValue(completionWith('{"a":1}')),

@@ -26,6 +26,7 @@ function TestConsumer() {
     enableAi,
     disableAi,
     generateScenario,
+    refineScenario,
   } = useAi();
   const [result, setResult] = useState(null);
 
@@ -47,6 +48,18 @@ function TestConsumer() {
         }
       >
         generate
+      </button>
+      <button
+        onClick={async () =>
+          setResult(
+            await refineScenario({
+              history: result?.messages,
+              refinementText: "make it scarier",
+            })
+          )
+        }
+      >
+        refine
       </button>
     </div>
   );
@@ -182,5 +195,68 @@ describe("AiProvider", () => {
       expect(result.valid).toBe(true);
       expect(result.parsed.title).toBe("T");
     });
+  });
+
+  it("refineScenario continues the conversation from a prior result's messages", async () => {
+    mockEngine.chatCompletion
+      .mockResolvedValueOnce({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                title: "T",
+                description: "D",
+                setting: "S",
+                characters: "C",
+                goals: "G",
+                threats: "Th",
+                rules: "",
+              }),
+            },
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                title: "Scarier T",
+                description: "D",
+                setting: "S",
+                characters: "C",
+                goals: "G",
+                threats: "Th",
+                rules: "",
+              }),
+            },
+          },
+        ],
+      });
+
+    renderProvider();
+    await user.click(screen.getByText("enable-medium"));
+    await waitFor(() =>
+      expect(screen.getByTestId("status").textContent).toBe(ENGINE_STATUS.READY)
+    );
+    await user.click(screen.getByText("generate"));
+    await waitFor(() =>
+      expect(JSON.parse(screen.getByTestId("result").textContent).valid).toBe(
+        true
+      )
+    );
+
+    await user.click(screen.getByText("refine"));
+
+    await waitFor(() => {
+      const result = JSON.parse(screen.getByTestId("result").textContent);
+      expect(result.valid).toBe(true);
+      expect(result.parsed.title).toBe("Scarier T");
+    });
+    const secondCallMessages = mockEngine.chatCompletion.mock.calls[1][0];
+    expect(
+      secondCallMessages.some((m) => m.content === "make it scarier")
+    ).toBe(true);
+    expect(secondCallMessages[0].role).toBe("system");
   });
 });

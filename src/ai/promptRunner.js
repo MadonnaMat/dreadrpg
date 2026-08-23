@@ -20,6 +20,13 @@ function tryParseJson(raw) {
 // returned garbage" is an expected, recoverable outcome here, not a bug.
 // Feature-agnostic by design so a future AutoGM turn loop can reuse it
 // directly for its own structured per-turn output.
+//
+// Pass `history` (a prior successful result's own `messages`, which already
+// starts with the system prompt) instead of `systemPromptText` to continue
+// a conversation - e.g. a follow-up "make it scarier" refinement - rather
+// than starting a fresh one. On success the returned `messages` includes
+// the accepted assistant turn, ready to hand back in as the next call's
+// `history`.
 export async function runStructuredPrompt({
   engine,
   systemPromptText,
@@ -27,11 +34,14 @@ export async function runStructuredPrompt({
   schema,
   validate,
   maxRetries = DEFAULT_MAX_RETRIES,
+  history,
 }) {
-  const messages = [
-    { role: "system", content: systemPromptText },
-    { role: "user", content: userContent },
-  ];
+  const messages = history
+    ? [...history, { role: "user", content: userContent }]
+    : [
+        { role: "system", content: systemPromptText },
+        { role: "user", content: userContent },
+      ];
   const responseFormat = {
     type: "json_object",
     schema: JSON.stringify(schema),
@@ -73,6 +83,7 @@ export async function runStructuredPrompt({
         errors: [],
         attempts,
         latencyMs: Date.now() - start,
+        messages: [...messages, { role: "assistant", content: lastRaw }],
       };
     }
 
@@ -87,6 +98,7 @@ export async function runStructuredPrompt({
     errors: lastErrors,
     attempts,
     latencyMs: Date.now() - start,
+    messages,
   };
 }
 

@@ -110,7 +110,14 @@ export function AiProvider({ children }) {
   }, [modelTier]);
 
   const runPrompt = useCallback(
-    ({ systemPromptText, userContent, schema, validate, maxRetries }) => {
+    ({
+      systemPromptText,
+      userContent,
+      schema,
+      validate,
+      maxRetries,
+      history,
+    }) => {
       if (!engineRef.current) {
         return Promise.resolve({
           raw: "",
@@ -128,6 +135,7 @@ export function AiProvider({ children }) {
         schema,
         validate,
         maxRetries,
+        history,
       });
     },
     []
@@ -166,6 +174,43 @@ export function AiProvider({ children }) {
     [runPrompt]
   );
 
+  // Continues an existing conversation (a prior generate*/refine*'s own
+  // `messages`) with a free-text follow-up instead of building a fresh
+  // context-builder prompt - the same schema/validate as the matching
+  // generate* function, since the shape being refined hasn't changed.
+  const refineScenario = useCallback(
+    ({ history, refinementText }) =>
+      runPrompt({
+        history,
+        userContent: refinementText,
+        schema: scenarioSchema,
+        validate: validateScenario,
+      }),
+    [runPrompt]
+  );
+
+  const refineCast = useCallback(
+    ({ history, refinementText }) =>
+      runPrompt({
+        history,
+        userContent: refinementText,
+        schema: castSchema,
+        validate: validateCast,
+      }),
+    [runPrompt]
+  );
+
+  const refineAnswer = useCallback(
+    ({ history, refinementText }) =>
+      runPrompt({
+        history,
+        userContent: refinementText,
+        schema: sheetAnswerSchema,
+        validate: validateSheetAnswer,
+      }),
+    [runPrompt]
+  );
+
   return (
     <AiContext.Provider
       value={{
@@ -181,6 +226,9 @@ export function AiProvider({ children }) {
         generateScenario,
         generateCast,
         suggestAnswer,
+        refineScenario,
+        refineCast,
+        refineAnswer,
         runPrompt,
       }}
     >
