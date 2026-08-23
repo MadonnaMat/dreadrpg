@@ -24,7 +24,7 @@ const SCENARIO_FIELD_LABELS = [
   ["rules", "Special Rules & Notes"],
 ];
 
-export function formatScenarioContext(scenario) {
+function formatScenarioContext(scenario) {
   if (!scenario) return "";
 
   const lines = SCENARIO_FIELD_LABELS.filter(([field]) => scenario[field]).map(
