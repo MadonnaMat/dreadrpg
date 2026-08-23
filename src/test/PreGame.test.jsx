@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, act } from "@testing-library/react";
+import { render, screen, act, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import PreGame from "../components/PreGame";
 import { PeerProvider } from "../providers/PeerProvider";
@@ -353,7 +353,13 @@ describe("PreGame Component", () => {
 
       await user.click(screen.getByRole("button", { name: "Resume" }));
 
-      expect(await screen.findByText("saved-game-1")).toBeInTheDocument();
+      // "saved-game-1" now legitimately appears more than once (the Lobby
+      // tab's own Game ID display, and AdminPanel's - both tabs stay
+      // mounted at once, only one visible at a time), so use *AllBy*
+      // instead of asserting a single match.
+      await waitFor(() => {
+        expect(screen.getAllByText("saved-game-1").length).toBeGreaterThan(0);
+      });
     });
 
     it("deleting a saved game removes it from the list and from storage", async () => {

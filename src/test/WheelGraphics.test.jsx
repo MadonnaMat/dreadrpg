@@ -131,6 +131,12 @@ describe("WheelGraphics Component", () => {
     expect(props.setSpinning).not.toHaveBeenCalled();
   });
 
+  it("accepts theme-driven success/death colors without crashing", () => {
+    expect(() =>
+      renderWheel({ successColor: "#6a3fb5", deathColor: "#00e6a8" })
+    ).not.toThrow();
+  });
+
   it("tolerates repeated ticks across a full death -> re-stack cycle without throwing", () => {
     const { rerender, props } = renderWheel({ result: "" });
 

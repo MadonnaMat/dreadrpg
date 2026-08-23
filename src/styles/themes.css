@@ -59,3 +59,17 @@
   --color-accent: #ff7518;
   --color-danger: #39ff14;
 }
+
+[data-theme="cosmic"] {
+  --color-bg: #04050d;
+  --color-text: #c9d6e3;
+  --color-accent: #6a3fb5;
+  --color-danger: #00e6a8;
+}
+
+[data-theme="gothic"] {
+  --color-bg: #120306;
+  --color-text: #e8d9c5;
+  --color-accent: #b8860b;
+  --color-danger: #8b0020;
+}

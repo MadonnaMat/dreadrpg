@@ -10,6 +10,7 @@ import {
   DEFAULT_CUSTOM_COLORS,
 } from "../constants/themes";
 import CharacterSheet from "./CharacterSheet";
+import { buildShareUrl } from "../helpers/rejoinLink";
 
 // GM-only theme picker: built-in presets are pure CSS (see
 // src/styles/themes.css); "custom" broadcasts per-token colors applied
@@ -274,6 +275,32 @@ function DeathFlavorTextSection() {
   );
 }
 
+// GM-only game ID / invite link - previously only shown pre-game (in
+// PreGame.jsx's Lobby tab), which meant it vanished the moment the GM
+// started the game, even though a GM might still want to invite someone
+// (or remind a disconnected player of it) well into a session.
+function ShareLinkSection({ gameId }) {
+  const shareUrl = buildShareUrl(gameId);
+  return (
+    <div className="admin-field">
+      <label>Game ID</label>
+      <div>{gameId}</div>
+      <label>Sharable URL</label>
+      <div className="url-input-container">
+        <input
+          type="text"
+          value={shareUrl}
+          readOnly
+          onClick={(e) => e.target.select()}
+        />
+        <button onClick={() => navigator.clipboard.writeText(shareUrl)}>
+          Copy
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // GM-only settings hub: campaign name, tower size, and Start Game -
 // previously scattered (tower size was a one-shot PreGame input, campaign
 // name didn't exist, and Start Game lived alone in the Lobby tab). Also
@@ -283,6 +310,7 @@ function DeathFlavorTextSection() {
 // showRoster={false} to avoid mounting CharacterSheet a second time.
 export default function AdminPanel({ showRoster = true }) {
   const {
+    gameId,
     gameName,
     setGameName,
     towerSize,
@@ -314,6 +342,8 @@ export default function AdminPanel({ showRoster = true }) {
   return (
     <div className="admin-panel">
       <h2>Admin Panel</h2>
+
+      <ShareLinkSection gameId={gameId} />
 
       <div className="admin-field">
         <label htmlFor="admin-game-name">Campaign Name</label>

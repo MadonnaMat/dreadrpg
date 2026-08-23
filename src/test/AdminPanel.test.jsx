@@ -10,12 +10,13 @@ import { usePeer } from "../hooks/usePeer";
 // Renders AdminPanel as the GM with a starting campaign name/tower size,
 // mirroring how a real game would have these set via createGame().
 function GmAdminPanel({ showRoster = false }) {
-  const { setIsGM, setGameName, setTowerSize } = usePeer();
+  const { setIsGM, setGameId, setGameName, setTowerSize } = usePeer();
   useEffect(() => {
     setIsGM(true);
+    setGameId("beneath-a-metal-sky-123");
     setGameName("Beneath a Metal Sky");
     setTowerSize(25);
-  }, [setIsGM, setGameName, setTowerSize]);
+  }, [setIsGM, setGameId, setGameName, setTowerSize]);
   return <AdminPanel showRoster={showRoster} />;
 }
 
@@ -65,6 +66,21 @@ describe("AdminPanel Component", () => {
 
     expect(screen.getByDisplayValue("Beneath a Metal Sky")).toBeInTheDocument();
     expect(screen.getByDisplayValue("25")).toBeInTheDocument();
+  });
+
+  it("shows the game ID and a sharable invite URL, still reachable mid-game", () => {
+    render(
+      <PeerProvider>
+        <WheelProvider>
+          <GmAdminPanel />
+        </WheelProvider>
+      </PeerProvider>
+    );
+
+    expect(screen.getByText("beneath-a-metal-sky-123")).toBeInTheDocument();
+    expect(
+      screen.getByDisplayValue(/gameId=beneath-a-metal-sky-123/)
+    ).toBeInTheDocument();
   });
 
   it("lets the GM rename the campaign on blur", async () => {

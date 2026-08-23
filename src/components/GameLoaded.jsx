@@ -12,6 +12,7 @@ import {
   isCharacterAlive,
 } from "../helpers/characters";
 import { buildRejoinUrl } from "../helpers/rejoinLink";
+import { getWheelColors } from "../constants/themes";
 import { useEffect, useRef, useState } from "react";
 import { MESSAGE_TYPES } from "../constants/messageTypes";
 
@@ -148,7 +149,13 @@ export default function GameLoaded() {
     hostName,
     users,
     characters,
+    theme,
+    customColors,
   } = usePeer();
+  const { success: successColor, death: deathColor } = getWheelColors(
+    theme,
+    customColors
+  );
   const {
     wedges,
     dangerProbability,
@@ -281,6 +288,8 @@ export default function GameLoaded() {
                 conn={conn}
                 isGM={isGM}
                 peerId={peerId}
+                successColor={successColor}
+                deathColor={deathColor}
               />
             </Application>
             <SpinControls
