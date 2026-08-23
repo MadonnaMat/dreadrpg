@@ -517,6 +517,74 @@ describe("AutoGmProvider", () => {
       expect(chatMessages).toHaveLength(0);
     });
 
+    it("recovers from a failed turn by compacting and retrying once, when there's history to shrink", async () => {
+      // A turn call failing with existing history most likely means the
+      // context has grown too large/complex for the model - rather than
+      // repeating the identical failure forever (the same oversized
+      // context would otherwise be sent again on every future message),
+      // AutoGM should proactively compact and immediately retry once.
+      let turnCallCount = 0;
+      const { deliver, chatMessages } = setupEnabled({
+        runPromptImpl: async ({ systemPromptText }) => {
+          if (systemPromptText === latest("autogmCompaction").text) {
+            return { valid: true, parsed: { summary: "Recovered summary." } };
+          }
+          if (systemPromptText === latest("autogmSelfCheck").text) {
+            return {
+              valid: true,
+              parsed: {
+                consistent: true,
+                reasoning: "fine",
+                revisedNarration: "",
+              },
+            };
+          }
+          // Only autogmTurn calls reach here - counted separately from
+          // compaction/self-check so the "second call fails" below means
+          // the second *turn*, not whichever call happens to land second.
+          turnCallCount += 1;
+          if (turnCallCount === 2) {
+            return { valid: false, parsed: null };
+          }
+          return validTurnResult({ narration: `Response ${turnCallCount}` });
+        },
+      });
+
+      await enable();
+      await deliver.current({ from: "Alice", text: "first message" });
+      await waitFor(() =>
+        expect(chatMessages).toContainEqual(
+          expect.objectContaining({ text: "Response 1" })
+        )
+      );
+
+      chatMessages.length = 0;
+      await deliver.current({ from: "Alice", text: "second message" });
+
+      await waitFor(() =>
+        expect(chatMessages).toContainEqual(
+          expect.objectContaining({ text: "Response 3" })
+        )
+      );
+      expect(screen.getByTestId("story-summary")).toHaveTextContent(
+        "Recovered summary."
+      );
+    });
+
+    it("does not bother compacting-and-retrying a failed first-ever message with no history to shrink", async () => {
+      const runPrompt = vi.fn(async () => ({ valid: false, parsed: null }));
+      const { deliver } = setupEnabled({ runPromptImpl: runPrompt });
+
+      await enable();
+      runPrompt.mockClear();
+      await deliver.current({ from: "Alice", text: "???" });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      // Only the one failed turn call - no compaction call was wasted on a
+      // single-message window with nothing meaningful to shrink.
+      expect(runPrompt).toHaveBeenCalledTimes(1);
+    });
+
     it("compacts the raw history into storySummary once it crosses the threshold", async () => {
       const { runPrompt, deliver } = setupEnabled({
         runPromptImpl: async ({ systemPromptText }) => {

@@ -45,6 +45,36 @@ const TURN_LOG_LIMIT = 20;
 // folded into storySummary and reset - keeps context bounded without
 // losing track of the story (see docs/autogm-requirements.md).
 const RAW_HISTORY_COMPACTION_THRESHOLD = 20;
+// Every runPrompt call is raced against this timeout. Local in-browser
+// inference has no engine-level timeout anywhere in the promptRunner/
+// webllmEngine stack - if a single call ever genuinely hangs (a crashed
+// worker, lost GPU context, a backgrounded tab throttled by the browser)
+// rather than rejecting, every future chat message would otherwise wait
+// forever behind it in queueRef's promise chain, since a `.then()` chained
+// onto a promise that never settles never fires either. Racing against a
+// timeout guarantees the queue always eventually unblocks, even in the
+// worst case.
+const RUN_PROMPT_TIMEOUT_MS = 60000;
+
+function runPromptWithTimeout(runPrompt, args) {
+  return Promise.race([
+    runPrompt(args),
+    new Promise((resolve) => {
+      setTimeout(
+        () =>
+          resolve({
+            raw: "",
+            parsed: null,
+            valid: false,
+            errors: ["AutoGM's model call timed out."],
+            attempts: 0,
+            latencyMs: RUN_PROMPT_TIMEOUT_MS,
+          }),
+        RUN_PROMPT_TIMEOUT_MS
+      );
+    }),
+  ]);
+}
 
 // Runs the AutoGM mode: an AI-driven GM that narrates and adjudicates play
 // live through the existing Chat, instead of a human running the GM role.
@@ -251,7 +281,7 @@ export function AutoGmProvider({ children }) {
         dangerProbability,
         awaitingReset,
       });
-      const result = await runPrompt({
+      const result = await runPromptWithTimeout(runPrompt, {
         systemPromptText: latest("autogmSelfCheck").text,
         userContent: context,
         schema: autoGmSelfCheckSchema,
@@ -303,7 +333,7 @@ export function AutoGmProvider({ children }) {
         campaignNotes,
         presence,
       });
-      const result = await runPrompt({
+      const result = await runPromptWithTimeout(runPrompt, {
         systemPromptText: latest("autogmTurn").text,
         userContent: context,
         schema: autoGmTurnSchema,
@@ -312,7 +342,7 @@ export function AutoGmProvider({ children }) {
 
       if (!result.valid) {
         setAutoGmError("AutoGM couldn't generate a response.");
-        return;
+        return false;
       }
       setAutoGmError(null);
 
@@ -383,6 +413,7 @@ export function AutoGmProvider({ children }) {
         campaignNoteUpdates,
         pullSkippedReason,
       });
+      return true;
     },
     [
       scenario,
@@ -412,7 +443,7 @@ export function AutoGmProvider({ children }) {
         priorSummary: storySummary,
         rawHistory: history,
       });
-      const result = await runPrompt({
+      const result = await runPromptWithTimeout(runPrompt, {
         systemPromptText: latest("autogmCompaction").text,
         userContent: context,
         schema: autoGmCompactionSchema,
@@ -439,7 +470,7 @@ export function AutoGmProvider({ children }) {
           rawHistory: historyRef.current,
           campaignNotes,
         });
-        const result = await runPrompt({
+        const result = await runPromptWithTimeout(runPrompt, {
           systemPromptText: latest("autogmRemovalNarration").text,
           userContent: context,
           schema: autoGmRemovalNarrationSchema,
@@ -518,6 +549,19 @@ export function AutoGmProvider({ children }) {
       .catch(() => {});
   }, [awaitingReset, characters, isGM, autoGmEnabled, runRemovalNarration]);
 
+  // Folds `history` into storySummary and returns a fresh, single-message
+  // window (just the most recent entry) to replace it with - shared by the
+  // scheduled compaction below and the failure-recovery path, both of
+  // which need the exact same "shrink it down" behavior.
+  const compactHistory = useCallback(
+    async (history) => {
+      const newSummary = await compact(history);
+      setStorySummary(newSummary);
+      return history.length ? [history[history.length - 1]] : [];
+    },
+    [compact]
+  );
+
   // Every human-authored chat message (inbound over the network, or the
   // GM's own local send via notifyAutoGmChat - see PeerProvider.jsx) lands
   // here. AutoGM's own narration is sent via sendSystemChatMessage, which
@@ -535,18 +579,33 @@ export function AutoGmProvider({ children }) {
         const trigger = { from: data.from, text: data.text };
         let history = [...historyRef.current, trigger];
         if (history.length > RAW_HISTORY_COMPACTION_THRESHOLD) {
-          const newSummary = await compact(history);
-          setStorySummary(newSummary);
-          history = [trigger];
+          history = await compactHistory(history);
+          historyRef.current = history;
+          setRawHistory(history);
+        } else {
+          historyRef.current = history;
+          setRawHistory(history);
         }
-        historyRef.current = history;
-        setRawHistory(history);
-        await runTurn(history, trigger);
+        const succeeded = await runTurn(history, trigger);
+        if (!succeeded && history.length > 1) {
+          // A turn failing to produce valid structured output most likely
+          // means the context has grown too large/complex for the model to
+          // handle reliably - left alone, the exact same context would be
+          // sent again on every future message and fail identically
+          // forever, since it otherwise only shrinks at the next scheduled
+          // compaction. Proactively fold it down to a clean, minimal window
+          // and give the model one immediate extra attempt, so a bad
+          // context can't permanently wedge the story.
+          history = await compactHistory(history);
+          historyRef.current = history;
+          setRawHistory(history);
+          await runTurn(history, trigger);
+        }
       } finally {
         setThinking(false);
       }
     },
-    [isGM, autoGmEnabled, compact, runTurn, setThinking]
+    [isGM, autoGmEnabled, compactHistory, runTurn, setThinking]
   );
 
   useEffect(() => {
