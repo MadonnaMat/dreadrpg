@@ -7,6 +7,7 @@ import {
   buildAutoGmRemovalNarrationContext,
   buildAutoGmCompactionContext,
   buildAutoGmSelfCheckContext,
+  buildAutoGmPullCheckContext,
 } from "../ai/promptContexts";
 
 describe("buildScenarioGenerationContext", () => {
@@ -256,6 +257,40 @@ describe("buildAutoGmTurnContext", () => {
     expect(context).toContain("taken by: Alice");
   });
 
+  it("mentions a pull already called by the dedicated pull-check pass", () => {
+    const context = buildAutoGmTurnContext({
+      scenario: null,
+      characters: {},
+      storySummary: "",
+      rawHistory: [],
+      dangerProbability: 0,
+      awaitingReset: false,
+      designatedSpinner: null,
+      campaignNotes: [],
+      presence: {},
+      pullJustCalled: { targetPlayerName: "Alice", pullsRequired: 2 },
+    });
+    expect(context).toContain("already been called for Alice");
+    expect(context).toContain("2 pulls required");
+    expect(context).toContain('do not set "callForPull"');
+  });
+
+  it("says nothing about a pull when none was called", () => {
+    const context = buildAutoGmTurnContext({
+      scenario: null,
+      characters: {},
+      storySummary: "",
+      rawHistory: [],
+      dangerProbability: 0,
+      awaitingReset: false,
+      designatedSpinner: null,
+      campaignNotes: [],
+      presence: {},
+      pullJustCalled: null,
+    });
+    expect(context).not.toContain("already been called");
+  });
+
   it("mentions the frozen tower when awaitingReset is true", () => {
     const context = buildAutoGmTurnContext({
       scenario: null,
@@ -315,5 +350,26 @@ describe("buildAutoGmSelfCheckContext", () => {
       awaitingReset: false,
     });
     expect(context).toContain("Marcus steps into the dark.");
+  });
+});
+
+describe("buildAutoGmPullCheckContext", () => {
+  it("includes the actor and the declared action", () => {
+    const context = buildAutoGmPullCheckContext({
+      actionText: "I kick down the door.",
+      actorName: "The Drifter",
+      scenario: null,
+    });
+    expect(context).toContain("The Drifter");
+    expect(context).toContain("I kick down the door.");
+  });
+
+  it("includes scenario context when given", () => {
+    const context = buildAutoGmPullCheckContext({
+      actionText: "I step into the furnace.",
+      actorName: "Marcus",
+      scenario: { title: "The Foundry" },
+    });
+    expect(context).toContain("The Foundry");
   });
 });

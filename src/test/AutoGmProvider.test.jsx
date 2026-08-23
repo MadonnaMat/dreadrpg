@@ -280,10 +280,12 @@ describe("AutoGmProvider", () => {
       await enable();
       await deliver.current({ from: "Alice", text: "I check the hold." });
 
-      expect(runPrompt).toHaveBeenCalledWith(
-        expect.objectContaining({
-          systemPromptText: latest("autogmTurn").text,
-        })
+      await waitFor(() =>
+        expect(runPrompt).toHaveBeenCalledWith(
+          expect.objectContaining({
+            systemPromptText: latest("autogmTurn").text,
+          })
+        )
       );
       await waitFor(() =>
         expect(chatMessages).toContainEqual(
@@ -462,6 +464,165 @@ describe("AutoGmProvider", () => {
         expect(screen.getByTestId("turn-log-count")).toHaveTextContent("1")
       );
       expect(wheel.assignSpinner).not.toHaveBeenCalled();
+    });
+
+    describe("pull-check classifier", () => {
+      function seedAliceAsDrifter() {
+        function SeedCharacter() {
+          const { setCharacters, setPresence } = usePeer();
+          useEffect(() => {
+            setCharacters({
+              "char-1": {
+                id: "char-1",
+                name: "The Drifter",
+                assignedTo: "Alice",
+              },
+            });
+            setPresence({ Alice: { connected: true } });
+          }, [setCharacters, setPresence]);
+          return null;
+        }
+        return <SeedCharacter />;
+      }
+
+      it("runs the pull-check prompt before the turn prompt and assigns a pull directly when it decides one is required", async () => {
+        const { deliver, wheel, runPrompt } = setupEnabled({
+          runPromptImpl: async ({ systemPromptText }) => {
+            if (systemPromptText === latest("autogmPullCheck").text) {
+              return {
+                valid: true,
+                parsed: { requiresPull: true, pullsRequired: 2 },
+              };
+            }
+            return validTurnResult();
+          },
+          seed: seedAliceAsDrifter(),
+        });
+
+        await enable();
+        await deliver.current({
+          from: "Alice",
+          text: "I kick down the door.",
+          fromIdentity: "Alice",
+        });
+
+        await waitFor(() =>
+          expect(wheel.assignSpinner).toHaveBeenCalledWith("Alice", 2)
+        );
+        expect(runPrompt).toHaveBeenCalledWith(
+          expect.objectContaining({
+            systemPromptText: latest("autogmPullCheck").text,
+          })
+        );
+      });
+
+      it("does not call the pull-check prompt for a trigger with no identity", async () => {
+        const { deliver, wheel, runPrompt } = setupEnabled({
+          runPromptImpl: async () => validTurnResult(),
+        });
+
+        await enable();
+        await deliver.current({
+          from: "System",
+          text: "The game has just begun.",
+        });
+
+        await waitFor(() =>
+          expect(screen.getByTestId("turn-log-count")).toHaveTextContent("1")
+        );
+        expect(runPrompt).not.toHaveBeenCalledWith(
+          expect.objectContaining({
+            systemPromptText: latest("autogmPullCheck").text,
+          })
+        );
+        expect(wheel.assignSpinner).not.toHaveBeenCalled();
+      });
+
+      it("never double-assigns when both the pull-check and the main turn prompt call for the same pull", async () => {
+        const { deliver, wheel } = setupEnabled({
+          runPromptImpl: async ({ systemPromptText }) => {
+            if (systemPromptText === latest("autogmPullCheck").text) {
+              return {
+                valid: true,
+                parsed: { requiresPull: true, pullsRequired: 1 },
+              };
+            }
+            return validTurnResult({
+              callForPull: true,
+              targetPlayerName: "Alice",
+              pullsRequired: 3,
+            });
+          },
+          seed: seedAliceAsDrifter(),
+        });
+
+        await enable();
+        await deliver.current({
+          from: "Alice",
+          text: "I step into the furnace.",
+          fromIdentity: "Alice",
+        });
+
+        await waitFor(() =>
+          expect(wheel.assignSpinner).toHaveBeenCalledTimes(1)
+        );
+        expect(wheel.assignSpinner).toHaveBeenCalledWith("Alice", 1);
+      });
+
+      it("falls back to the main turn prompt's own pull decision when the pull-check finds nothing", async () => {
+        const { deliver, wheel } = setupEnabled({
+          runPromptImpl: async ({ systemPromptText }) => {
+            if (systemPromptText === latest("autogmPullCheck").text) {
+              return {
+                valid: true,
+                parsed: { requiresPull: false, pullsRequired: 1 },
+              };
+            }
+            return validTurnResult({
+              callForPull: true,
+              targetPlayerName: "Alice",
+              pullsRequired: 1,
+            });
+          },
+          seed: seedAliceAsDrifter(),
+        });
+
+        await enable();
+        await deliver.current({
+          from: "Alice",
+          text: "I dare Bob to touch it.",
+          fromIdentity: "Alice",
+        });
+
+        await waitFor(() =>
+          expect(wheel.assignSpinner).toHaveBeenCalledWith("Alice", 1)
+        );
+      });
+
+      it("skips the pull-check while the tower is awaiting reset", async () => {
+        const { deliver, wheel, runPrompt } = setupEnabled({
+          runPromptImpl: async () => validTurnResult(),
+          wheelOverrides: { awaitingReset: true },
+          seed: seedAliceAsDrifter(),
+        });
+
+        await enable();
+        await deliver.current({
+          from: "Alice",
+          text: "I kick down the door.",
+          fromIdentity: "Alice",
+        });
+
+        await waitFor(() =>
+          expect(screen.getByTestId("turn-log-count")).toHaveTextContent("1")
+        );
+        expect(runPrompt).not.toHaveBeenCalledWith(
+          expect.objectContaining({
+            systemPromptText: latest("autogmPullCheck").text,
+          })
+        );
+        expect(wheel.assignSpinner).not.toHaveBeenCalled();
+      });
     });
 
     it("restacks when readyToRestack is true and the tower is frozen", async () => {

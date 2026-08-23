@@ -7,6 +7,7 @@ import { MESSAGE_TYPES } from "../constants/messageTypes";
 import {
   autoApproveAnswers,
   getActivePullTargets,
+  characterNameFor,
 } from "../helpers/characters";
 import { applyCampaignNoteUpdates } from "../helpers/campaignNotes";
 import { latest } from "../prompts/index";
@@ -15,11 +16,16 @@ import {
   buildAutoGmCompactionContext,
   buildAutoGmRemovalNarrationContext,
   buildAutoGmSelfCheckContext,
+  buildAutoGmPullCheckContext,
 } from "../ai/promptContexts";
 import {
   autoGmTurnSchema,
   validate as validateAutoGmTurn,
 } from "../ai/schemas/autoGmTurnSchema";
+import {
+  autoGmPullCheckSchema,
+  validate as validateAutoGmPullCheck,
+} from "../ai/schemas/autoGmPullCheckSchema";
 import {
   autoGmCompactionSchema,
   validate as validateAutoGmCompaction,
@@ -66,6 +72,55 @@ function describePromptFailure(result) {
   return errors.length
     ? errors.join(" | ")
     : "No details returned by the model.";
+}
+
+// The dedicated pull-check pass (checkForPull, run before the main turn
+// prompt) already decided and applied a pull for the acting player's own
+// action, if warranted - that takes precedence. The main prompt's own
+// callForPull is only honored as a fallback when the classifier found
+// nothing to do (e.g. it can still call for a pull for a DIFFERENT player,
+// such as a PvP dare), so a single action never gets double-assigned.
+function resolveMainPromptPull({
+  classifierPull,
+  callForPull,
+  targetPlayerName,
+  pullsRequired,
+  characters,
+  presence,
+  awaitingReset,
+  assignSpinner,
+}) {
+  if (classifierPull) {
+    return {
+      callForPull: true,
+      targetPlayerName: classifierPull.targetPlayerName,
+      pullsRequired: classifierPull.pullsRequired,
+      pullSkippedReason: null,
+    };
+  }
+  if (!callForPull || !targetPlayerName) {
+    return {
+      callForPull: false,
+      targetPlayerName: "",
+      pullsRequired: 1,
+      pullSkippedReason: null,
+    };
+  }
+  const activeTargets = getActivePullTargets({ characters, presence });
+  let pullSkippedReason = null;
+  if (awaitingReset) {
+    pullSkippedReason = "tower is frozen";
+  } else if (!activeTargets.includes(targetPlayerName)) {
+    pullSkippedReason = "target not an active player";
+  } else {
+    assignSpinner(targetPlayerName, pullsRequired || 1);
+  }
+  return {
+    callForPull: true,
+    targetPlayerName,
+    pullsRequired,
+    pullSkippedReason,
+  };
 }
 
 function runPromptWithTimeout(runPrompt, args) {
@@ -325,6 +380,47 @@ export function AutoGmProvider({ children }) {
     ]
   );
 
+  // Runs a small, focused classification pass BEFORE the main turn prompt
+  // to decide whether the triggering player's own declared action requires
+  // a pull, and if so, calls assignSpinner directly - enforced in code
+  // rather than left to the same creative-writing prompt that decides
+  // narration, which in practice almost never called for a pull even on
+  // unambiguous risky actions (kicking down a door, stepping into a
+  // furnace). Only ever targets the acting player themselves (never an NPC
+  // or a different player - that's still the main turn prompt's job, e.g.
+  // for one player provoking another). Returns null when no pull applies
+  // (including when the trigger has no identity - a synthetic "System"
+  // trigger like the opening narration - or the actor isn't a currently
+  // valid pull target).
+  const checkForPull = useCallback(
+    async (trigger) => {
+      if (!trigger?.fromIdentity || awaitingReset) return null;
+      const activeTargets = getActivePullTargets({ characters, presence });
+      if (!activeTargets.includes(trigger.fromIdentity)) return null;
+
+      const context = buildAutoGmPullCheckContext({
+        actionText: trigger.text,
+        actorName: characterNameFor(characters, trigger.fromIdentity),
+        scenario,
+      });
+      const result = await runPromptWithTimeout(runPrompt, {
+        systemPromptText: latest("autogmPullCheck").text,
+        userContent: context,
+        schema: autoGmPullCheckSchema,
+        validate: validateAutoGmPullCheck,
+      });
+      if (!result.valid || !result.parsed.requiresPull) return null;
+
+      const pullsRequired = Math.min(
+        10,
+        Math.max(1, result.parsed.pullsRequired || 1)
+      );
+      assignSpinner(trigger.fromIdentity, pullsRequired);
+      return { targetPlayerName: trigger.fromIdentity, pullsRequired };
+    },
+    [awaitingReset, characters, presence, scenario, runPrompt, assignSpinner]
+  );
+
   // Runs one AutoGM turn: asks the model to react to the given history
   // (ending with the message that just triggered this turn), then acts on
   // whatever it decides - posting narration, calling for a pull, restacking
@@ -334,6 +430,8 @@ export function AutoGmProvider({ children }) {
   // game state.
   const runTurn = useCallback(
     async (history, trigger) => {
+      const classifierPull = await checkForPull(trigger);
+
       const context = buildAutoGmTurnContext({
         scenario,
         characters,
@@ -344,6 +442,7 @@ export function AutoGmProvider({ children }) {
         designatedSpinner,
         campaignNotes,
         presence,
+        pullJustCalled: classifierPull,
       });
       const result = await runPromptWithTimeout(runPrompt, {
         systemPromptText: latest("autogmTurn").text,
@@ -405,17 +504,21 @@ export function AutoGmProvider({ children }) {
         setRawHistory(historyRef.current);
       }
 
-      let pullSkippedReason = null;
-      if (callForPull && targetPlayerName) {
-        const activeTargets = getActivePullTargets({ characters, presence });
-        if (awaitingReset) {
-          pullSkippedReason = "tower is frozen";
-        } else if (!activeTargets.includes(targetPlayerName)) {
-          pullSkippedReason = "target not an active player";
-        } else {
-          assignSpinner(targetPlayerName, pullsRequired || 1);
-        }
-      }
+      const {
+        callForPull: finalCallForPull,
+        targetPlayerName: finalTargetPlayerName,
+        pullsRequired: finalPullsRequired,
+        pullSkippedReason,
+      } = resolveMainPromptPull({
+        classifierPull,
+        callForPull,
+        targetPlayerName,
+        pullsRequired,
+        characters,
+        presence,
+        awaitingReset,
+        assignSpinner,
+      });
 
       if (readyToRestack && awaitingReset) {
         handleRestack();
@@ -434,9 +537,9 @@ export function AutoGmProvider({ children }) {
         finalNarration,
         reasoning,
         consistent,
-        callForPull,
-        targetPlayerName,
-        pullsRequired,
+        callForPull: finalCallForPull,
+        targetPlayerName: finalTargetPlayerName,
+        pullsRequired: finalPullsRequired,
         readyToRestack,
         awaitingResetAtTurn: awaitingReset,
         campaignNoteUpdates,
@@ -454,6 +557,7 @@ export function AutoGmProvider({ children }) {
       campaignNotes,
       presence,
       runPrompt,
+      checkForPull,
       selfCheckNarration,
       sendSystemChatMessage,
       assignSpinner,
@@ -629,7 +733,11 @@ export function AutoGmProvider({ children }) {
       if (!isGM || !autoGmEnabled) return;
       setThinking(true);
       try {
-        const trigger = { from: data.from, text: data.text };
+        const trigger = {
+          from: data.from,
+          text: data.text,
+          fromIdentity: data.fromIdentity,
+        };
         let history = [...historyRef.current, trigger];
         if (history.length > RAW_HISTORY_COMPACTION_THRESHOLD) {
           history = await compactHistory(history);

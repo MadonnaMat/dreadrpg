@@ -81,7 +81,11 @@ these fields:
   competence, or performed under duress or aggravated conditions.
   Otherwise, just narrate the outcome directly and set this to false -
   most actions don't need a pull. Declining a pull only fails the
-  action; it can never by itself remove a character.
+  action; it can never by itself remove a character. If you're told below
+  that a pull has already been called for this action, always set this to
+  false - it's already been handled, so use it only to call for pull for
+  someone OTHER than whoever just acted (e.g. one player deliberately
+  provoking another into a risky reaction).
 - "targetPlayerName": when "callForPull" is true, the exact name of the
   player who must pull, copied from the "Players you may currently call
   for a pull" list you're given. Only ever pick a name from that list -

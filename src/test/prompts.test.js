@@ -9,6 +9,7 @@ describe("prompt registry", () => {
       "sheetAnswerAssist",
       "campaignNotesGeneration",
       "autogmTurn",
+      "autogmPullCheck",
       "autogmRemovalNarration",
       "autogmCompaction",
       "autogmSelfCheck",

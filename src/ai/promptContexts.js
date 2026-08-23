@@ -121,6 +121,18 @@ function formatStorySummaryContext(storySummary) {
   return storySummary ? `\n\nStory so far:\n${storySummary}` : "";
 }
 
+// A dedicated pull-check pass (see buildAutoGmPullCheckContext) runs before
+// the turn prompt and, when it decides a pull is warranted, calls it in
+// code directly rather than trusting this creative-writing prompt to also
+// reliably decide it. This tells the turn prompt what already happened so
+// it narrates the moment instead of re-deciding or contradicting it.
+function formatPullJustCalledContext(pullJustCalled) {
+  if (!pullJustCalled) return "";
+  const { targetPlayerName, pullsRequired } = pullJustCalled;
+  const pullWord = pullsRequired > 1 ? "pulls" : "pull";
+  return `\n\nA pull has already been called for ${targetPlayerName} because of the action they just declared (${pullsRequired} ${pullWord} required) - this is already handled, do not set "callForPull" yourself this turn. Just narrate the tension of the moment leading into it; do not narrate the outcome of the pull (success, decline, or collapse) - that will be resolved and narrated separately once it's actually pulled.`;
+}
+
 export function buildScenarioGenerationContext({ premise }) {
   return `Generate a Dread RPG scenario based on this premise:\n\n${premise}`;
 }
@@ -160,8 +172,9 @@ export function buildAutoGmTurnContext({
   designatedSpinner,
   campaignNotes,
   presence,
+  pullJustCalled,
 }) {
-  return `You are running an AutoGM turn for this Dread RPG game.${formatScenarioContext(scenario)}${formatCharacterRosterContext(characters)}${formatCampaignNotesContext(campaignNotes)}${formatStorySummaryContext(storySummary)}${formatTowerStateContext({ dangerProbability, awaitingReset, designatedSpinner })}${formatActivePullTargetsContext(characters, presence)}${formatRawHistoryContext(rawHistory)}`;
+  return `You are running an AutoGM turn for this Dread RPG game.${formatScenarioContext(scenario)}${formatCharacterRosterContext(characters)}${formatCampaignNotesContext(campaignNotes)}${formatStorySummaryContext(storySummary)}${formatTowerStateContext({ dangerProbability, awaitingReset, designatedSpinner })}${formatActivePullTargetsContext(characters, presence)}${formatPullJustCalledContext(pullJustCalled)}${formatRawHistoryContext(rawHistory)}`;
 }
 
 export function buildAutoGmRemovalNarrationContext({
@@ -179,6 +192,14 @@ export function buildAutoGmCompactionContext({ priorSummary, rawHistory }) {
     ? `\n\nPrior summary:\n${priorSummary}`
     : "\n\nThere is no prior summary yet - this is the first compaction.";
   return `Update the running story summary.${priorBlock}${formatRawHistoryContext(rawHistory)}`;
+}
+
+export function buildAutoGmPullCheckContext({
+  actionText,
+  actorName,
+  scenario,
+}) {
+  return `The player controlling ${actorName} just declared:\n\n"${actionText}"${formatScenarioContext(scenario)}`;
 }
 
 export function buildAutoGmSelfCheckContext({

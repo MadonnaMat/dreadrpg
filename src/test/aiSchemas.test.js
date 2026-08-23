@@ -7,6 +7,7 @@ import { validate as validateAutoGmTurn } from "../ai/schemas/autoGmTurnSchema";
 import { validate as validateAutoGmRemovalNarration } from "../ai/schemas/autoGmRemovalNarrationSchema";
 import { validate as validateAutoGmCompaction } from "../ai/schemas/autoGmCompactionSchema";
 import { validate as validateAutoGmSelfCheck } from "../ai/schemas/autoGmSelfCheckSchema";
+import { validate as validateAutoGmPullCheck } from "../ai/schemas/autoGmPullCheckSchema";
 
 describe("scenarioSchema.validate", () => {
   const validScenario = {
@@ -293,5 +294,35 @@ describe("autoGmSelfCheckSchema.validate", () => {
 
   it("rejects a non-object", () => {
     expect(validateAutoGmSelfCheck("nope").valid).toBe(false);
+  });
+});
+
+describe("autoGmPullCheckSchema.validate", () => {
+  it("accepts a fully-formed pull check", () => {
+    expect(
+      validateAutoGmPullCheck({ requiresPull: true, pullsRequired: 2 })
+    ).toEqual({ valid: true, errors: [] });
+  });
+
+  it("accepts requiresPull: false", () => {
+    expect(
+      validateAutoGmPullCheck({ requiresPull: false, pullsRequired: 1 }).valid
+    ).toBe(true);
+  });
+
+  it("rejects a non-boolean requiresPull", () => {
+    expect(
+      validateAutoGmPullCheck({ requiresPull: "yes", pullsRequired: 1 }).valid
+    ).toBe(false);
+  });
+
+  it("rejects a non-integer pullsRequired", () => {
+    expect(
+      validateAutoGmPullCheck({ requiresPull: true, pullsRequired: 1.5 }).valid
+    ).toBe(false);
+  });
+
+  it("rejects a non-object", () => {
+    expect(validateAutoGmPullCheck(null).valid).toBe(false);
   });
 });

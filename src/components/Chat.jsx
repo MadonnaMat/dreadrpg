@@ -36,6 +36,7 @@ export default function Chat() {
             from: data.from,
             text: data.text,
             fromBot: data.fromBot,
+            fromIdentity: data.fromIdentity,
           });
         }
       }
@@ -69,6 +70,7 @@ export default function Chat() {
       type: MESSAGE_TYPES.CHAT,
       from: userDisplayName,
       text: input,
+      fromIdentity: identity,
     });
     if (isGM) {
       setMessages((prev) => [
@@ -80,11 +82,14 @@ export default function Chat() {
     // nothing to send it *to* on the GM's own client) - notify AutoGM's
     // observer directly so a GM playing a character (AutoGM mode) still has
     // their own lines reach it. A no-op on a player's client, and on the
-    // GM's client whenever nothing has registered on autoGmChat.
+    // GM's client whenever nothing has registered on autoGmChat. `identity`
+    // (the bare userName/hostName, not the "name <Character>" display
+    // string) is what AutoGM needs to call assignSpinner on this player.
     notifyAutoGmChat({
       type: MESSAGE_TYPES.CHAT,
       from: userDisplayName,
       text: input,
+      fromIdentity: identity,
     });
     setInput("");
   };

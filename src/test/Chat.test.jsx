@@ -220,11 +220,13 @@ describe("Chat Component", () => {
   it("notifies the AutoGM chat observer when the GM sends a message", async () => {
     const spy = vi.fn();
     function GmChatWithAutoGmObserver() {
-      const { setIsGM, registerAutoGmChatEventHandler } = usePeer();
+      const { setIsGM, setHostName, registerAutoGmChatEventHandler } =
+        usePeer();
       useEffect(() => {
         setIsGM(true);
+        setHostName("GM Vera");
         registerAutoGmChatEventHandler(spy);
-      }, [setIsGM, registerAutoGmChatEventHandler]);
+      }, [setIsGM, setHostName, registerAutoGmChatEventHandler]);
       return <Chat />;
     }
 
@@ -239,7 +241,10 @@ describe("Chat Component", () => {
     await user.click(screen.getByText("Send"));
 
     expect(spy).toHaveBeenCalledWith(
-      expect.objectContaining({ text: "Roll for initiative" })
+      expect.objectContaining({
+        text: "Roll for initiative",
+        fromIdentity: "GM Vera",
+      })
     );
   });
 
@@ -265,7 +270,10 @@ describe("Chat Component", () => {
     await user.click(screen.getByText("Send"));
 
     expect(spy).toHaveBeenCalledWith(
-      expect.objectContaining({ text: "I search the room" })
+      expect.objectContaining({
+        text: "I search the room",
+        fromIdentity: "Bob",
+      })
     );
   });
 

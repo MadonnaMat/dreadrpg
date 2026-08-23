@@ -3,6 +3,7 @@ import castGenerationV1 from "./cast-generation.v1.md?raw";
 import sheetAnswerAssistV1 from "./sheet-answer-assist.v1.md?raw";
 import campaignNotesGenerationV1 from "./campaign-notes-generation.v1.md?raw";
 import autogmTurnV1 from "./autogm-turn.v1.md?raw";
+import autogmPullCheckV1 from "./autogm-pull-check.v1.md?raw";
 import autogmRemovalNarrationV1 from "./autogm-removal-narration.v1.md?raw";
 import autogmCompactionV1 from "./autogm-compaction.v1.md?raw";
 import autogmSelfCheckV1 from "./autogm-self-check.v1.md?raw";
@@ -16,6 +17,7 @@ const REGISTRY = {
   sheetAnswerAssist: [{ version: 1, text: sheetAnswerAssistV1 }],
   campaignNotesGeneration: [{ version: 1, text: campaignNotesGenerationV1 }],
   autogmTurn: [{ version: 1, text: autogmTurnV1 }],
+  autogmPullCheck: [{ version: 1, text: autogmPullCheckV1 }],
   autogmRemovalNarration: [{ version: 1, text: autogmRemovalNarrationV1 }],
   autogmCompaction: [{ version: 1, text: autogmCompactionV1 }],
   autogmSelfCheck: [{ version: 1, text: autogmSelfCheckV1 }],
