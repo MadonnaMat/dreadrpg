@@ -27,11 +27,15 @@ describe("createWheelMessageHandler", () => {
     setters = makeSetters();
   });
 
-  it("GM: forwards a spin-request to handleHostSpin", () => {
+  it("GM: forwards a spin-request to handleHostSpin with the sender's own connection", () => {
     const handler = createWheelMessageHandler({ isGM: true, ...setters });
-    handler({ type: "spin-request", peerId: "abc" });
+    const connection = { peer: "abc" };
+    handler({ type: "spin-request" }, connection);
 
-    expect(setters.handleHostSpin).toHaveBeenCalledWith("abc");
+    // The sender's identity comes from the actual connection the message
+    // arrived on, not a self-reported field in the payload - a forged
+    // data.peerId must not be trusted (see handleHostSpin's own check).
+    expect(setters.handleHostSpin).toHaveBeenCalledWith(connection);
   });
 
   it("GM: ignores non spin-request/spin-decline messages", () => {
@@ -42,11 +46,12 @@ describe("createWheelMessageHandler", () => {
     expect(setters.handleHostDecline).not.toHaveBeenCalled();
   });
 
-  it("GM: forwards a spin-decline to handleHostDecline", () => {
+  it("GM: forwards a spin-decline to handleHostDecline with the sender's own connection", () => {
     const handler = createWheelMessageHandler({ isGM: true, ...setters });
-    handler({ type: "spin-decline" });
+    const connection = { peer: "abc" };
+    handler({ type: "spin-decline" }, connection);
 
-    expect(setters.handleHostDecline).toHaveBeenCalled();
+    expect(setters.handleHostDecline).toHaveBeenCalledWith(connection);
   });
 
   it("player: spin-start primes the local animation refs and clears the result", () => {

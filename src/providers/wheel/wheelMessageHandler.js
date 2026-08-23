@@ -109,13 +109,13 @@ export function createWheelMessageHandler({
   handleHostDecline,
   ...setters
 }) {
-  return (data) => {
+  return (data, connection) => {
     if (isGM) {
       if (data.type === MESSAGE_TYPES.SPIN_REQUEST) {
-        handleHostSpin(data.peerId);
+        handleHostSpin(connection);
       }
       if (data.type === MESSAGE_TYPES.SPIN_DECLINE) {
-        handleHostDecline();
+        handleHostDecline(connection);
       }
     } else {
       handlePlayerMessage(data, setters);

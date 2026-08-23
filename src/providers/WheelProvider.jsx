@@ -95,6 +95,16 @@ export const WheelProvider = ({ children }) => {
   spinningRef.current = spinning;
   const spinAngleRef = useRef(spinAngle);
   spinAngleRef.current = spinAngle;
+  // Mirrored the same way, so handleHostSpin can verify a network
+  // SPIN_REQUEST's sender against the currently-designated spinner without
+  // needing awaitingReset/designatedSpinner/users in its own dependency
+  // array (see the stable-identity comment on handleHostSpin below).
+  const awaitingResetRef = useRef(awaitingReset);
+  awaitingResetRef.current = awaitingReset;
+  const designatedSpinnerRef = useRef(designatedSpinner);
+  designatedSpinnerRef.current = designatedSpinner;
+  const usersRef = useRef(users);
+  usersRef.current = users;
 
   const wedges = useMemo(
     () => getWheelWedges(dangerProbability),
@@ -133,6 +143,7 @@ export const WheelProvider = ({ children }) => {
     if (!saved) return;
     setPullsSinceReset(saved.pullsSinceReset ?? 0);
     setCharactersRemoved(saved.charactersRemoved ?? 0);
+    setInitialVirtualPulls(saved.initialVirtualPulls ?? 0);
     setDangerProbability(saved.dangerProbability ?? 0);
     setPeerDangerProbability(saved.dangerProbability ?? 0);
     setAwaitingReset(saved.awaitingReset ?? false);
@@ -145,6 +156,7 @@ export const WheelProvider = ({ children }) => {
     saveWheelState(gameId, hostName, {
       pullsSinceReset,
       charactersRemoved,
+      initialVirtualPulls,
       dangerProbability,
       awaitingReset,
     });
@@ -154,6 +166,7 @@ export const WheelProvider = ({ children }) => {
     hostName,
     pullsSinceReset,
     charactersRemoved,
+    initialVirtualPulls,
     dangerProbability,
     awaitingReset,
   ]);
@@ -162,8 +175,20 @@ export const WheelProvider = ({ children }) => {
   // stable dependency (sendToPeers) so its own identity never changes -
   // reading spinning/spinAngle through the refs above instead of closing
   // over the state directly is what makes that safe to do.
-  const handleHostSpin = useCallback(() => {
-    if (spinningRef.current) return;
+  // `connection` is only present when this is called from a network
+  // SPIN_REQUEST (see wheelMessageHandler.js) - the GM's own local Spin
+  // click calls this directly with no connection, already gated by
+  // handleSpin()'s own myName !== designatedSpinner check. For a network
+  // request, trust only the actual connection the message arrived on (its
+  // PeerJS-assigned c.peer) to look up who sent it - never a self-reported
+  // field in the message payload, which any client could forge to spin (or
+  // decline, see handleHostDecline) on another player's behalf.
+  const handleHostSpin = useCallback((connection) => {
+    if (spinningRef.current || awaitingResetRef.current) return;
+    if (connection) {
+      const senderName = usersRef.current?.[connection.peer];
+      if (!senderName || senderName !== designatedSpinnerRef.current) return;
+    }
     const currentAngle = spinAngleRef.current;
     spinStartRef.currentAngle = currentAngle;
     const minSpins = 3;
@@ -201,7 +226,7 @@ export const WheelProvider = ({ children }) => {
   // successful pull to complete a complex/difficult action.
   const assignSpinner = useCallback(
     (targetUserName, requiredPulls = 1) => {
-      if (!isGM || !targetUserName) return;
+      if (!isGM || !targetUserName || awaitingReset) return;
       const pullsNeeded = Math.max(1, requiredPulls);
       setDesignatedSpinner(targetUserName);
       setPeerDesignatedSpinner(targetUserName);
@@ -221,6 +246,7 @@ export const WheelProvider = ({ children }) => {
     },
     [
       isGM,
+      awaitingReset,
       sendToPeers,
       setPeerDesignatedSpinner,
       sendSystemChatMessage,
@@ -229,11 +255,20 @@ export const WheelProvider = ({ children }) => {
   );
 
   // GM only: apply a remote player's decline (received via SPIN_DECLINE).
-  const handleHostDecline = useCallback(() => {
-    clearAssignment(
-      `${characterNameFor(characters, designatedSpinner)} declines the pull.`
-    );
-  }, [characters, designatedSpinner, clearAssignment]);
+  // Same sender-identity check as handleHostSpin above - a network decline
+  // must actually come from the designated spinner's own connection.
+  const handleHostDecline = useCallback(
+    (connection) => {
+      if (connection) {
+        const senderName = usersRef.current?.[connection.peer];
+        if (!senderName || senderName !== designatedSpinner) return;
+      }
+      clearAssignment(
+        `${characterNameFor(characters, designatedSpinner)} declines the pull.`
+      );
+    },
+    [characters, designatedSpinner, clearAssignment]
+  );
 
   // Register wheel event handler with PeerProvider
   useEffect(() => {
@@ -328,9 +363,20 @@ export const WheelProvider = ({ children }) => {
   // backgrounded-tab timing skew) their own.
   const handleSpinEnd = (selectedIdx) => {
     if (!isGM) return;
-    if (selectedIdx == null) return;
-    const spinResult = wedges[selectedIdx]?.type;
-    if (!spinResult) return;
+    // A wedge-boundary floating-point miss on the hit-test can leave
+    // selectedIdx (or its wedge lookup) empty. The GM's own `spinning`
+    // already flipped to false before this was called (see WheelGraphics),
+    // but without a SPIN_FINAL broadcast every other player's `spinning`
+    // stays stuck true forever - always send it, even when there's no
+    // result to resolve.
+    if (selectedIdx == null || !wedges[selectedIdx]?.type) {
+      sendToPeers({
+        type: MESSAGE_TYPES.SPIN_FINAL,
+        finalAngle: spinTargetAngleRef.current,
+      });
+      return;
+    }
+    const spinResult = wedges[selectedIdx].type;
     const isDeath = spinResult === WEDGE_TYPES.DEATH;
     const spinnerCharacterName = characterNameFor(
       characters,

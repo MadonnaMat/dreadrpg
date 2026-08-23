@@ -21,13 +21,22 @@ function generateCharacterId() {
   return `char-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-// Applies the same "preserve answers by index" remap the old shared-question
-// save flow used, scoped to one character's own questions/answers instead of
-// every player's sheet at once.
-function remapAnswersToQuestions(oldAnswers, newQuestions) {
+// Answers are keyed by question index throughout the app, but that index
+// shifts under a player's feet whenever the GM edits the question list (e.g.
+// removing question 2 of 5 shifts every later index down). Matching by the
+// question's own text instead of its position keeps an existing answer (and
+// its approved state) attached to the same question even after a removal or
+// reorder - it only resets to blank for a genuinely new question.
+function remapAnswersToQuestions(oldQuestions, oldAnswers, newQuestions) {
+  const answersByText = new Map();
+  (oldQuestions || []).forEach((question, index) => {
+    if (oldAnswers && oldAnswers[index]) {
+      answersByText.set(question, oldAnswers[index]);
+    }
+  });
   const remapped = {};
-  newQuestions.forEach((_, index) => {
-    remapped[index] = (oldAnswers && oldAnswers[index]) || {
+  newQuestions.forEach((question, index) => {
+    remapped[index] = answersByText.get(question) || {
       text: "",
       approved: false,
     };
@@ -165,6 +174,7 @@ export default function CharacterSheet() {
   const handleSaveQuestions = () => {
     if (!selectedCharacterId) return;
     const answers = remapAnswersToQuestions(
+      selectedCharacter?.questions,
       selectedCharacter?.answers,
       editQuestions
     );
