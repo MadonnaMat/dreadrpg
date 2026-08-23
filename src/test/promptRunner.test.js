@@ -106,7 +106,7 @@ describe("runStructuredPrompt", () => {
     expect(result.errors[0]).toMatch(/not valid JSON/);
   });
 
-  it("resolves with an error instead of throwing when the engine call itself rejects", async () => {
+  it("resolves with an error instead of throwing when the engine call keeps rejecting", async () => {
     const engine = {
       chatCompletion: vi.fn().mockRejectedValue(new Error("worker crashed")),
     };
@@ -117,11 +117,33 @@ describe("runStructuredPrompt", () => {
       userContent: "user",
       schema: { type: "object" },
       validate: passthroughValidate,
+      maxRetries: 1,
     });
 
     expect(result.valid).toBe(false);
     expect(result.errors).toEqual(["worker crashed"]);
-    expect(result.attempts).toBe(1);
+    expect(result.attempts).toBe(2);
+  });
+
+  it("retries after a transient engine rejection instead of giving up immediately", async () => {
+    const engine = {
+      chatCompletion: vi
+        .fn()
+        .mockRejectedValueOnce(new Error("worker crashed"))
+        .mockResolvedValue(completionWith('{"a":1}')),
+    };
+
+    const result = await runStructuredPrompt({
+      engine,
+      systemPromptText: "system",
+      userContent: "user",
+      schema: { type: "object" },
+      validate: passthroughValidate,
+    });
+
+    expect(result.valid).toBe(true);
+    expect(result.parsed).toEqual({ a: 1 });
+    expect(result.attempts).toBe(2);
   });
 
   it("returns messages ending with the accepted assistant turn on success", async () => {

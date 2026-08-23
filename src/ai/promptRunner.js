@@ -61,8 +61,14 @@ export async function runStructuredPrompt({
         response_format: responseFormat,
       });
     } catch (err) {
+      // An engine-level rejection (a worker hiccup, a transient generation
+      // failure) is exactly the kind of recoverable failure this runner
+      // exists to survive - retry it the same as an invalid-JSON or
+      // schema-validation failure, up to maxRetries, instead of giving up
+      // on the very first attempt. There's no completion to append a
+      // corrective message about, so just retry with the same messages.
       lastErrors = [err.message || "Model request failed."];
-      break;
+      continue;
     }
 
     lastRaw = extractMessageContent(completion);
