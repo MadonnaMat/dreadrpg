@@ -138,6 +138,34 @@ describe("AutoGmDebugPanel", () => {
     expect(screen.getByText("Removal narration:")).toBeInTheDocument();
   });
 
+  it("shows why a failed turn didn't produce a response", () => {
+    setState({
+      turnLog: [
+        {
+          id: "turn-1",
+          kind: "error",
+          trigger: { from: "Alice", text: "I check the hold." },
+          draftNarration: null,
+          finalNarration: null,
+          reasoning: null,
+          consistent: null,
+          callForPull: false,
+          targetPlayerName: "",
+          pullsRequired: 1,
+          readyToRestack: false,
+          campaignNoteUpdates: [],
+          pullSkippedReason: null,
+          error: "Response was not valid JSON: Unexpected token",
+        },
+      ],
+    });
+    render(<AutoGmDebugPanel />);
+
+    expect(
+      screen.getByText(/Response was not valid JSON: Unexpected token/)
+    ).toBeInTheDocument();
+  });
+
   it("shows a skipped-pull reason", () => {
     setState({
       turnLog: [

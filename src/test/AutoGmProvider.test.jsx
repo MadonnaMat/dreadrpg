@@ -47,6 +47,7 @@ function Probe() {
       <div data-testid="turn-log-count">{autoGm.turnLog.length}</div>
       <div data-testid="raw-history-count">{autoGm.rawHistory.length}</div>
       <div data-testid="story-summary">{autoGm.storySummary}</div>
+      <div data-testid="autogm-error">{autoGm.autoGmError}</div>
       <div data-testid="autogm-thinking">{String(peer.autoGmThinking)}</div>
       <div data-testid="campaign-notes">
         {JSON.stringify(peer.campaignNotes)}
@@ -502,9 +503,13 @@ describe("AutoGmProvider", () => {
       );
     });
 
-    it("skips narration and posts a fallback line when the model result is invalid", async () => {
+    it("skips narration, logs the failure, and posts a fallback line when the model result is invalid", async () => {
       const { deliver, chatMessages } = setupEnabled({
-        runPromptImpl: async () => ({ valid: false, parsed: null }),
+        runPromptImpl: async () => ({
+          valid: false,
+          parsed: null,
+          errors: ["Response was not valid JSON: Unexpected token"],
+        }),
       });
 
       await enable();
@@ -512,12 +517,15 @@ describe("AutoGmProvider", () => {
       await deliver.current({ from: "Alice", text: "???" });
 
       await waitFor(() =>
-        expect(screen.getByTestId("turn-log-count")).toHaveTextContent("0")
+        expect(screen.getByTestId("turn-log-count")).toHaveTextContent("1")
       );
-      // No real narration was pushed to turnLog, but the player still sees
-      // something instead of total silence (see the dedicated fallback
-      // test below for the exact wording).
+      // No real narration - just an "error" kind of turnLog entry - but the
+      // player still sees something instead of total silence (see the
+      // dedicated fallback test below for the exact chat wording).
       expect(chatMessages).toHaveLength(1);
+      expect(screen.getByTestId("autogm-error")).toHaveTextContent(
+        "Response was not valid JSON: Unexpected token"
+      );
     });
 
     it("recovers from a failed turn by compacting and retrying once, when there's history to shrink", async () => {

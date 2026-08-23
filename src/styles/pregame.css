@@ -219,6 +219,10 @@
   border-left: 2px solid var(--color-danger, #f44336);
 }
 
+.autogm-debug-error {
+  color: var(--color-danger, #f44336);
+}
+
 .autogm-debug-decisions {
   display: flex;
   flex-direction: column;

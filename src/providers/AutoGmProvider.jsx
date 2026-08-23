@@ -56,6 +56,18 @@ const RAW_HISTORY_COMPACTION_THRESHOLD = 20;
 // worst case.
 const RUN_PROMPT_TIMEOUT_MS = 60000;
 
+// Turns runStructuredPrompt's own `errors` (JSON-parse failures, schema
+// validation messages, or the timeout wrapper's own message above) into one
+// readable line for the debug panel - "AutoGM couldn't generate a
+// response" alone gives no way to tell a timeout apart from a schema
+// mismatch apart from a completely garbled response.
+function describePromptFailure(result) {
+  const errors = (result?.errors ?? []).filter(Boolean);
+  return errors.length
+    ? errors.join(" | ")
+    : "No details returned by the model.";
+}
+
 function runPromptWithTimeout(runPrompt, args) {
   return Promise.race([
     runPrompt(args),
@@ -341,7 +353,24 @@ export function AutoGmProvider({ children }) {
       });
 
       if (!result.valid) {
-        setAutoGmError("AutoGM couldn't generate a response.");
+        const reason = describePromptFailure(result);
+        setAutoGmError(`AutoGM couldn't generate a response: ${reason}`);
+        pushTurnLogEntry({
+          kind: "error",
+          trigger,
+          draftNarration: null,
+          finalNarration: null,
+          reasoning: null,
+          consistent: null,
+          callForPull: false,
+          targetPlayerName: "",
+          pullsRequired: 1,
+          readyToRestack: false,
+          awaitingResetAtTurn: awaitingReset,
+          campaignNoteUpdates: [],
+          pullSkippedReason: null,
+          error: reason,
+        });
         return false;
       }
       setAutoGmError(null);
@@ -449,7 +478,12 @@ export function AutoGmProvider({ children }) {
         schema: autoGmCompactionSchema,
         validate: validateAutoGmCompaction,
       });
-      if (!result.valid) return storySummary;
+      if (!result.valid) {
+        setAutoGmError(
+          `AutoGM couldn't compact the story summary (kept the prior one): ${describePromptFailure(result)}`
+        );
+        return storySummary;
+      }
       return result.parsed.summary;
     },
     [storySummary, runPrompt]
@@ -478,7 +512,26 @@ export function AutoGmProvider({ children }) {
         });
 
         if (!result.valid) {
-          setAutoGmError("AutoGM couldn't generate removal narration.");
+          const reason = describePromptFailure(result);
+          setAutoGmError(
+            `AutoGM couldn't generate removal narration: ${reason}`
+          );
+          pushTurnLogEntry({
+            kind: "error",
+            trigger: null,
+            draftNarration: null,
+            finalNarration: null,
+            reasoning: null,
+            consistent: null,
+            callForPull: false,
+            targetPlayerName: "",
+            pullsRequired: 1,
+            readyToRestack: false,
+            awaitingResetAtTurn: awaitingReset,
+            campaignNoteUpdates: [],
+            pullSkippedReason: null,
+            error: reason,
+          });
           return;
         }
         setAutoGmError(null);

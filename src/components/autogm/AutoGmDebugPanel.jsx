@@ -52,6 +52,31 @@ export default function AutoGmDebugPanel() {
   );
 }
 
+function AutoGmDebugDecisions({ entry }) {
+  return (
+    <div className="autogm-debug-decisions">
+      {entry.callForPull && (
+        <span>
+          Called for a pull: {entry.targetPlayerName || "(none)"}
+          {entry.pullsRequired > 1 ? ` (${entry.pullsRequired} pulls)` : ""}
+          {entry.pullSkippedReason && ` — skipped: ${entry.pullSkippedReason}`}
+        </span>
+      )}
+      {entry.readyToRestack && entry.awaitingResetAtTurn && (
+        <span>Signaled ready to restack</span>
+      )}
+      {entry.campaignNoteUpdates?.length > 0 && (
+        <span>
+          Campaign notes:{" "}
+          {entry.campaignNoteUpdates
+            .map((update) => update.itemText)
+            .join(", ")}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function AutoGmDebugTurn({ entry }) {
   const wasRevised =
     entry.draftNarration && entry.finalNarration !== entry.draftNarration;
@@ -61,6 +86,12 @@ function AutoGmDebugTurn({ entry }) {
       {entry.trigger && (
         <div className="autogm-debug-trigger">
           <strong>{entry.trigger.from}:</strong> {entry.trigger.text}
+        </div>
+      )}
+
+      {entry.kind === "error" && (
+        <div className="autogm-debug-error">
+          <em>Failed:</em> {entry.error || "No details returned by the model."}
         </div>
       )}
 
@@ -86,27 +117,7 @@ function AutoGmDebugTurn({ entry }) {
         </div>
       )}
 
-      <div className="autogm-debug-decisions">
-        {entry.callForPull && (
-          <span>
-            Called for a pull: {entry.targetPlayerName || "(none)"}
-            {entry.pullsRequired > 1 ? ` (${entry.pullsRequired} pulls)` : ""}
-            {entry.pullSkippedReason &&
-              ` — skipped: ${entry.pullSkippedReason}`}
-          </span>
-        )}
-        {entry.readyToRestack && entry.awaitingResetAtTurn && (
-          <span>Signaled ready to restack</span>
-        )}
-        {entry.campaignNoteUpdates?.length > 0 && (
-          <span>
-            Campaign notes:{" "}
-            {entry.campaignNoteUpdates
-              .map((update) => update.itemText)
-              .join(", ")}
-          </span>
-        )}
-      </div>
+      <AutoGmDebugDecisions entry={entry} />
     </li>
   );
 }
