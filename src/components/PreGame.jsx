@@ -160,9 +160,7 @@ function HostLobbyPanel({ gameId, connectionStatus, users, getShareUrl }) {
         <div style={{ display: activeTab === "scenario" ? "block" : "none" }}>
           <Scenario />
         </div>
-        <div
-          style={{ display: activeTab === "characters" ? "block" : "none" }}
-        >
+        <div style={{ display: activeTab === "characters" ? "block" : "none" }}>
           <CharacterSheet />
         </div>
         <div

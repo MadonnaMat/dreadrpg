@@ -88,9 +88,7 @@ export default function CampaignNoteRow({
           🗑
         </button>
       </div>
-      {expanded && (
-        <div className="campaign-note-row-content">{children}</div>
-      )}
+      {expanded && <div className="campaign-note-row-content">{children}</div>}
     </div>
   );
 }

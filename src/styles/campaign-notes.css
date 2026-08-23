@@ -96,7 +96,11 @@
 }
 
 .icon-button:hover {
-  background-color: color-mix(in srgb, var(--color-accent, #2196f3) 15%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--color-accent, #2196f3) 15%,
+    transparent
+  );
 }
 
 .icon-button:disabled {
@@ -109,7 +113,11 @@
 }
 
 .icon-button-danger:hover {
-  background-color: color-mix(in srgb, var(--color-danger, #f44336) 20%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--color-danger, #f44336) 20%,
+    transparent
+  );
 }
 
 .campaign-note-item-description {

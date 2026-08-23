@@ -45,7 +45,9 @@ export default function CampaignNotes() {
 
   const renameSection = (id, name) => {
     setCampaignNotes((prev) =>
-      prev.map((section) => (section.id === id ? { ...section, name } : section))
+      prev.map((section) =>
+        section.id === id ? { ...section, name } : section
+      )
     );
   };
 
@@ -57,7 +59,10 @@ export default function CampaignNotes() {
     setCampaignNotes((prev) =>
       prev.map((section) =>
         section.id === sectionId
-          ? { ...section, items: [...section.items, { text: "", description: "" }] }
+          ? {
+              ...section,
+              items: [...section.items, { text: "", description: "" }],
+            }
           : section
       )
     );
@@ -82,7 +87,10 @@ export default function CampaignNotes() {
     setCampaignNotes((prev) =>
       prev.map((section) =>
         section.id === sectionId
-          ? { ...section, items: section.items.filter((_, i) => i !== itemIndex) }
+          ? {
+              ...section,
+              items: section.items.filter((_, i) => i !== itemIndex),
+            }
           : section
       )
     );
@@ -92,9 +100,8 @@ export default function CampaignNotes() {
     <div className="campaign-notes">
       <h2>Campaign Notes</h2>
       <p>
-        Track whatever this campaign needs - items, monster types,
-        locations, win scenarios, or anything else. Only you can see this
-        tab.
+        Track whatever this campaign needs - items, monster types, locations,
+        win scenarios, or anything else. Only you can see this tab.
       </p>
 
       {aiEnabled && (

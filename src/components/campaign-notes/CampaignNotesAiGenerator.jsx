@@ -17,7 +17,10 @@ function generateDraftId(index) {
 // a follow-up refinement ("add a section for the cult's rituals") regenerates
 // the full array in one continued exchange, replacing whatever drafts
 // haven't been accepted/discarded yet.
-export default function CampaignNotesAiGenerator({ scenario, onAcceptSection }) {
+export default function CampaignNotesAiGenerator({
+  scenario,
+  onAcceptSection,
+}) {
   const { generateCampaignNotes, refineCampaignNotes } = useAi();
   const [notesDescription, setNotesDescription] = useState("");
   const [generating, setGenerating] = useState(false);
@@ -47,9 +50,7 @@ export default function CampaignNotesAiGenerator({ scenario, onAcceptSection }) 
 
   const handleGenerate = async () => {
     setGenerating(true);
-    applyResult(
-      await generateCampaignNotes({ notesDescription, scenario })
-    );
+    applyResult(await generateCampaignNotes({ notesDescription, scenario }));
   };
 
   const handleRefine = async (refinementText) => {

@@ -84,7 +84,9 @@ describe("CampaignNotes", () => {
     // A section starts expanded, so its "Add Item" button is visible right
     // away without needing to click the bar first.
     expect(screen.getByText("Items")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add Item" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Add Item" })
+    ).toBeInTheDocument();
     // Quick-add buttons disappear once a section exists.
     expect(screen.queryByText("+ Items")).not.toBeInTheDocument();
 
@@ -117,16 +119,11 @@ describe("CampaignNotes", () => {
   it("renames and deletes a custom section", async () => {
     renderAsGm();
 
-    await user.type(
-      screen.getByPlaceholderText("New section name"),
-      "Clues"
-    );
+    await user.type(screen.getByPlaceholderText("New section name"), "Clues");
     await user.click(screen.getByRole("button", { name: "Add Section" }));
     expect(screen.getByText("Clues")).toBeInTheDocument();
 
-    await user.click(
-      screen.getByRole("button", { name: "Edit section name" })
-    );
+    await user.click(screen.getByRole("button", { name: "Edit section name" }));
     const nameInput = screen.getByPlaceholderText("Section name");
     await user.clear(nameInput);
     await user.type(nameInput, "Evidence");

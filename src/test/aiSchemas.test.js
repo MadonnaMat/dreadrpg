@@ -118,9 +118,7 @@ describe("campaignNotesSchema.validate", () => {
   });
 
   it("rejects a section with an empty items array", () => {
-    const { valid, errors } = validateCampaignNotes([
-      { name: "X", items: [] },
-    ]);
+    const { valid, errors } = validateCampaignNotes([{ name: "X", items: [] }]);
     expect(valid).toBe(false);
     expect(errors[0]).toMatch(/"items"/);
   });
