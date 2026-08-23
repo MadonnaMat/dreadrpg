@@ -296,6 +296,97 @@ describe("AutoGmProvider", () => {
       );
     });
 
+    it("posts the draft narration unchanged when the self-check finds it consistent", async () => {
+      const { runPrompt, deliver, chatMessages } = setupEnabled({
+        runPromptImpl: async ({ systemPromptText }) => {
+          if (systemPromptText === latest("autogmSelfCheck").text) {
+            return {
+              valid: true,
+              parsed: {
+                consistent: true,
+                reasoning: "Matches established facts.",
+                revisedNarration: "",
+              },
+            };
+          }
+          return validTurnResult();
+        },
+      });
+
+      await enable();
+      await deliver.current({ from: "Alice", text: "I check the hold." });
+
+      await waitFor(() =>
+        expect(chatMessages).toContainEqual(
+          expect.objectContaining({
+            text: "The floor creaks beneath your feet.",
+            fromBot: true,
+          })
+        )
+      );
+      expect(runPrompt).toHaveBeenCalledWith(
+        expect.objectContaining({
+          systemPromptText: latest("autogmSelfCheck").text,
+        })
+      );
+    });
+
+    it("posts the revised narration when the self-check finds an inconsistency", async () => {
+      const { deliver, chatMessages } = setupEnabled({
+        runPromptImpl: async ({ systemPromptText }) => {
+          if (systemPromptText === latest("autogmSelfCheck").text) {
+            return {
+              valid: true,
+              parsed: {
+                consistent: false,
+                reasoning: "Marcus is already removed from the story.",
+                revisedNarration: "Selene presses forward alone.",
+              },
+            };
+          }
+          return validTurnResult();
+        },
+      });
+
+      await enable();
+      await deliver.current({ from: "Alice", text: "Marcus checks the hold." });
+
+      await waitFor(() =>
+        expect(chatMessages).toContainEqual(
+          expect.objectContaining({
+            text: "Selene presses forward alone.",
+            fromBot: true,
+          })
+        )
+      );
+      expect(chatMessages).not.toContainEqual(
+        expect.objectContaining({ text: "The floor creaks beneath your feet." })
+      );
+    });
+
+    it("falls back to the draft narration when the self-check call itself is invalid", async () => {
+      const { deliver, chatMessages } = setupEnabled({
+        runPromptImpl: async ({ systemPromptText }) => {
+          if (systemPromptText === latest("autogmSelfCheck").text) {
+            return { valid: false, parsed: null };
+          }
+          return validTurnResult();
+        },
+      });
+
+      await enable();
+      await deliver.current({ from: "Alice", text: "I check the hold." });
+
+      await waitFor(() =>
+        expect(chatMessages).toContainEqual(
+          expect.objectContaining({
+            text: "The floor creaks beneath your feet.",
+            fromBot: true,
+          })
+        )
+      );
+    });
+
     it("assigns a pull to a valid active target", async () => {
       const seed = (() => {
         function SeedCharacter() {

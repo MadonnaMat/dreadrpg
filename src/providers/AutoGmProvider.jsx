@@ -14,6 +14,7 @@ import {
   buildAutoGmTurnContext,
   buildAutoGmCompactionContext,
   buildAutoGmRemovalNarrationContext,
+  buildAutoGmSelfCheckContext,
 } from "../ai/promptContexts";
 import {
   autoGmTurnSchema,
@@ -27,6 +28,10 @@ import {
   autoGmRemovalNarrationSchema,
   validate as validateAutoGmRemovalNarration,
 } from "../ai/schemas/autoGmRemovalNarrationSchema";
+import {
+  autoGmSelfCheckSchema,
+  validate as validateAutoGmSelfCheck,
+} from "../ai/schemas/autoGmSelfCheckSchema";
 import {
   loadAutoGmState,
   saveAutoGmState,
@@ -197,6 +202,55 @@ export function AutoGmProvider({ children }) {
     );
   }, []);
 
+  // Checks a draft narration line against established story facts before
+  // it's ever posted, so AutoGM can catch and correct its own
+  // inconsistencies rather than blindly posting a first draft. Fail-soft:
+  // if the check itself fails/invalid, the original draft is posted
+  // unchanged rather than blocking narration on a second model call
+  // succeeding.
+  const selfCheckNarration = useCallback(
+    async (draftNarration) => {
+      const context = buildAutoGmSelfCheckContext({
+        draftNarration,
+        storySummary,
+        rawHistory: historyRef.current,
+        campaignNotes,
+        characters,
+        dangerProbability,
+        awaitingReset,
+      });
+      const result = await runPrompt({
+        systemPromptText: latest("autogmSelfCheck").text,
+        userContent: context,
+        schema: autoGmSelfCheckSchema,
+        validate: validateAutoGmSelfCheck,
+      });
+      if (!result.valid) {
+        return {
+          finalNarration: draftNarration,
+          reasoning: null,
+          consistent: null,
+        };
+      }
+      const { consistent, reasoning, revisedNarration } = result.parsed;
+      return {
+        finalNarration: consistent
+          ? draftNarration
+          : revisedNarration || draftNarration,
+        reasoning,
+        consistent,
+      };
+    },
+    [
+      storySummary,
+      campaignNotes,
+      characters,
+      dangerProbability,
+      awaitingReset,
+      runPrompt,
+    ]
+  );
+
   // Runs one AutoGM turn: asks the model to react to the given history
   // (ending with the message that just triggered this turn), then acts on
   // whatever it decides - posting narration, calling for a pull, restacking
@@ -239,8 +293,15 @@ export function AutoGmProvider({ children }) {
         campaignNoteUpdates,
       } = result.parsed;
 
+      let finalNarration = narration;
+      let reasoning = null;
+      let consistent = null;
       if (narration) {
-        sendSystemChatMessage(narration, { from: "GM", fromBot: true });
+        const checked = await selfCheckNarration(narration);
+        finalNarration = checked.finalNarration;
+        reasoning = checked.reasoning;
+        consistent = checked.consistent;
+        sendSystemChatMessage(finalNarration, { from: "GM", fromBot: true });
       }
 
       let pullSkippedReason = null;
@@ -269,9 +330,9 @@ export function AutoGmProvider({ children }) {
         kind: "turn",
         trigger,
         draftNarration: narration,
-        finalNarration: narration,
-        reasoning: null,
-        consistent: null,
+        finalNarration,
+        reasoning,
+        consistent,
         callForPull,
         targetPlayerName,
         pullsRequired,
@@ -290,6 +351,7 @@ export function AutoGmProvider({ children }) {
       campaignNotes,
       presence,
       runPrompt,
+      selfCheckNarration,
       sendSystemChatMessage,
       assignSpinner,
       handleRestack,
@@ -345,18 +407,18 @@ export function AutoGmProvider({ children }) {
       }
       setAutoGmError(null);
 
-      sendSystemChatMessage(result.parsed.narration, {
-        from: "GM",
-        fromBot: true,
-      });
+      const draftNarration = result.parsed.narration;
+      const { finalNarration, reasoning, consistent } =
+        await selfCheckNarration(draftNarration);
+      sendSystemChatMessage(finalNarration, { from: "GM", fromBot: true });
 
       pushTurnLogEntry({
         kind: "removal",
         trigger: null,
-        draftNarration: result.parsed.narration,
-        finalNarration: result.parsed.narration,
-        reasoning: null,
-        consistent: null,
+        draftNarration,
+        finalNarration,
+        reasoning,
+        consistent,
         callForPull: false,
         targetPlayerName: "",
         pullsRequired: 1,
@@ -370,6 +432,7 @@ export function AutoGmProvider({ children }) {
       storySummary,
       campaignNotes,
       runPrompt,
+      selfCheckNarration,
       sendSystemChatMessage,
       pushTurnLogEntry,
     ]
