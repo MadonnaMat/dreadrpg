@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { useEffect } from "react";
 import CharacterSheet from "../components/CharacterSheet";
 import { PeerProvider } from "../providers/PeerProvider";
+import { WheelProvider } from "../providers/WheelProvider";
 import { AiProvider } from "../providers/AiProvider";
 import { AutoGmProvider } from "../providers/AutoGmProvider";
 import { usePeer } from "../hooks/usePeer";
@@ -59,9 +60,11 @@ function renderPlayerWithAi(character) {
     <AiProvider>
       <EnableAi />
       <PeerProvider>
-        <AutoGmProvider>
-          <PlayerCharacterSheet assignedCharacter={character} />
-        </AutoGmProvider>
+        <WheelProvider>
+          <AutoGmProvider>
+            <PlayerCharacterSheet assignedCharacter={character} />
+          </AutoGmProvider>
+        </WheelProvider>
       </PeerProvider>
     </AiProvider>
   );
@@ -81,9 +84,11 @@ describe("MyCharacterSheet AI answer suggestions", () => {
     render(
       <AiProvider>
         <PeerProvider>
-          <AutoGmProvider>
-            <PlayerCharacterSheet assignedCharacter={makeCharacter()} />
-          </AutoGmProvider>
+          <WheelProvider>
+            <AutoGmProvider>
+              <PlayerCharacterSheet assignedCharacter={makeCharacter()} />
+            </AutoGmProvider>
+          </WheelProvider>
         </PeerProvider>
       </AiProvider>
     );

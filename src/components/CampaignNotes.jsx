@@ -2,13 +2,10 @@ import { useState } from "react";
 import { usePeer } from "../hooks/usePeer";
 import { useAi } from "../hooks/useAi";
 import { DEFAULT_CAMPAIGN_NOTE_SECTION_NAMES } from "../constants/campaignNotes";
+import { generateSectionId } from "../helpers/campaignNotes";
 import CampaignNotesAiGenerator from "./campaign-notes/CampaignNotesAiGenerator";
 import CampaignNoteItemRow from "./campaign-notes/CampaignNoteItemRow";
 import CampaignNoteRow from "./campaign-notes/CampaignNoteRow";
-
-function generateSectionId() {
-  return `note-${Math.random().toString(36).slice(2, 10)}`;
-}
 
 // GM-only campaign-prep page: freeform named sections, each a list of
 // freeform entries. Deliberately local-only (see PeerProvider.jsx) - no

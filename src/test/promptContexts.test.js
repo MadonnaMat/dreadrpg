@@ -3,6 +3,10 @@ import {
   buildScenarioGenerationContext,
   buildCastGenerationContext,
   buildSheetAnswerContext,
+  buildAutoGmTurnContext,
+  buildAutoGmRemovalNarrationContext,
+  buildAutoGmCompactionContext,
+  buildAutoGmSelfCheckContext,
 } from "../ai/promptContexts";
 
 describe("buildScenarioGenerationContext", () => {
@@ -111,5 +115,177 @@ describe("buildSheetAnswerContext", () => {
       scenario: null,
     });
     expect(context).not.toContain("Scenario:");
+  });
+});
+
+const characters = {
+  "char-1": {
+    id: "char-1",
+    name: "The Drifter",
+    assignedTo: "Alice",
+    alive: true,
+  },
+  "char-2": {
+    id: "char-2",
+    name: "The Ghost",
+    assignedTo: "Bob",
+    alive: false,
+  },
+  "char-3": { id: "char-3", name: "The Stranger", assignedTo: null },
+};
+
+const presence = {
+  Alice: { connected: true },
+  Bob: { connected: true },
+};
+
+describe("buildAutoGmTurnContext", () => {
+  it("includes the scenario, character roster, and recent chat", () => {
+    const context = buildAutoGmTurnContext({
+      scenario: { description: "A haunted ship." },
+      characters,
+      storySummary: "",
+      rawHistory: [{ from: "Alice", text: "I check the hold." }],
+      dangerProbability: 0.3,
+      awaitingReset: false,
+      designatedSpinner: null,
+      campaignNotes: [],
+      presence,
+    });
+    expect(context).toContain("A haunted ship.");
+    expect(context).toContain("The Drifter (played by Alice) - alive");
+    expect(context).toContain(
+      "The Ghost (played by Bob) - removed from the story"
+    );
+    expect(context).toContain("The Stranger (unassigned)");
+    expect(context).toContain("I check the hold.");
+  });
+
+  it("lists only alive, connected assignments as valid pull targets", () => {
+    const context = buildAutoGmTurnContext({
+      scenario: null,
+      characters,
+      storySummary: "",
+      rawHistory: [],
+      dangerProbability: 0,
+      awaitingReset: false,
+      designatedSpinner: null,
+      campaignNotes: [],
+      presence,
+    });
+    expect(context).toContain("Alice (playing The Drifter)");
+    expect(context).not.toContain("Bob (playing");
+  });
+
+  it("says no one is targetable when the active-targets list is empty", () => {
+    const context = buildAutoGmTurnContext({
+      scenario: null,
+      characters: {},
+      storySummary: "",
+      rawHistory: [],
+      dangerProbability: 0,
+      awaitingReset: false,
+      designatedSpinner: null,
+      campaignNotes: [],
+      presence: {},
+    });
+    expect(context).toContain("do not call for a pull right now");
+  });
+
+  it("includes the story summary when present", () => {
+    const context = buildAutoGmTurnContext({
+      scenario: null,
+      characters: {},
+      storySummary: "The party arrived at dusk.",
+      rawHistory: [],
+      dangerProbability: 0,
+      awaitingReset: false,
+      designatedSpinner: null,
+      campaignNotes: [],
+      presence: {},
+    });
+    expect(context).toContain("The party arrived at dusk.");
+  });
+
+  it("includes campaign notes sections and items", () => {
+    const context = buildAutoGmTurnContext({
+      scenario: null,
+      characters: {},
+      storySummary: "",
+      rawHistory: [],
+      dangerProbability: 0,
+      awaitingReset: false,
+      designatedSpinner: null,
+      campaignNotes: [
+        {
+          name: "Locations",
+          items: [{ text: "Old Mill", description: "Downstream." }],
+        },
+      ],
+      presence: {},
+    });
+    expect(context).toContain("Old Mill");
+    expect(context).toContain("Downstream.");
+  });
+
+  it("mentions the frozen tower when awaitingReset is true", () => {
+    const context = buildAutoGmTurnContext({
+      scenario: null,
+      characters: {},
+      storySummary: "",
+      rawHistory: [],
+      dangerProbability: 0.9,
+      awaitingReset: true,
+      designatedSpinner: null,
+      campaignNotes: [],
+      presence: {},
+    });
+    expect(context).toContain("frozen");
+  });
+});
+
+describe("buildAutoGmRemovalNarrationContext", () => {
+  it("includes the removed character's name", () => {
+    const context = buildAutoGmRemovalNarrationContext({
+      characterName: "Marcus",
+      scenario: null,
+      storySummary: "",
+      rawHistory: [],
+      campaignNotes: [],
+    });
+    expect(context).toContain("Marcus");
+  });
+});
+
+describe("buildAutoGmCompactionContext", () => {
+  it("notes there is no prior summary on the first compaction", () => {
+    const context = buildAutoGmCompactionContext({
+      priorSummary: "",
+      rawHistory: [{ from: "Alice", text: "hi" }],
+    });
+    expect(context).toContain("no prior summary yet");
+  });
+
+  it("includes the prior summary when one exists", () => {
+    const context = buildAutoGmCompactionContext({
+      priorSummary: "The party reached the mill.",
+      rawHistory: [],
+    });
+    expect(context).toContain("The party reached the mill.");
+  });
+});
+
+describe("buildAutoGmSelfCheckContext", () => {
+  it("includes the draft narration under review", () => {
+    const context = buildAutoGmSelfCheckContext({
+      draftNarration: "Marcus steps into the dark.",
+      storySummary: "",
+      rawHistory: [],
+      campaignNotes: [],
+      characters: {},
+      dangerProbability: 0,
+      awaitingReset: false,
+    });
+    expect(context).toContain("Marcus steps into the dark.");
   });
 });
