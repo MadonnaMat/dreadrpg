@@ -10,6 +10,7 @@ describe("prompt registry", () => {
       "campaignNotesGeneration",
       "autogmTurn",
       "autogmPullCheck",
+      "autogmCampaignNotesConsolidation",
       "autogmRemovalNarration",
       "autogmCompaction",
       "autogmSelfCheck",

@@ -57,12 +57,65 @@ function nextItemState(
   };
 }
 
+// Same FIFO-oldest-first eviction as the incremental upsert below, applied
+// to an already-built list instead of one insert at a time - shared by
+// both paths so campaignNotes can never grow past these caps regardless of
+// which one produced the result.
+function capNotes(notes) {
+  const limitedSections =
+    notes.length > MAX_SECTIONS
+      ? notes.slice(notes.length - MAX_SECTIONS)
+      : notes;
+  return limitedSections.map((section) => ({
+    ...section,
+    items:
+      section.items.length > MAX_ITEMS_PER_SECTION
+        ? section.items.slice(section.items.length - MAX_ITEMS_PER_SECTION)
+        : section.items,
+  }));
+}
+
+// Converts the campaign-notes consolidation prompt's plain output (plain
+// JSON, "takenBy" as "" for not-taken - see autoGmCampaignNotesConsolidationSchema.js)
+// back into the app's actual campaignNotes shape (takenBy: string | null,
+// each section keyed by a stable id). Reuses an existing section's id when
+// a consolidated section matches one that existed before (by normalized
+// name), so edits/deletes already open in the Campaign Notes UI keep
+// working across a consolidation; a genuinely new section gets a fresh id.
+export function reconcileConsolidatedNotes(consolidated, previous) {
+  const prevSections = previous || [];
+  const normalized = (consolidated || []).map((section) => ({
+    name: section.name,
+    items: (section.items || []).map((item) => ({
+      text: item.text,
+      description: truncateDescription(item.description) || "",
+      seenBy: item.seenBy || [],
+      takenBy: item.takenBy || null,
+    })),
+  }));
+  return capNotes(normalized).map((section) => {
+    const match = prevSections.find(
+      (prev) => normalize(prev.name) === normalize(section.name)
+    );
+    return { id: match ? match.id : generateSectionId(), ...section };
+  });
+}
+
 // Applies AutoGM's parsed `campaignNoteUpdates` (each `{sectionName,
 // itemText, description, seenByCharacter, takenByCharacter}`) onto the
 // current campaignNotes array: upserts an item into a matching section (by
 // normalized name), creating the section if none matches. Pure - the
 // caller is responsible for actually calling setCampaignNotes with the
 // result.
+//
+// This fuzzy-match-by-normalized-name approach still lets genuine
+// near-duplicates through (the same fact reworded well beyond a leading
+// article or casing difference), so AutoGmProvider's primary path is now
+// the LLM-driven consolidation pass (reconcileConsolidatedNotes above,
+// fed by the autogmCampaignNotesConsolidation prompt) which rebuilds and
+// de-duplicates the whole list using real judgment. This function remains
+// as that pass's fail-soft fallback when the consolidation call itself
+// fails, so an update is never lost outright.
 export function applyCampaignNoteUpdates(campaignNotes, updates) {
   if (!updates?.length) return campaignNotes;
   let next = campaignNotes || [];

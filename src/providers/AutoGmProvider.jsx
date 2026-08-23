@@ -9,7 +9,10 @@ import {
   getActivePullTargets,
   characterNameFor,
 } from "../helpers/characters";
-import { applyCampaignNoteUpdates } from "../helpers/campaignNotes";
+import {
+  applyCampaignNoteUpdates,
+  reconcileConsolidatedNotes,
+} from "../helpers/campaignNotes";
 import { latest } from "../prompts/index";
 import {
   buildAutoGmTurnContext,
@@ -17,6 +20,7 @@ import {
   buildAutoGmRemovalNarrationContext,
   buildAutoGmSelfCheckContext,
   buildAutoGmPullCheckContext,
+  buildAutoGmCampaignNotesConsolidationContext,
 } from "../ai/promptContexts";
 import {
   autoGmTurnSchema,
@@ -26,6 +30,10 @@ import {
   autoGmPullCheckSchema,
   validate as validateAutoGmPullCheck,
 } from "../ai/schemas/autoGmPullCheckSchema";
+import {
+  autoGmCampaignNotesConsolidationSchema,
+  validate as validateAutoGmCampaignNotesConsolidation,
+} from "../ai/schemas/autoGmCampaignNotesConsolidationSchema";
 import {
   autoGmCompactionSchema,
   validate as validateAutoGmCompaction,
@@ -380,6 +388,36 @@ export function AutoGmProvider({ children }) {
     ]
   );
 
+  // Rebuilds the entire campaignNotes list from scratch after a turn calls
+  // out any updates, rather than fuzzy-matching just the new item into the
+  // existing list in isolation (applyCampaignNoteUpdates's normalize() only
+  // catches leading-article/casing differences - a small local model kept
+  // creating real duplicates under genuinely different wording, e.g. "the
+  // old furnace" vs "the foundry's furnace"). Giving a dedicated pass the
+  // full current list plus the new update(s) and asking it to return the
+  // whole de-duplicated list lets it use real judgment instead of a crude
+  // string heuristic. Fail-soft: on an invalid/failed result, falls back to
+  // the deterministic fuzzy-match merge so an update is never lost outright.
+  const consolidateCampaignNotes = useCallback(
+    async (updates) => {
+      const context = buildAutoGmCampaignNotesConsolidationContext({
+        campaignNotes,
+        campaignNoteUpdates: updates,
+      });
+      const result = await runPromptWithTimeout(runPrompt, {
+        systemPromptText: latest("autogmCampaignNotesConsolidation").text,
+        userContent: context,
+        schema: autoGmCampaignNotesConsolidationSchema,
+        validate: validateAutoGmCampaignNotesConsolidation,
+      });
+      if (!result.valid) {
+        return applyCampaignNoteUpdates(campaignNotes, updates);
+      }
+      return reconcileConsolidatedNotes(result.parsed, campaignNotes);
+    },
+    [campaignNotes, runPrompt]
+  );
+
   // Runs a small, focused classification pass BEFORE the main turn prompt
   // to decide whether the triggering player's own declared action requires
   // a pull, and if so, calls assignSpinner directly - enforced in code
@@ -525,9 +563,7 @@ export function AutoGmProvider({ children }) {
       }
 
       if (campaignNoteUpdates?.length) {
-        setCampaignNotes((prev) =>
-          applyCampaignNoteUpdates(prev, campaignNoteUpdates)
-        );
+        setCampaignNotes(await consolidateCampaignNotes(campaignNoteUpdates));
       }
 
       pushTurnLogEntry({
@@ -559,6 +595,7 @@ export function AutoGmProvider({ children }) {
       runPrompt,
       checkForPull,
       selfCheckNarration,
+      consolidateCampaignNotes,
       sendSystemChatMessage,
       assignSpinner,
       handleRestack,

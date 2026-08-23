@@ -194,6 +194,20 @@ export function buildAutoGmCompactionContext({ priorSummary, rawHistory }) {
   return `Update the running story summary.${priorBlock}${formatRawHistoryContext(rawHistory)}`;
 }
 
+// Fed as literal JSON rather than prose - this is a structured
+// transform (existing notes + an update -> the whole rebuilt list), and a
+// small local model reproduces untouched entries far more faithfully when
+// it can copy them straight from JSON it was given, rather than
+// reconstructing them from a prose summary of the same data.
+export function buildAutoGmCampaignNotesConsolidationContext({
+  campaignNotes,
+  campaignNoteUpdates,
+}) {
+  const currentJson = JSON.stringify(campaignNotes || [], null, 2);
+  const updatesJson = JSON.stringify(campaignNoteUpdates || [], null, 2);
+  return `Current campaign notes (JSON):\n${currentJson}\n\nNew update(s) just called out this turn (JSON):\n${updatesJson}`;
+}
+
 export function buildAutoGmPullCheckContext({
   actionText,
   actorName,

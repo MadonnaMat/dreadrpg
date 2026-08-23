@@ -8,6 +8,7 @@ import { validate as validateAutoGmRemovalNarration } from "../ai/schemas/autoGm
 import { validate as validateAutoGmCompaction } from "../ai/schemas/autoGmCompactionSchema";
 import { validate as validateAutoGmSelfCheck } from "../ai/schemas/autoGmSelfCheckSchema";
 import { validate as validateAutoGmPullCheck } from "../ai/schemas/autoGmPullCheckSchema";
+import { validate as validateAutoGmCampaignNotesConsolidation } from "../ai/schemas/autoGmCampaignNotesConsolidationSchema";
 
 describe("scenarioSchema.validate", () => {
   const validScenario = {
@@ -324,5 +325,73 @@ describe("autoGmPullCheckSchema.validate", () => {
 
   it("rejects a non-object", () => {
     expect(validateAutoGmPullCheck(null).valid).toBe(false);
+  });
+});
+
+describe("autoGmCampaignNotesConsolidationSchema.validate", () => {
+  const validConsolidation = [
+    {
+      name: "Locations",
+      items: [
+        {
+          text: "Old Mill",
+          description: "Downstream.",
+          seenBy: ["Alice"],
+          takenBy: "",
+        },
+      ],
+    },
+  ];
+
+  it("accepts a fully-formed consolidated list", () => {
+    expect(
+      validateAutoGmCampaignNotesConsolidation(validConsolidation)
+    ).toEqual({ valid: true, errors: [] });
+  });
+
+  it("accepts an empty list", () => {
+    expect(validateAutoGmCampaignNotesConsolidation([]).valid).toBe(true);
+  });
+
+  it("accepts a section with an empty items array", () => {
+    expect(
+      validateAutoGmCampaignNotesConsolidation([
+        { name: "Locations", items: [] },
+      ]).valid
+    ).toBe(true);
+  });
+
+  it("rejects a non-array seenBy", () => {
+    const result = validateAutoGmCampaignNotesConsolidation([
+      {
+        name: "Locations",
+        items: [
+          {
+            text: "Old Mill",
+            description: "",
+            seenBy: "Alice",
+            takenBy: "",
+          },
+        ],
+      },
+    ]);
+    expect(result.valid).toBe(false);
+  });
+
+  it("rejects a non-string takenBy", () => {
+    const result = validateAutoGmCampaignNotesConsolidation([
+      {
+        name: "Locations",
+        items: [
+          { text: "Old Mill", description: "", seenBy: [], takenBy: null },
+        ],
+      },
+    ]);
+    expect(result.valid).toBe(false);
+  });
+
+  it("rejects a non-array top level", () => {
+    expect(validateAutoGmCampaignNotesConsolidation(null).valid).toBe(false);
+    expect(validateAutoGmCampaignNotesConsolidation({}).valid).toBe(false);
   });
 });

@@ -640,10 +640,15 @@ describe("AutoGmProvider", () => {
       await waitFor(() => expect(wheel.handleRestack).toHaveBeenCalled());
     });
 
-    it("applies campaignNoteUpdates onto campaignNotes", async () => {
+    it("falls back to the deterministic merge when the consolidation prompt itself fails", async () => {
       const { deliver } = setupEnabled({
-        runPromptImpl: async () =>
-          validTurnResult({
+        runPromptImpl: async ({ systemPromptText }) => {
+          if (
+            systemPromptText === latest("autogmCampaignNotesConsolidation").text
+          ) {
+            return { valid: false, parsed: null };
+          }
+          return validTurnResult({
             campaignNoteUpdates: [
               {
                 sectionName: "Locations",
@@ -651,7 +656,8 @@ describe("AutoGmProvider", () => {
                 description: "Downstream.",
               },
             ],
-          }),
+          });
+        },
       });
 
       await enable();
@@ -662,6 +668,85 @@ describe("AutoGmProvider", () => {
           "Old Mill"
         )
       );
+    });
+
+    it("rebuilds campaignNotes via the dedicated consolidation prompt, merging what the crude fallback would have duplicated", async () => {
+      function SeedCampaignNotes() {
+        const { setCampaignNotes } = usePeer();
+        useEffect(() => {
+          setCampaignNotes([
+            {
+              id: "note-1",
+              name: "Locations",
+              items: [
+                {
+                  text: "The Foundry Furnace",
+                  description: "Cold for now.",
+                  seenBy: [],
+                  takenBy: null,
+                },
+              ],
+            },
+          ]);
+        }, [setCampaignNotes]);
+        return null;
+      }
+
+      const { deliver, runPrompt } = setupEnabled({
+        runPromptImpl: async ({ systemPromptText }) => {
+          if (
+            systemPromptText === latest("autogmCampaignNotesConsolidation").text
+          ) {
+            return {
+              valid: true,
+              parsed: [
+                {
+                  name: "Locations",
+                  items: [
+                    {
+                      text: "The Foundry Furnace",
+                      description: "Cold for now. Roars to life at night.",
+                      seenBy: ["Alice"],
+                      takenBy: "",
+                    },
+                  ],
+                },
+              ],
+            };
+          }
+          return validTurnResult({
+            campaignNoteUpdates: [
+              {
+                sectionName: "Locations",
+                itemText: "the iron furnace",
+                description: "Roars to life at night.",
+              },
+            ],
+          });
+        },
+        seed: <SeedCampaignNotes />,
+      });
+
+      await enable();
+      await deliver.current({
+        from: "Alice",
+        text: "The furnace roars to life.",
+      });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("campaign-notes")).toHaveTextContent(
+          "Roars to life at night."
+        )
+      );
+      expect(runPrompt).toHaveBeenCalledWith(
+        expect.objectContaining({
+          systemPromptText: latest("autogmCampaignNotesConsolidation").text,
+        })
+      );
+      const notesJson = screen.getByTestId("campaign-notes").textContent;
+      const notes = JSON.parse(notesJson);
+      expect(notes).toHaveLength(1);
+      expect(notes[0].items).toHaveLength(1);
     });
 
     it("skips narration, logs the failure, and posts a fallback line when the model result is invalid", async () => {

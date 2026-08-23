@@ -8,6 +8,7 @@ import {
   buildAutoGmCompactionContext,
   buildAutoGmSelfCheckContext,
   buildAutoGmPullCheckContext,
+  buildAutoGmCampaignNotesConsolidationContext,
 } from "../ai/promptContexts";
 
 describe("buildScenarioGenerationContext", () => {
@@ -371,5 +372,47 @@ describe("buildAutoGmPullCheckContext", () => {
       scenario: { title: "The Foundry" },
     });
     expect(context).toContain("The Foundry");
+  });
+});
+
+describe("buildAutoGmCampaignNotesConsolidationContext", () => {
+  it("includes the current notes and the new updates as JSON", () => {
+    const context = buildAutoGmCampaignNotesConsolidationContext({
+      campaignNotes: [
+        {
+          id: "note-1",
+          name: "Locations",
+          items: [
+            {
+              text: "Old Mill",
+              description: "Downstream.",
+              seenBy: ["Alice"],
+              takenBy: null,
+            },
+          ],
+        },
+      ],
+      campaignNoteUpdates: [
+        {
+          sectionName: "Locations",
+          itemText: "The Old Mill",
+          description: "Now flooded.",
+          seenByCharacter: "Bob",
+          takenByCharacter: "",
+        },
+      ],
+    });
+    expect(context).toContain("Old Mill");
+    expect(context).toContain("Downstream.");
+    expect(context).toContain("Now flooded.");
+    expect(context).toContain("Bob");
+  });
+
+  it("handles missing notes and updates as empty arrays", () => {
+    const context = buildAutoGmCampaignNotesConsolidationContext({
+      campaignNotes: null,
+      campaignNoteUpdates: null,
+    });
+    expect(context).toContain("[]");
   });
 });
