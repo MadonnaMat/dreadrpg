@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { validate as validateScenario } from "../ai/schemas/scenarioSchema";
 import { validate as validateCast } from "../ai/schemas/castSchema";
 import { validate as validateSheetAnswer } from "../ai/schemas/sheetAnswerSchema";
+import { validate as validateCampaignNotes } from "../ai/schemas/campaignNotesSchema";
 
 describe("scenarioSchema.validate", () => {
   const validScenario = {
@@ -77,6 +78,65 @@ describe("castSchema.validate", () => {
   it("rejects a draft with a non-string question", () => {
     const { valid } = validateCast([{ name: "X", questions: ["ok", 5] }]);
     expect(valid).toBe(false);
+  });
+});
+
+describe("campaignNotesSchema.validate", () => {
+  const validNotes = [
+    {
+      name: "Monster Types",
+      items: [
+        {
+          text: "The Drowned Sailor",
+          description: "Weak to fire; haunts the flooded cargo hold.",
+        },
+      ],
+    },
+  ];
+
+  it("accepts a non-empty array of valid section drafts", () => {
+    expect(validateCampaignNotes(validNotes)).toEqual({
+      valid: true,
+      errors: [],
+    });
+  });
+
+  it("rejects a non-array", () => {
+    expect(validateCampaignNotes({ name: "x" }).valid).toBe(false);
+  });
+
+  it("rejects an empty array", () => {
+    expect(validateCampaignNotes([]).valid).toBe(false);
+  });
+
+  it("rejects a section with a missing name", () => {
+    const { valid, errors } = validateCampaignNotes([
+      { items: validNotes[0].items },
+    ]);
+    expect(valid).toBe(false);
+    expect(errors[0]).toMatch(/"name"/);
+  });
+
+  it("rejects a section with an empty items array", () => {
+    const { valid, errors } = validateCampaignNotes([{ name: "X", items: [] }]);
+    expect(valid).toBe(false);
+    expect(errors[0]).toMatch(/"items"/);
+  });
+
+  it("rejects an item missing a description", () => {
+    const { valid, errors } = validateCampaignNotes([
+      { name: "X", items: [{ text: "Y" }] },
+    ]);
+    expect(valid).toBe(false);
+    expect(errors[0]).toMatch(/"description"/);
+  });
+
+  it("rejects an item with a blank text", () => {
+    const { valid, errors } = validateCampaignNotes([
+      { name: "X", items: [{ text: "  ", description: "Y" }] },
+    ]);
+    expect(valid).toBe(false);
+    expect(errors[0]).toMatch(/"text"/);
   });
 });
 

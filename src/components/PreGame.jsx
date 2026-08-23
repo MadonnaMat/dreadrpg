@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { usePeer } from "../hooks/usePeer";
 import Scenario from "./Scenario";
 import AdminPanel from "./AdminPanel";
+import CampaignNotes from "./CampaignNotes";
+import CharacterSheet from "./CharacterSheet";
 import PlayerLobby from "./PlayerLobby";
 import Chat from "./Chat";
 import {
@@ -89,6 +91,8 @@ function HostLobbyPanel({ gameId, connectionStatus, users, getShareUrl }) {
         {[
           ["lobby", "Lobby"],
           ["scenario", "Setup Scenario"],
+          ["characters", "Characters"],
+          ["campaign-notes", "Campaign Notes"],
           ["admin", "Admin"],
         ].map(([tab, label]) => (
           <button
@@ -101,13 +105,13 @@ function HostLobbyPanel({ gameId, connectionStatus, users, getShareUrl }) {
         ))}
       </div>
 
-      {/* All three panels stay mounted regardless of which tab is active,
-          only visibility toggles - Chat/Scenario each register a handler for
+      {/* All panels stay mounted regardless of which tab is active, only
+          visibility toggles - Chat/Scenario each register a handler for
           their own live network messages only while mounted, so
           conditionally unmounting one on every tab switch would silently
           drop any chat message or scenario update that arrives while the GM
-          isn't looking at that tab (e.g. while setting up characters in
-          Admin). Mirrors GameLoaded.jsx's identical reasoning post-start. */}
+          isn't looking at that tab. Mirrors GameLoaded.jsx's identical
+          reasoning post-start. */}
       <div className="tab-content">
         <div style={{ display: activeTab === "lobby" ? "block" : "none" }}>
           <div className="lobby-info">
@@ -155,6 +159,16 @@ function HostLobbyPanel({ gameId, connectionStatus, users, getShareUrl }) {
         </div>
         <div style={{ display: activeTab === "scenario" ? "block" : "none" }}>
           <Scenario />
+        </div>
+        <div style={{ display: activeTab === "characters" ? "block" : "none" }}>
+          <CharacterSheet />
+        </div>
+        <div
+          style={{
+            display: activeTab === "campaign-notes" ? "block" : "none",
+          }}
+        >
+          <CampaignNotes />
         </div>
         <div style={{ display: activeTab === "admin" ? "block" : "none" }}>
           <AdminPanel />

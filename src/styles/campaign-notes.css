@@ -1,0 +1,125 @@
+.campaign-notes-empty-state {
+  margin-bottom: 16px;
+}
+
+.campaign-notes-quick-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.campaign-notes-add-section {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* A collapsible "long row" bar shared by section headers and item rows -
+   most of the bar toggles open/closed, the pencil/trash icons at the end
+   don't (they stop propagation so they don't also trigger the toggle). */
+.campaign-note-row {
+  margin-bottom: 8px;
+}
+
+.campaign-notes-section {
+  background-color: var(--color-surface);
+  border: 1px solid var(--border-color, #444);
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-bottom: 16px;
+}
+
+/* Item rows get one step further than their section's own surface color -
+   the same layering --color-field-bg is designed for (see themes.css) -
+   so a list item still reads as visually distinct from the section box
+   it's sitting in, not just from the page. */
+.campaign-note-item > .campaign-note-row-bar {
+  background-color: var(--color-field-bg);
+}
+
+.campaign-note-row-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.campaign-note-row-bar:hover {
+  background-color: color-mix(in srgb, var(--color-text, #ccc) 8%, transparent);
+}
+
+.campaign-note-row-chevron {
+  width: 1em;
+  flex-shrink: 0;
+  font-size: 20px;
+  opacity: 0.7;
+}
+
+.campaign-note-row-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.campaign-notes-section > .campaign-note-row-bar .campaign-note-row-title {
+  font-weight: bold;
+}
+
+.campaign-note-row-title-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.campaign-note-row-content {
+  padding: 4px 4px 4px 1.5em;
+}
+
+.icon-button {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-accent, #2196f3);
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-button:hover {
+  background-color: color-mix(
+    in srgb,
+    var(--color-accent, #2196f3) 15%,
+    transparent
+  );
+}
+
+.icon-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.icon-button-danger {
+  color: var(--color-danger, #f44336);
+}
+
+.icon-button-danger:hover {
+  background-color: color-mix(
+    in srgb,
+    var(--color-danger, #f44336) 20%,
+    transparent
+  );
+}
+
+.campaign-note-item-description {
+  margin-top: 4px;
+}

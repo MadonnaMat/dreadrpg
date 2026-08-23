@@ -58,8 +58,8 @@ export async function waitForPlayerLobby(page, timeout = 20000) {
     .waitFor({ state: "visible", timeout });
 }
 
-// GM-only: creates a new character from whichever tab currently embeds the
-// character roster (the pre-game Admin tab, or the mid-game Characters tab)
+// GM-only: creates a new character from the Characters tab (rendered both
+// pre-game, in PreGame.jsx's HostLobbyPanel, and mid-game in GameLoaded.jsx)
 // and returns its default name ("New Character") for callers to reference.
 export async function createCharacter(gmPage) {
   await gmPage.getByRole("button", { name: "New Character" }).click();

@@ -4,6 +4,7 @@ import Chat from "./Chat";
 import Scenario from "./Scenario";
 import CharacterSheet from "./CharacterSheet";
 import AdminPanel from "./AdminPanel";
+import CampaignNotes from "./CampaignNotes";
 import { usePeer } from "../hooks/usePeer";
 import { useWheel } from "../hooks/useWheel";
 import {
@@ -137,6 +138,49 @@ function RejoinLinkButton({ isGM, gameId, userName }) {
   );
 }
 
+// The two GM-only tab buttons (Admin, Campaign Notes) - both self-contained
+// on the isGM check (like RejoinLinkButton above) purely to keep
+// GameLoaded's own branching complexity down.
+function GmOnlyTabButtons({ isGM, activeTab, setActiveTab }) {
+  if (!isGM) return null;
+  return (
+    <>
+      <button
+        className={`tab-button ${activeTab === "admin" ? "active" : ""}`}
+        onClick={() => setActiveTab("admin")}
+      >
+        Admin
+      </button>
+      <button
+        className={`tab-button ${activeTab === "campaign-notes" ? "active" : ""}`}
+        onClick={() => setActiveTab("campaign-notes")}
+      >
+        Campaign Notes
+      </button>
+    </>
+  );
+}
+
+// The two GM-only tab panels (Admin, Campaign Notes) - mirrors
+// GmOnlyTabButtons above.
+function GmOnlyTabPanels({ isGM, activeTab }) {
+  if (!isGM) return null;
+  return (
+    <>
+      <div style={{ display: activeTab === "admin" ? "block" : "none" }}>
+        <AdminPanel />
+      </div>
+      <div
+        style={{
+          display: activeTab === "campaign-notes" ? "block" : "none",
+        }}
+      >
+        <CampaignNotes />
+      </div>
+    </>
+  );
+}
+
 export default function GameLoaded() {
   const {
     peerId,
@@ -243,14 +287,11 @@ export default function GameLoaded() {
         >
           Characters
         </button>
-        {isGM && (
-          <button
-            className={`tab-button ${activeTab === "admin" ? "active" : ""}`}
-            onClick={() => setActiveTab("admin")}
-          >
-            Admin
-          </button>
-        )}
+        <GmOnlyTabButtons
+          isGM={isGM}
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+        />
       </div>
 
       {/* Tab Content - all panels stay mounted regardless of which tab is
@@ -323,11 +364,7 @@ export default function GameLoaded() {
         <div style={{ display: activeTab === "characters" ? "block" : "none" }}>
           <CharacterSheet />
         </div>
-        {isGM && (
-          <div style={{ display: activeTab === "admin" ? "block" : "none" }}>
-            <AdminPanel showRoster={false} />
-          </div>
-        )}
+        <GmOnlyTabPanels isGM={isGM} activeTab={activeTab} />
       </div>
     </div>
   );

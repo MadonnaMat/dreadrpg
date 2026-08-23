@@ -42,6 +42,12 @@ vi.mock("../components/CharacterSheet", () => ({
   ),
 }));
 
+vi.mock("../components/CampaignNotes", () => ({
+  default: () => (
+    <div data-testid="campaign-notes-component">Campaign Notes Component</div>
+  ),
+}));
+
 // Test wrapper that provides all necessary context
 const TestWrapper = ({ children, isGM = false, conn = null }) => {
   return (
