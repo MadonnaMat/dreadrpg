@@ -3,7 +3,7 @@ import { usePeer } from "../hooks/usePeer";
 import { useAi } from "../hooks/useAi";
 import { DEFAULT_QUESTIONS } from "../constants/questions";
 import { MESSAGE_TYPES } from "../constants/messageTypes";
-import { isCharacterAlive } from "../helpers/characters";
+import { isCharacterAlive, withUpdatedAnswer } from "../helpers/characters";
 import QuestionEditor from "./character-sheet/QuestionEditor";
 import CharacterRoster from "./character-sheet/CharacterRoster";
 import CharacterPicker from "./character-sheet/CharacterPicker";
@@ -124,10 +124,7 @@ export default function CharacterSheet() {
   const handleAnswerChange = (characterId, questionIndex, value) => {
     const character = characters?.[characterId];
     if (!character) return;
-    const answers = {
-      ...(character.answers || {}),
-      [questionIndex]: { text: value, approved: false },
-    };
+    const answers = withUpdatedAnswer(character, questionIndex, value);
     setCharacters((prev) => ({
       ...prev,
       [characterId]: { ...prev[characterId], answers },

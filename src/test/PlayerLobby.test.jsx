@@ -4,7 +4,15 @@ import userEvent from "@testing-library/user-event";
 import { useEffect } from "react";
 import PlayerLobby from "../components/PlayerLobby";
 import { PeerProvider } from "../providers/PeerProvider";
+import { AiProvider } from "../providers/AiProvider";
 import { usePeer } from "../hooks/usePeer";
+
+// Once a character is assigned, PlayerLobby renders MyCharacterSheet, which
+// calls useAi() - AiContext has no default value, so every render here
+// needs an <AiProvider> even though most of these tests never touch AI.
+vi.mock("../ai/engine/webllmEngine", () => ({
+  createLlmEngine: vi.fn(() => new Promise(() => {})),
+}));
 
 function makeCharacter(overrides = {}) {
   return {
@@ -42,9 +50,11 @@ describe("PlayerLobby Component", () => {
 
   it("tells the player the GM hasn't added characters yet when the roster is empty", () => {
     render(
-      <PeerProvider>
-        <Seeded />
-      </PeerProvider>
+      <AiProvider>
+        <PeerProvider>
+          <Seeded />
+        </PeerProvider>
+      </AiProvider>
     );
 
     expect(
@@ -54,9 +64,11 @@ describe("PlayerLobby Component", () => {
 
   it("lets a player choose an unassigned character", async () => {
     render(
-      <PeerProvider>
-        <Seeded characters={{ "char-1": makeCharacter() }} />
-      </PeerProvider>
+      <AiProvider>
+        <PeerProvider>
+          <Seeded characters={{ "char-1": makeCharacter() }} />
+        </PeerProvider>
+      </AiProvider>
     );
 
     expect(screen.getByText("The Detective")).toBeInTheDocument();
@@ -71,14 +83,16 @@ describe("PlayerLobby Component", () => {
 
   it("doesn't offer an already-assigned character to another player", () => {
     render(
-      <PeerProvider>
-        <Seeded
-          userName="Bob"
-          characters={{
-            "char-1": makeCharacter({ assignedTo: "Alice" }),
-          }}
-        />
-      </PeerProvider>
+      <AiProvider>
+        <PeerProvider>
+          <Seeded
+            userName="Bob"
+            characters={{
+              "char-1": makeCharacter({ assignedTo: "Alice" }),
+            }}
+          />
+        </PeerProvider>
+      </AiProvider>
     );
 
     expect(
@@ -89,12 +103,36 @@ describe("PlayerLobby Component", () => {
 
   it("renders chat so players can talk before the game starts", () => {
     render(
-      <PeerProvider>
-        <Seeded />
-      </PeerProvider>
+      <AiProvider>
+        <PeerProvider>
+          <Seeded />
+        </PeerProvider>
+      </AiProvider>
     );
 
     expect(screen.getByText("Chat")).toBeInTheDocument();
+  });
+
+  it("lets an already-assigned player edit their character's questionnaire before the game starts", async () => {
+    render(
+      <AiProvider>
+        <PeerProvider>
+          <Seeded
+            userName="Bob"
+            characters={{
+              "char-1": makeCharacter({ assignedTo: "Bob" }),
+            }}
+          />
+        </PeerProvider>
+      </AiProvider>
+    );
+
+    expect(screen.getByText("Character Sheet")).toBeInTheDocument();
+    const answerField = screen.getByPlaceholderText("Enter your answer...");
+    await user.type(answerField, "Bob the Detective");
+
+    expect(answerField).toHaveValue("Bob the Detective");
+    expect(screen.getByText("Pending GM approval")).toBeInTheDocument();
   });
 
   it("copies a rejoin link containing the game id and the player's own name", async () => {
@@ -103,9 +141,11 @@ describe("PlayerLobby Component", () => {
       .mockResolvedValue();
 
     render(
-      <PeerProvider>
-        <Seeded userName="Bob" gameId="game-abc" />
-      </PeerProvider>
+      <AiProvider>
+        <PeerProvider>
+          <Seeded userName="Bob" gameId="game-abc" />
+        </PeerProvider>
+      </AiProvider>
     );
 
     await user.click(

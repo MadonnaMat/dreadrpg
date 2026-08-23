@@ -4,6 +4,7 @@ import {
   formatUserWithCharacter,
   formatNameForList,
   isCharacterAlive,
+  withUpdatedAnswer,
 } from "../helpers/characters";
 
 const characters = {
@@ -117,5 +118,33 @@ describe("isCharacterAlive", () => {
 
   it("treats a missing character (no character at all) as not disqualifying", () => {
     expect(isCharacterAlive(undefined)).toBe(true);
+  });
+});
+
+describe("withUpdatedAnswer", () => {
+  it("sets a new answer as unapproved on a character with no prior answers", () => {
+    expect(withUpdatedAnswer({}, 0, "Bob")).toEqual({
+      0: { text: "Bob", approved: false },
+    });
+  });
+
+  it("resets approved to false when editing a previously-approved answer", () => {
+    const character = { answers: { 0: { text: "Old", approved: true } } };
+    expect(withUpdatedAnswer(character, 0, "New")).toEqual({
+      0: { text: "New", approved: false },
+    });
+  });
+
+  it("preserves other questions' answers untouched", () => {
+    const character = {
+      answers: {
+        0: { text: "Name", approved: true },
+        1: { text: "Fear", approved: false },
+      },
+    };
+    expect(withUpdatedAnswer(character, 1, "New fear")).toEqual({
+      0: { text: "Name", approved: true },
+      1: { text: "New fear", approved: false },
+    });
   });
 });
