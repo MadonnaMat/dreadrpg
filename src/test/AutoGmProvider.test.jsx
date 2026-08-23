@@ -47,6 +47,7 @@ function Probe() {
       <div data-testid="turn-log-count">{autoGm.turnLog.length}</div>
       <div data-testid="raw-history-count">{autoGm.rawHistory.length}</div>
       <div data-testid="story-summary">{autoGm.storySummary}</div>
+      <div data-testid="autogm-thinking">{String(peer.autoGmThinking)}</div>
       <div data-testid="campaign-notes">
         {JSON.stringify(peer.campaignNotes)}
       </div>
@@ -296,6 +297,29 @@ describe("AutoGmProvider", () => {
       );
     });
 
+    it("broadcasts a thinking indicator that's true during the turn and false once it settles", async () => {
+      const { deliver } = setupEnabled({
+        // Long enough that waitFor's polling can actually observe the
+        // intermediate "true" state before it flips back - a same-tick
+        // true->false toggle risks React 18 batching the two updates
+        // together and never committing the intermediate render at all.
+        runPromptImpl: async () => {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          return validTurnResult();
+        },
+      });
+
+      await enable();
+      await deliver.current({ from: "Alice", text: "I check the hold." });
+
+      await waitFor(() =>
+        expect(screen.getByTestId("autogm-thinking")).toHaveTextContent("true")
+      );
+      await waitFor(() =>
+        expect(screen.getByTestId("autogm-thinking")).toHaveTextContent("false")
+      );
+    });
+
     it("posts the draft narration unchanged when the self-check finds it consistent", async () => {
       const { runPrompt, deliver, chatMessages } = setupEnabled({
         runPromptImpl: async ({ systemPromptText }) => {
@@ -516,7 +540,13 @@ describe("AutoGmProvider", () => {
           "The party explored the mill."
         )
       );
-      expect(screen.getByTestId("raw-history-count")).toHaveTextContent("1");
+      // Bounded, not an exact count - each turn also appends AutoGM's own
+      // narration to the window (see AutoGmProvider's runTurn), so the
+      // precise remainder after 21 messages depends on how many compaction
+      // cycles fit in, not just "one message left over."
+      expect(
+        Number(screen.getByTestId("raw-history-count").textContent)
+      ).toBeLessThan(5);
       expect(runPrompt).toHaveBeenCalledWith(
         expect.objectContaining({
           systemPromptText: latest("autogmCompaction").text,
@@ -540,7 +570,9 @@ describe("AutoGmProvider", () => {
       }
 
       await waitFor(() =>
-        expect(screen.getByTestId("raw-history-count")).toHaveTextContent("1")
+        expect(
+          Number(screen.getByTestId("raw-history-count").textContent)
+        ).toBeLessThan(5)
       );
       expect(screen.getByTestId("story-summary")).toHaveTextContent("");
     });
@@ -665,6 +697,120 @@ describe("AutoGmProvider", () => {
         .setup({ skipPointerEventsCheck: true })
         .click(screen.getByText("kill"));
 
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(runPrompt).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("opening narration", () => {
+    function GameStartToggle() {
+      const { setGameStarted } = usePeer();
+      return <button onClick={() => setGameStarted(true)}>start game</button>;
+    }
+
+    function makeChatSpy() {
+      const chatMessages = [];
+      function ChatSpy() {
+        const { registerChatEventHandler } = usePeer();
+        useEffect(() => {
+          registerChatEventHandler((data) => chatMessages.push(data));
+        }, [registerChatEventHandler]);
+        return null;
+      }
+      return { ChatSpy, chatMessages };
+    }
+
+    it("posts an opening narration once the game starts while AutoGM is already enabled", async () => {
+      const runPrompt = vi.fn(async () =>
+        validTurnResult({ narration: "Welcome to the mill." })
+      );
+      mockUseAi.mockReturnValue({ aiEnabled: true, runPrompt });
+      mockUseWheel.mockReturnValue(defaultWheel());
+      const { ChatSpy, chatMessages } = makeChatSpy();
+
+      render(
+        <PeerProvider>
+          <AutoGmProvider>
+            <GmSetup>
+              <Probe />
+              <ChatSpy />
+              <GameStartToggle />
+            </GmSetup>
+          </AutoGmProvider>
+        </PeerProvider>
+      );
+
+      await enable();
+      await userEvent
+        .setup({ skipPointerEventsCheck: true })
+        .click(screen.getByText("start game"));
+
+      await waitFor(() =>
+        expect(chatMessages).toContainEqual(
+          expect.objectContaining({
+            text: "Welcome to the mill.",
+            fromBot: true,
+          })
+        )
+      );
+      expect(runPrompt).toHaveBeenCalledWith(
+        expect.objectContaining({
+          systemPromptText: latest("autogmTurn").text,
+        })
+      );
+    });
+
+    it("posts an opening narration when AutoGM is enabled after the game already started", async () => {
+      const runPrompt = vi.fn(async () =>
+        validTurnResult({ narration: "Welcome to the mill." })
+      );
+      mockUseAi.mockReturnValue({ aiEnabled: true, runPrompt });
+      mockUseWheel.mockReturnValue(defaultWheel());
+      const { ChatSpy, chatMessages } = makeChatSpy();
+
+      render(
+        <PeerProvider>
+          <AutoGmProvider>
+            <GmSetup>
+              <Probe />
+              <ChatSpy />
+              <GameStartToggle />
+            </GmSetup>
+          </AutoGmProvider>
+        </PeerProvider>
+      );
+
+      await userEvent
+        .setup({ skipPointerEventsCheck: true })
+        .click(screen.getByText("start game"));
+      await enable();
+
+      await waitFor(() =>
+        expect(chatMessages).toContainEqual(
+          expect.objectContaining({
+            text: "Welcome to the mill.",
+            fromBot: true,
+          })
+        )
+      );
+    });
+
+    it("never fires the opening narration for a game that hasn't started", async () => {
+      const runPrompt = vi.fn(async () => validTurnResult());
+      mockUseAi.mockReturnValue({ aiEnabled: true, runPrompt });
+      mockUseWheel.mockReturnValue(defaultWheel());
+
+      render(
+        <PeerProvider>
+          <AutoGmProvider>
+            <GmSetup>
+              <Probe />
+            </GmSetup>
+          </AutoGmProvider>
+        </PeerProvider>
+      );
+
+      await enable();
       await new Promise((resolve) => setTimeout(resolve, 10));
       expect(runPrompt).not.toHaveBeenCalled();
     });

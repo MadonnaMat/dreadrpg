@@ -76,6 +76,33 @@
   color: var(--color-danger, #f44336);
 }
 
+.chat-thinking-indicator {
+  opacity: 0.75;
+}
+
+.chat-thinking-dots span {
+  animation: chat-thinking-blink 1.4s infinite both;
+}
+
+.chat-thinking-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.chat-thinking-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes chat-thinking-blink {
+  0%,
+  80%,
+  100% {
+    opacity: 0.2;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
 .chat-input-container {
   display: flex;
   gap: 4px;

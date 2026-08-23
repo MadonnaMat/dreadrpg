@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useEffect } from "react";
 import GameLoaded from "../components/GameLoaded";
@@ -8,7 +8,17 @@ import { WheelProvider } from "../providers/WheelProvider";
 import { AiProvider } from "../providers/AiProvider";
 import { AutoGmProvider } from "../providers/AutoGmProvider";
 import { usePeer } from "../hooks/usePeer";
+import { useWheel } from "../hooks/useWheel";
+import { useAi } from "../hooks/useAi";
+import { useAutoGm } from "../hooks/useAutoGm";
+import { MODEL_TIERS } from "../constants/aiModels";
 import React from "react";
+
+vi.mock("../ai/engine/webllmEngine", () => ({
+  createLlmEngine: vi.fn(() =>
+    Promise.resolve({ chatCompletion: vi.fn(), dispose: vi.fn() })
+  ),
+}));
 
 // Mock PIXI Application and components
 vi.mock("@pixi/react", () => ({
@@ -102,6 +112,62 @@ function GmWithMixedRoster({ children }) {
       },
     });
   }, [setIsGM, setHostName, setUsers, setCharacters]);
+  return children;
+}
+
+// GM whose tower is currently frozen after a collapse - used to check the
+// Re-stack Tower button's visibility.
+function GmAwaitingReset({ children }) {
+  const { setIsGM, setHostName, setUsers, setAwaitingReset } = usePeer();
+  useEffect(() => {
+    setIsGM(true);
+    setHostName("Host");
+    setUsers({ "peer-gm": "Host" });
+    setAwaitingReset(true);
+  }, [setIsGM, setHostName, setUsers, setAwaitingReset]);
+  return children;
+}
+
+// GM with AutoGM actually enabled (via the real AiProvider/AutoGmProvider,
+// same as a real session - webllmEngine is mocked at module scope above) -
+// used to check that manual wheel controls disappear once AutoGM is
+// running the GM role. `awaitingReset` optionally frozen too, to also cover
+// the Re-stack Tower button.
+function GmWithAutoGmEnabled({ children, awaitingReset = false }) {
+  const { setIsGM, setHostName, setUsers, setAwaitingReset } = usePeer();
+  const { aiEnabled, enableAi } = useAi();
+  const { enableAutoGm } = useAutoGm();
+  useEffect(() => {
+    setIsGM(true);
+    setHostName("Host");
+    setUsers({ "peer-gm": "Host" });
+    if (awaitingReset) setAwaitingReset(true);
+    enableAi(MODEL_TIERS.MEDIUM);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setIsGM, setHostName, setUsers, setAwaitingReset, enableAi]);
+  useEffect(() => {
+    if (aiEnabled) enableAutoGm();
+  }, [aiEnabled, enableAutoGm]);
+  return children;
+}
+
+// GM self-designated for a multi-pull action, with AutoGM's thinking flag
+// already set - used to check the Spin button disables while waiting for
+// AutoGM to react to the previous step.
+function GmDesignatedForMultiPull({ children, pullsRequired = 2 }) {
+  const { setIsGM, setHostName, setUsers, setAutoGmThinking } = usePeer();
+  const { assignSpinner } = useWheel();
+  useEffect(() => {
+    setIsGM(true);
+    setHostName("Host");
+    setUsers({ "peer-gm": "Host" });
+  }, [setIsGM, setHostName, setUsers]);
+  useEffect(() => {
+    assignSpinner("Host", pullsRequired);
+  }, [assignSpinner, pullsRequired]);
+  useEffect(() => {
+    setAutoGmThinking(true);
+  }, [setAutoGmThinking]);
   return children;
 }
 
@@ -295,6 +361,79 @@ describe("GameLoaded Component", () => {
 
     expect(screen.getByRole("combobox")).toBeInTheDocument();
     expect(screen.queryByText("Spin the Wheel!")).not.toBeInTheDocument();
+  });
+
+  it("shows Re-stack Tower for a human GM once the tower is frozen", () => {
+    render(
+      <TestWrapper isGM={true}>
+        <GmAwaitingReset>
+          <GameLoaded />
+        </GmAwaitingReset>
+      </TestWrapper>
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Re-stack Tower" })
+    ).toBeInTheDocument();
+  });
+
+  it("hides the manual assign-pull form and Re-stack Tower once AutoGM is enabled", async () => {
+    render(
+      <TestWrapper isGM={true}>
+        <GmWithAutoGmEnabled awaitingReset={true}>
+          <GameLoaded />
+        </GmWithAutoGmEnabled>
+      </TestWrapper>
+    );
+
+    await waitFor(() =>
+      expect(screen.queryByRole("combobox")).not.toBeInTheDocument()
+    );
+    // The GM's own `awaitingReset` update has to propagate from
+    // PeerProvider's synced state into WheelProvider's own local mirror
+    // (see WheelProvider.jsx's `peerAwaitingReset` sync effect) before
+    // GameLoaded's restack-button condition sees it - a separate render
+    // pass from the one that flips autoGmEnabled above.
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: "Re-stack Tower" })
+      ).not.toBeInTheDocument()
+    );
+  });
+
+  it("disables the Spin button while AutoGM is thinking during a multi-pull action", async () => {
+    render(
+      <TestWrapper isGM={true}>
+        <GmDesignatedForMultiPull pullsRequired={2}>
+          <GameLoaded />
+        </GmDesignatedForMultiPull>
+      </TestWrapper>
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Spin the Wheel!" })
+      ).toBeDisabled()
+    );
+    expect(
+      screen.getByText(/Waiting for the GM to react to the last pull/)
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the Spin button enabled while thinking on a single-pull action", async () => {
+    render(
+      <TestWrapper isGM={true}>
+        <GmDesignatedForMultiPull pullsRequired={1}>
+          <GameLoaded />
+        </GmDesignatedForMultiPull>
+      </TestWrapper>
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Spin the Wheel!" })
+      ).not.toBeDisabled()
+    );
   });
 
   it("should show result area", () => {

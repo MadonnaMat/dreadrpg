@@ -32,4 +32,5 @@ export const MESSAGE_TYPES = {
   DEATH_FLAVOR_TEXT_UPDATE: "death-flavor-text-update",
   PRESENCE_PING: "presence-ping",
   PRESENCE_PONG: "presence-pong",
+  AUTOGM_THINKING_UPDATE: "autogm-thinking-update",
 };

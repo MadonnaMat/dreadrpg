@@ -52,6 +52,13 @@ export function useGameState() {
   // localStorage like theme/deathFlavorText, not part of the
   // welcome/game-data-sync snapshot.
   const [campaignNotes, setCampaignNotes] = useState([]);
+  // Whether AutoGM currently has an in-flight LLM call (turn, self-check,
+  // compaction, or removal narration) - broadcast so every player sees a
+  // "thinking" indicator in Chat, not just the GM's own browser. Ephemeral:
+  // deliberately absent from buildGameSnapshot/deriveGameDefaults, so a late
+  // joiner just starts at the safe `false` default rather than syncing
+  // whatever transient value happened to be current.
+  const [autoGmThinking, setAutoGmThinking] = useState(false);
 
   return {
     gameName,
@@ -82,5 +89,7 @@ export function useGameState() {
     setDeathFlavorText,
     campaignNotes,
     setCampaignNotes,
+    autoGmThinking,
+    setAutoGmThinking,
   };
 }

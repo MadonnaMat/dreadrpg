@@ -14,6 +14,7 @@ export default function Chat() {
     gameId,
     characters,
     presence,
+    autoGmThinking,
   } = usePeer();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -41,12 +42,13 @@ export default function Chat() {
     });
   }, [registerChatEventHandler, isGM, sendToPeers]);
 
-  // Scroll to bottom on new message
+  // Scroll to bottom on new message, or when the thinking indicator
+  // appears/disappears (it occupies a line in the same scroll area).
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [messages]);
+  }, [messages, autoGmThinking]);
 
   // Show "<name> <CharacterName>" once the user has claimed a character, so
   // other players can tell who's speaking as whom in the transcript - this
@@ -115,6 +117,16 @@ export default function Chat() {
             <strong>{msg.from}:</strong> {msg.text}
           </div>
         ))}
+        {autoGmThinking && (
+          <div className="chat-message chat-message-bot chat-thinking-indicator">
+            <strong>GM:</strong> is thinking
+            <span className="chat-thinking-dots">
+              <span>.</span>
+              <span>.</span>
+              <span>.</span>
+            </span>
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
 

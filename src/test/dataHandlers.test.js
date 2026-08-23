@@ -240,4 +240,21 @@ describe("createPlayerDataHandler - GM Admin Panel broadcasts", () => {
 
     expect(setPresence).toHaveBeenCalledWith(presence);
   });
+
+  it("applies a live autogm-thinking-update from the GM", () => {
+    const setAutoGmThinking = vi.fn();
+    const handler = createPlayerDataHandler({
+      handlerRefs: makeHandlerRefs(),
+      setUsers: vi.fn(),
+      setConnectionStatus: vi.fn(),
+      setAutoGmThinking,
+    });
+
+    handler({
+      type: MESSAGE_TYPES.AUTOGM_THINKING_UPDATE,
+      autoGmThinking: true,
+    });
+
+    expect(setAutoGmThinking).toHaveBeenCalledWith(true);
+  });
 });

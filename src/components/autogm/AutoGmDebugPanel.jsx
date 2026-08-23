@@ -95,7 +95,9 @@ function AutoGmDebugTurn({ entry }) {
               ` — skipped: ${entry.pullSkippedReason}`}
           </span>
         )}
-        {entry.readyToRestack && <span>Signaled ready to restack</span>}
+        {entry.readyToRestack && entry.awaitingResetAtTurn && (
+          <span>Signaled ready to restack</span>
+        )}
         {entry.campaignNoteUpdates?.length > 0 && (
           <span>
             Campaign notes:{" "}

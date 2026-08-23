@@ -168,6 +168,8 @@ const LIVE_UPDATE_HANDLERS = {
     setPresence(data.presence),
   [MESSAGE_TYPES.DEATH_FLAVOR_TEXT_UPDATE]: (data, { setDeathFlavorText }) =>
     setDeathFlavorText(data.deathFlavorText),
+  [MESSAGE_TYPES.AUTOGM_THINKING_UPDATE]: (data, { setAutoGmThinking }) =>
+    setAutoGmThinking(data.autoGmThinking),
 };
 
 // Player side: handle an inbound message on the single connection to the GM

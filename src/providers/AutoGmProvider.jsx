@@ -64,11 +64,13 @@ export function AutoGmProvider({ children }) {
     isGM,
     gameId,
     hostName,
+    gameStarted,
     characters,
     setCharacters,
     sendToPeers,
     sendSystemChatMessage,
     registerAutoGmChatEventHandler,
+    setAutoGmThinking,
     scenario,
     campaignNotes,
     setCampaignNotes,
@@ -92,6 +94,11 @@ export function AutoGmProvider({ children }) {
   // truth (usePeer()/useWheel()) rather than from what the LLM said earlier.
   const [storySummary, setStorySummary] = useState("");
   const [rawHistory, setRawHistory] = useState([]);
+  // Whether the one-time opening-scene narration has already run for this
+  // game - persisted so it doesn't re-fire after a reload, but not reset by
+  // disabling/re-enabling AutoGM mid-game (it's a once-per-game beat, not a
+  // once-per-enable one).
+  const [openingNarrationDone, setOpeningNarrationDone] = useState(false);
   // Live feed of recent turns for the AutoGM debug panel - see TURN_LOG_LIMIT.
   const [turnLog, setTurnLog] = useState([]);
   const restoredForGameRef = useRef(null);
@@ -123,6 +130,7 @@ export function AutoGmProvider({ children }) {
     if (!saved) return;
     setAutoGmEnabled(saved.enabled ?? false);
     setStorySummary(saved.storySummary ?? "");
+    setOpeningNarrationDone(saved.openingNarrationDone ?? false);
     const history = saved.rawHistory ?? [];
     setRawHistory(history);
     historyRef.current = history;
@@ -135,8 +143,17 @@ export function AutoGmProvider({ children }) {
       enabled: autoGmEnabled,
       storySummary,
       rawHistory,
+      openingNarrationDone,
     });
-  }, [isGM, gameId, hostName, autoGmEnabled, storySummary, rawHistory]);
+  }, [
+    isGM,
+    gameId,
+    hostName,
+    autoGmEnabled,
+    storySummary,
+    rawHistory,
+    openingNarrationDone,
+  ]);
 
   const enableAutoGm = useCallback(() => {
     if (!isGM || !aiEnabled) return;
@@ -188,6 +205,21 @@ export function AutoGmProvider({ children }) {
       }
     });
   }, [isGM, autoGmEnabled, characters, setCharacters, sendToPeers]);
+
+  // Broadcasts AutoGM's busy/idle state so every player (not just the GM's
+  // own browser) can show a "thinking" indicator - the GM applies it to its
+  // own local state directly and separately broadcasts, the same pattern
+  // every other GM-only setting update in this app uses (see AdminPanel.jsx).
+  const setThinking = useCallback(
+    (value) => {
+      setAutoGmThinking(value);
+      sendToPeers({
+        type: MESSAGE_TYPES.AUTOGM_THINKING_UPDATE,
+        autoGmThinking: value,
+      });
+    },
+    [setAutoGmThinking, sendToPeers]
+  );
 
   const pushTurnLogEntry = useCallback((entry) => {
     setTurnLog((prev) =>
@@ -302,6 +334,16 @@ export function AutoGmProvider({ children }) {
         reasoning = checked.reasoning;
         consistent = checked.consistent;
         sendSystemChatMessage(finalNarration, { from: "GM", fromBot: true });
+        // AutoGM's own narration otherwise never re-enters rawHistory (it's
+        // posted via sendSystemChatMessage, not notifyAutoGmChat) - without
+        // this, the model would have no memory of what it itself just said
+        // beyond the rolling summary, making it prone to repeating itself or
+        // losing continuity turn to turn.
+        historyRef.current = [
+          ...historyRef.current,
+          { from: "GM", text: finalNarration },
+        ];
+        setRawHistory(historyRef.current);
       }
 
       let pullSkippedReason = null;
@@ -337,6 +379,7 @@ export function AutoGmProvider({ children }) {
         targetPlayerName,
         pullsRequired,
         readyToRestack,
+        awaitingResetAtTurn: awaitingReset,
         campaignNoteUpdates,
         pullSkippedReason,
       });
@@ -387,54 +430,67 @@ export function AutoGmProvider({ children }) {
   // for the copyright/original-content constraints this must follow.
   const runRemovalNarration = useCallback(
     async (characterName) => {
-      const context = buildAutoGmRemovalNarrationContext({
-        characterName,
-        scenario,
-        storySummary,
-        rawHistory: historyRef.current,
-        campaignNotes,
-      });
-      const result = await runPrompt({
-        systemPromptText: latest("autogmRemovalNarration").text,
-        userContent: context,
-        schema: autoGmRemovalNarrationSchema,
-        validate: validateAutoGmRemovalNarration,
-      });
+      setThinking(true);
+      try {
+        const context = buildAutoGmRemovalNarrationContext({
+          characterName,
+          scenario,
+          storySummary,
+          rawHistory: historyRef.current,
+          campaignNotes,
+        });
+        const result = await runPrompt({
+          systemPromptText: latest("autogmRemovalNarration").text,
+          userContent: context,
+          schema: autoGmRemovalNarrationSchema,
+          validate: validateAutoGmRemovalNarration,
+        });
 
-      if (!result.valid) {
-        setAutoGmError("AutoGM couldn't generate removal narration.");
-        return;
+        if (!result.valid) {
+          setAutoGmError("AutoGM couldn't generate removal narration.");
+          return;
+        }
+        setAutoGmError(null);
+
+        const draftNarration = result.parsed.narration;
+        const { finalNarration, reasoning, consistent } =
+          await selfCheckNarration(draftNarration);
+        sendSystemChatMessage(finalNarration, { from: "GM", fromBot: true });
+        historyRef.current = [
+          ...historyRef.current,
+          { from: "GM", text: finalNarration },
+        ];
+        setRawHistory(historyRef.current);
+
+        pushTurnLogEntry({
+          kind: "removal",
+          trigger: null,
+          draftNarration,
+          finalNarration,
+          reasoning,
+          consistent,
+          callForPull: false,
+          targetPlayerName: "",
+          pullsRequired: 1,
+          readyToRestack: false,
+          awaitingResetAtTurn: awaitingReset,
+          campaignNoteUpdates: [],
+          pullSkippedReason: null,
+        });
+      } finally {
+        setThinking(false);
       }
-      setAutoGmError(null);
-
-      const draftNarration = result.parsed.narration;
-      const { finalNarration, reasoning, consistent } =
-        await selfCheckNarration(draftNarration);
-      sendSystemChatMessage(finalNarration, { from: "GM", fromBot: true });
-
-      pushTurnLogEntry({
-        kind: "removal",
-        trigger: null,
-        draftNarration,
-        finalNarration,
-        reasoning,
-        consistent,
-        callForPull: false,
-        targetPlayerName: "",
-        pullsRequired: 1,
-        readyToRestack: false,
-        campaignNoteUpdates: [],
-        pullSkippedReason: null,
-      });
     },
     [
       scenario,
       storySummary,
       campaignNotes,
+      awaitingReset,
       runPrompt,
       selfCheckNarration,
       sendSystemChatMessage,
       pushTurnLogEntry,
+      setThinking,
     ]
   );
 
@@ -474,18 +530,23 @@ export function AutoGmProvider({ children }) {
   const processIncomingChat = useCallback(
     async (data) => {
       if (!isGM || !autoGmEnabled) return;
-      const trigger = { from: data.from, text: data.text };
-      let history = [...historyRef.current, trigger];
-      if (history.length > RAW_HISTORY_COMPACTION_THRESHOLD) {
-        const newSummary = await compact(history);
-        setStorySummary(newSummary);
-        history = [trigger];
+      setThinking(true);
+      try {
+        const trigger = { from: data.from, text: data.text };
+        let history = [...historyRef.current, trigger];
+        if (history.length > RAW_HISTORY_COMPACTION_THRESHOLD) {
+          const newSummary = await compact(history);
+          setStorySummary(newSummary);
+          history = [trigger];
+        }
+        historyRef.current = history;
+        setRawHistory(history);
+        await runTurn(history, trigger);
+      } finally {
+        setThinking(false);
       }
-      historyRef.current = history;
-      setRawHistory(history);
-      return runTurn(history, trigger);
     },
-    [isGM, autoGmEnabled, compact, runTurn]
+    [isGM, autoGmEnabled, compact, runTurn, setThinking]
   );
 
   useEffect(() => {
@@ -495,6 +556,35 @@ export function AutoGmProvider({ children }) {
         .catch(() => {});
     });
   }, [registerAutoGmChatEventHandler, processIncomingChat]);
+
+  // One-time opening beat: as soon as the game has started (in either
+  // order relative to enabling AutoGM) and no opening narration has run yet
+  // for this game, feed a synthetic "System" trigger through the normal
+  // turn pipeline so the model introduces the scenario and describes where
+  // each character currently is - the same reasoning/self-check/history
+  // bookkeeping as any other turn, just never actually shown to players as
+  // a raw instruction (it's not posted to chat, only its resulting
+  // narration is).
+  useEffect(() => {
+    if (!isGM || !autoGmEnabled || !gameStarted || openingNarrationDone) {
+      return;
+    }
+    setOpeningNarrationDone(true);
+    queueRef.current = queueRef.current
+      .then(() =>
+        processIncomingChat({
+          from: "System",
+          text: "The game has just begun. Introduce the scenario to the players and describe where each character currently is.",
+        })
+      )
+      .catch(() => {});
+  }, [
+    isGM,
+    autoGmEnabled,
+    gameStarted,
+    openingNarrationDone,
+    processIncomingChat,
+  ]);
 
   return (
     <AutoGmContext.Provider
