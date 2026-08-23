@@ -73,6 +73,24 @@
   font-weight: normal;
 }
 
+.ai-suggestion-preview {
+  margin-top: 6px;
+  padding: 8px;
+  border: 1px solid
+    color-mix(in srgb, var(--color-accent, #2196f3) 40%, transparent);
+  border-radius: 6px;
+  background-color: color-mix(
+    in srgb,
+    var(--color-accent, #2196f3) 8%,
+    transparent
+  );
+}
+
+.ai-suggestion-preview p {
+  margin: 0 0 8px;
+  white-space: pre-wrap;
+}
+
 .ai-cast-draft {
   margin-top: 12px;
   padding: 10px;
