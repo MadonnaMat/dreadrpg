@@ -11,6 +11,16 @@ export const MODEL_TIERS = {
   UNSUPPORTED: "unsupported",
 };
 
+// Lifecycle states for AiProvider's local (never-synced) engine state.
+export const ENGINE_STATUS = {
+  IDLE: "idle",
+  UNSUPPORTED: "unsupported",
+  DETECTING: "detecting",
+  DOWNLOADING: "downloading",
+  READY: "ready",
+  ERROR: "error",
+};
+
 export const TIER_MODEL_CONFIG = {
   [MODEL_TIERS.SMALL]: {
     modelId: "Llama-3.2-1B-Instruct-q4f16_1-MLC",

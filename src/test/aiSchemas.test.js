@@ -15,7 +15,10 @@ describe("scenarioSchema.validate", () => {
   };
 
   it("accepts a complete object with all string fields", () => {
-    expect(validateScenario(validScenario)).toEqual({ valid: true, errors: [] });
+    expect(validateScenario(validScenario)).toEqual({
+      valid: true,
+      errors: [],
+    });
   });
 
   it("rejects a non-object", () => {

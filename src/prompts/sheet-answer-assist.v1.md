@@ -8,7 +8,7 @@ has already been established about the character. Keep it concise -
 usually one to three sentences, matching the level of detail of a
 questionnaire answer, not a short story.
 
-This is only a *suggestion* - the player will review and can edit or
+This is only a _suggestion_ - the player will review and can edit or
 discard it before it's saved, and the GM must approve it afterward like
 any other answer.
 

@@ -55,7 +55,9 @@ describe("runStructuredPrompt", () => {
     // The second call's messages should include the corrective follow-up.
     const secondCallMessages = engine.chatCompletion.mock.calls[1][0];
     expect(
-      secondCallMessages.some((m) => m.role === "user" && m.content.includes("invalid"))
+      secondCallMessages.some(
+        (m) => m.role === "user" && m.content.includes("invalid")
+      )
     ).toBe(true);
   });
 
@@ -84,7 +86,9 @@ describe("runStructuredPrompt", () => {
 
   it("gives up after maxRetries and returns valid:false with errors, never throwing", async () => {
     const engine = {
-      chatCompletion: vi.fn().mockResolvedValue(completionWith("still not json")),
+      chatCompletion: vi
+        .fn()
+        .mockResolvedValue(completionWith("still not json")),
     };
 
     const result = await runStructuredPrompt({

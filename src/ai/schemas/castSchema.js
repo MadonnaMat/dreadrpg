@@ -31,10 +31,10 @@ function validateCharacterDraft(entry, index) {
     errors.push(
       `Character ${index}: "questions" must be a non-empty array of strings.`
     );
-  } else if (
-    !entry.questions.every((q) => typeof q === "string" && q.trim())
-  ) {
-    errors.push(`Character ${index}: every question must be a non-empty string.`);
+  } else if (!entry.questions.every((q) => typeof q === "string" && q.trim())) {
+    errors.push(
+      `Character ${index}: every question must be a non-empty string.`
+    );
   }
   return errors;
 }

@@ -45,11 +45,11 @@ communicating with players entirely through the existing in-game Chat
   AI's behalf).
 - **Triggering game actions, not just drafting text fields**: unlike the
   foundation phase (which only pre-fills local form state for a human to
-  review and send), AutoGM needs to actually *act* — e.g. call for a spin
+  review and send), AutoGM needs to actually _act_ — e.g. call for a spin
   (today: `assignSpinner` / `SPIN_REQUEST` flow in `WheelProvider.jsx` +
   `GameLoaded.jsx`'s `SpinControls`, which already supports
   `pullsRequired` for multi-pull actions and `SPIN_DECLINE`). AutoGM's
-  system prompt/tooling needs a defined decision procedure for *when* a
+  system prompt/tooling needs a defined decision procedure for _when_ a
   declared player action warrants a pull, matching the host judgment call
   described in `docs/rules/quick-reference.md`.
 - **Original removal/collapse narration**: `docs/rules/dreadrpg-app-compliance.md`
@@ -70,7 +70,7 @@ communicating with players entirely through the existing in-game Chat
 
 - `src/ai/promptRunner.js`'s `runStructuredPrompt` — reusable as-is for
   each AutoGM turn's structured output (e.g. `{ narration: string,
-  callForPull: boolean, pullsRequired?: number }`).
+callForPull: boolean, pullsRequired?: number }`).
 - `src/prompts/index.js`'s versioned `.md` prompt registry — add
   `autogm-turn.v1.md`, `autogm-removal-narration.v1.md`, etc. alongside
   the foundation's prompts.

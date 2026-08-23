@@ -19,5 +19,3 @@ export function latest(name) {
   const versions = versionsFor(name);
   return versions[versions.length - 1];
 }
-
-export default REGISTRY;

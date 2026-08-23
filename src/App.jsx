@@ -4,6 +4,7 @@ import PreGame from "./components/PreGame";
 import GameLoaded from "./components/GameLoaded";
 import { PeerProvider } from "./providers/PeerProvider";
 import { WheelProvider } from "./providers/WheelProvider";
+import { AiProvider } from "./providers/AiProvider";
 import { usePeer } from "./hooks/usePeer";
 import { useWheel } from "./hooks/useWheel";
 import { useThemeEffect } from "./hooks/useThemeEffect";
@@ -19,9 +20,11 @@ function AppInner() {
 
 export default function App() {
   return (
-    <PeerProvider>
-      <WheelProviderWrapper />
-    </PeerProvider>
+    <AiProvider>
+      <PeerProvider>
+        <WheelProviderWrapper />
+      </PeerProvider>
+    </AiProvider>
   );
 }
 
