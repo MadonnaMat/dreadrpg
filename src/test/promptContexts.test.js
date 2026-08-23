@@ -31,12 +31,33 @@ describe("buildCastGenerationContext", () => {
     expect(context).toContain("Adrift at sea.");
   });
 
+  it("includes other scenario fields beyond just description", () => {
+    const context = buildCastGenerationContext({
+      castDescription: "A ship's crew.",
+      scenario: {
+        description: "Adrift at sea.",
+        setting: "A sinking freighter, 1930s.",
+        threats: "Something in the cargo hold.",
+      },
+    });
+    expect(context).toContain("A sinking freighter, 1930s.");
+    expect(context).toContain("Something in the cargo hold.");
+  });
+
   it("omits scenario context entirely when no scenario is given", () => {
     const context = buildCastGenerationContext({
       castDescription: "A ship's crew.",
       scenario: null,
     });
-    expect(context).not.toContain("Scenario context");
+    expect(context).not.toContain("Scenario:");
+  });
+
+  it("omits scenario context when the scenario has no non-empty fields", () => {
+    const context = buildCastGenerationContext({
+      castDescription: "A ship's crew.",
+      scenario: { title: "", description: "" },
+    });
+    expect(context).not.toContain("Scenario:");
   });
 });
 
@@ -69,5 +90,26 @@ describe("buildSheetAnswerContext", () => {
       scenario: { description: "A haunted ship." },
     });
     expect(context).toContain("A haunted ship.");
+  });
+
+  it("includes other scenario fields beyond just description, e.g. threats for a fear question", () => {
+    const context = buildSheetAnswerContext({
+      question: "What do you fear?",
+      otherAnswers: {},
+      scenario: {
+        description: "A haunted ship.",
+        threats: "Whatever is knocking from inside the walls.",
+      },
+    });
+    expect(context).toContain("Whatever is knocking from inside the walls.");
+  });
+
+  it("omits scenario context entirely when no scenario is given", () => {
+    const context = buildSheetAnswerContext({
+      question: "What do you fear?",
+      otherAnswers: {},
+      scenario: null,
+    });
+    expect(context).not.toContain("Scenario:");
   });
 });
