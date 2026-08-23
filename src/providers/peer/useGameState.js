@@ -46,6 +46,12 @@ export function useGameState() {
   const [deathFlavorText, setDeathFlavorText] = useState(
     DEFAULT_DEATH_FLAVOR_TEXT
   );
+  // GM-only campaign-prep notes: Array<{ id, name, items: string[] }>.
+  // Deliberately never crosses the PeerJS wire (see PeerProvider.jsx) - only
+  // the GM ever sees or edits this, so it's just local state persisted to
+  // localStorage like theme/deathFlavorText, not part of the
+  // welcome/game-data-sync snapshot.
+  const [campaignNotes, setCampaignNotes] = useState([]);
 
   return {
     gameName,
@@ -74,5 +80,7 @@ export function useGameState() {
     setCustomColors,
     deathFlavorText,
     setDeathFlavorText,
+    campaignNotes,
+    setCampaignNotes,
   };
 }

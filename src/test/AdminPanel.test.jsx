@@ -1,23 +1,15 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useEffect } from "react";
 import AdminPanel from "../components/AdminPanel";
 import { PeerProvider } from "../providers/PeerProvider";
 import { WheelProvider } from "../providers/WheelProvider";
-import { AiProvider } from "../providers/AiProvider";
 import { usePeer } from "../hooks/usePeer";
-
-// showRoster mounts the real CharacterSheet, which calls useAi() - AiContext
-// has no default value, so every render here needs an <AiProvider> even
-// though most of these tests never touch AI at all.
-vi.mock("../ai/engine/webllmEngine", () => ({
-  createLlmEngine: vi.fn(() => new Promise(() => {})),
-}));
 
 // Renders AdminPanel as the GM with a starting campaign name/tower size,
 // mirroring how a real game would have these set via createGame().
-function GmAdminPanel({ showRoster = false }) {
+function GmAdminPanel() {
   const { setIsGM, setGameId, setGameName, setTowerSize } = usePeer();
   useEffect(() => {
     setIsGM(true);
@@ -25,7 +17,7 @@ function GmAdminPanel({ showRoster = false }) {
     setGameName("Beneath a Metal Sky");
     setTowerSize(25);
   }, [setIsGM, setGameId, setGameName, setTowerSize]);
-  return <AdminPanel showRoster={showRoster} />;
+  return <AdminPanel />;
 }
 
 // Same, but also seeds a presence roster (one online, one offline player)
@@ -53,7 +45,7 @@ function GmAdminPanelWithPresence() {
       },
     });
   }, [setIsGM, setGameName, setTowerSize, setPresence, setCharacters]);
-  return <AdminPanel showRoster={false} />;
+  return <AdminPanel />;
 }
 
 describe("AdminPanel Component", () => {
@@ -65,13 +57,11 @@ describe("AdminPanel Component", () => {
 
   it("renders the current campaign name and tower size", () => {
     render(
-      <AiProvider>
-        <PeerProvider>
-          <WheelProvider>
-            <GmAdminPanel />
-          </WheelProvider>
-        </PeerProvider>
-      </AiProvider>
+      <PeerProvider>
+        <WheelProvider>
+          <GmAdminPanel />
+        </WheelProvider>
+      </PeerProvider>
     );
 
     expect(screen.getByDisplayValue("Beneath a Metal Sky")).toBeInTheDocument();
@@ -80,13 +70,11 @@ describe("AdminPanel Component", () => {
 
   it("shows the game ID and a sharable invite URL, still reachable mid-game", () => {
     render(
-      <AiProvider>
-        <PeerProvider>
-          <WheelProvider>
-            <GmAdminPanel />
-          </WheelProvider>
-        </PeerProvider>
-      </AiProvider>
+      <PeerProvider>
+        <WheelProvider>
+          <GmAdminPanel />
+        </WheelProvider>
+      </PeerProvider>
     );
 
     expect(screen.getByText("beneath-a-metal-sky-123")).toBeInTheDocument();
@@ -97,13 +85,11 @@ describe("AdminPanel Component", () => {
 
   it("lets the GM rename the campaign on blur", async () => {
     render(
-      <AiProvider>
-        <PeerProvider>
-          <WheelProvider>
-            <GmAdminPanel />
-          </WheelProvider>
-        </PeerProvider>
-      </AiProvider>
+      <PeerProvider>
+        <WheelProvider>
+          <GmAdminPanel />
+        </WheelProvider>
+      </PeerProvider>
     );
 
     const nameInput = screen.getByLabelText("Campaign Name");
@@ -116,13 +102,11 @@ describe("AdminPanel Component", () => {
 
   it("lets the GM change the tower size on blur", async () => {
     render(
-      <AiProvider>
-        <PeerProvider>
-          <WheelProvider>
-            <GmAdminPanel />
-          </WheelProvider>
-        </PeerProvider>
-      </AiProvider>
+      <PeerProvider>
+        <WheelProvider>
+          <GmAdminPanel />
+        </WheelProvider>
+      </PeerProvider>
     );
 
     const sizeInput = screen.getByLabelText("Tower Size");
@@ -135,13 +119,11 @@ describe("AdminPanel Component", () => {
 
   it("shows a Start Game button until the game has started", async () => {
     render(
-      <AiProvider>
-        <PeerProvider>
-          <WheelProvider>
-            <GmAdminPanel />
-          </WheelProvider>
-        </PeerProvider>
-      </AiProvider>
+      <PeerProvider>
+        <WheelProvider>
+          <GmAdminPanel />
+        </WheelProvider>
+      </PeerProvider>
     );
 
     expect(
@@ -149,39 +131,13 @@ describe("AdminPanel Component", () => {
     ).toBeInTheDocument();
   });
 
-  it("embeds the character roster only when showRoster is true", () => {
-    const { rerender } = render(
-      <AiProvider>
-        <PeerProvider>
-          <WheelProvider>
-            <GmAdminPanel showRoster={false} />
-          </WheelProvider>
-        </PeerProvider>
-      </AiProvider>
-    );
-    expect(screen.queryByText("Characters")).not.toBeInTheDocument();
-
-    rerender(
-      <AiProvider>
-        <PeerProvider>
-          <WheelProvider>
-            <GmAdminPanel showRoster={true} />
-          </WheelProvider>
-        </PeerProvider>
-      </AiProvider>
-    );
-    expect(screen.getByText("Characters")).toBeInTheDocument();
-  });
-
   it("defaults to the Default theme with no custom color pickers shown", () => {
     render(
-      <AiProvider>
-        <PeerProvider>
-          <WheelProvider>
-            <GmAdminPanel />
-          </WheelProvider>
-        </PeerProvider>
-      </AiProvider>
+      <PeerProvider>
+        <WheelProvider>
+          <GmAdminPanel />
+        </WheelProvider>
+      </PeerProvider>
     );
 
     expect(screen.getByLabelText("Theme")).toHaveValue("default");
@@ -190,13 +146,11 @@ describe("AdminPanel Component", () => {
 
   it("lets the GM pick a built-in preset", async () => {
     render(
-      <AiProvider>
-        <PeerProvider>
-          <WheelProvider>
-            <GmAdminPanel />
-          </WheelProvider>
-        </PeerProvider>
-      </AiProvider>
+      <PeerProvider>
+        <WheelProvider>
+          <GmAdminPanel />
+        </WheelProvider>
+      </PeerProvider>
     );
 
     await user.selectOptions(screen.getByLabelText("Theme"), "scifi");
@@ -207,13 +161,11 @@ describe("AdminPanel Component", () => {
 
   it("reveals a color picker per theme token when Custom is picked", async () => {
     render(
-      <AiProvider>
-        <PeerProvider>
-          <WheelProvider>
-            <GmAdminPanel />
-          </WheelProvider>
-        </PeerProvider>
-      </AiProvider>
+      <PeerProvider>
+        <WheelProvider>
+          <GmAdminPanel />
+        </WheelProvider>
+      </PeerProvider>
     );
 
     await user.selectOptions(screen.getByLabelText("Theme"), "custom");
@@ -230,13 +182,11 @@ describe("AdminPanel Component", () => {
 
   it("lists known players with online/offline status, Remove only for offline", () => {
     render(
-      <AiProvider>
-        <PeerProvider>
-          <WheelProvider>
-            <GmAdminPanelWithPresence />
-          </WheelProvider>
-        </PeerProvider>
-      </AiProvider>
+      <PeerProvider>
+        <WheelProvider>
+          <GmAdminPanelWithPresence />
+        </WheelProvider>
+      </PeerProvider>
     );
 
     expect(screen.getByText("Alice (online)")).toBeInTheDocument();
@@ -247,13 +197,11 @@ describe("AdminPanel Component", () => {
 
   it("removing a disconnected player frees the character they held", async () => {
     render(
-      <AiProvider>
-        <PeerProvider>
-          <WheelProvider>
-            <GmAdminPanelWithPresence />
-          </WheelProvider>
-        </PeerProvider>
-      </AiProvider>
+      <PeerProvider>
+        <WheelProvider>
+          <GmAdminPanelWithPresence />
+        </WheelProvider>
+      </PeerProvider>
     );
 
     await user.click(screen.getByRole("button", { name: "Remove" }));
@@ -263,13 +211,11 @@ describe("AdminPanel Component", () => {
 
   it("defaults the death narration to the standard template", () => {
     render(
-      <AiProvider>
-        <PeerProvider>
-          <WheelProvider>
-            <GmAdminPanel />
-          </WheelProvider>
-        </PeerProvider>
-      </AiProvider>
+      <PeerProvider>
+        <WheelProvider>
+          <GmAdminPanel />
+        </WheelProvider>
+      </PeerProvider>
     );
 
     expect(screen.getByDisplayValue("{name} Died!")).toBeInTheDocument();
@@ -277,13 +223,11 @@ describe("AdminPanel Component", () => {
 
   it("lets the GM customize the death narration on blur", async () => {
     render(
-      <AiProvider>
-        <PeerProvider>
-          <WheelProvider>
-            <GmAdminPanel />
-          </WheelProvider>
-        </PeerProvider>
-      </AiProvider>
+      <PeerProvider>
+        <WheelProvider>
+          <GmAdminPanel />
+        </WheelProvider>
+      </PeerProvider>
     );
 
     const textarea = screen.getByLabelText(/Death Narration/);

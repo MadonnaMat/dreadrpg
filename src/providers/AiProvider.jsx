@@ -19,6 +19,7 @@ import {
   buildScenarioGenerationContext,
   buildCastGenerationContext,
   buildSheetAnswerContext,
+  buildCampaignNotesGenerationContext,
 } from "../ai/promptContexts";
 import {
   scenarioSchema,
@@ -29,6 +30,10 @@ import {
   sheetAnswerSchema,
   validate as validateSheetAnswer,
 } from "../ai/schemas/sheetAnswerSchema";
+import {
+  campaignNotesSchema,
+  validate as validateCampaignNotes,
+} from "../ai/schemas/campaignNotesSchema";
 
 // Local-only AI assistant state - deliberately never imports usePeer()/
 // PeerContext. Inference runs entirely client-side per browser; the
@@ -163,6 +168,17 @@ export function AiProvider({ children }) {
     [runPrompt]
   );
 
+  const generateCampaignNotes = useCallback(
+    (input) =>
+      runPrompt({
+        systemPromptText: latest("campaignNotesGeneration").text,
+        userContent: buildCampaignNotesGenerationContext(input),
+        schema: campaignNotesSchema,
+        validate: validateCampaignNotes,
+      }),
+    [runPrompt]
+  );
+
   const suggestAnswer = useCallback(
     (input) =>
       runPrompt({
@@ -211,6 +227,17 @@ export function AiProvider({ children }) {
     [runPrompt]
   );
 
+  const refineCampaignNotes = useCallback(
+    ({ history, refinementText }) =>
+      runPrompt({
+        history,
+        userContent: refinementText,
+        schema: campaignNotesSchema,
+        validate: validateCampaignNotes,
+      }),
+    [runPrompt]
+  );
+
   return (
     <AiContext.Provider
       value={{
@@ -226,9 +253,11 @@ export function AiProvider({ children }) {
         generateScenario,
         generateCast,
         suggestAnswer,
+        generateCampaignNotes,
         refineScenario,
         refineCast,
         refineAnswer,
+        refineCampaignNotes,
         runPrompt,
       }}
     >

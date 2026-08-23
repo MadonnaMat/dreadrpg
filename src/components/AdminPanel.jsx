@@ -9,7 +9,6 @@ import {
   THEME_TOKEN_LABELS,
   DEFAULT_CUSTOM_COLORS,
 } from "../constants/themes";
-import CharacterSheet from "./CharacterSheet";
 import { buildShareUrl } from "../helpers/rejoinLink";
 
 // GM-only theme picker: built-in presets are pure CSS (see
@@ -303,12 +302,11 @@ function ShareLinkSection({ gameId }) {
 
 // GM-only settings hub: campaign name, tower size, and Start Game -
 // previously scattered (tower size was a one-shot PreGame input, campaign
-// name didn't exist, and Start Game lived alone in the Lobby tab). Also
-// hosts the character roster (via CharacterSheet) when `showRoster` is set,
-// so PreGame doesn't need a separate "Setup Characters" tab any more -
-// GameLoaded, which already has its own dedicated Characters tab, passes
-// showRoster={false} to avoid mounting CharacterSheet a second time.
-export default function AdminPanel({ showRoster = true }) {
+// name didn't exist, and Start Game lived alone in the Lobby tab). Character
+// management used to be embedded here too, but now has its own dedicated
+// tab everywhere (GameLoaded.jsx and PreGame.jsx's HostLobbyPanel both
+// render CharacterSheet from their own "Characters" tab instead).
+export default function AdminPanel() {
   const {
     gameId,
     gameName,
@@ -381,8 +379,6 @@ export default function AdminPanel({ showRoster = true }) {
           Start Game
         </button>
       )}
-
-      {showRoster && <CharacterSheet />}
     </div>
   );
 }

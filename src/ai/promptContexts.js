@@ -36,6 +36,16 @@ export function buildCastGenerationContext({ castDescription, scenario }) {
   return `Generate a cast of characters for this Dread RPG game. The GM described the cast as:\n\n${castDescription}${formatScenarioContext(scenario)}`;
 }
 
+export function buildCampaignNotesGenerationContext({
+  notesDescription,
+  scenario,
+}) {
+  const direction = notesDescription
+    ? `The GM added this extra direction:\n\n${notesDescription}\n`
+    : "";
+  return `Generate campaign notes sections for this Dread RPG game.\n${direction}${formatScenarioContext(scenario)}`;
+}
+
 export function buildSheetAnswerContext({ question, otherAnswers, scenario }) {
   const answeredSoFar = Object.values(otherAnswers || {})
     .filter((answer) => answer?.text)

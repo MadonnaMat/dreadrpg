@@ -38,6 +38,7 @@ function deriveGameDefaults(restoredState, towerSizeArg, gameNameArg) {
     theme: saved.theme ?? "default",
     customColors: saved.customColors ?? null,
     deathFlavorText: saved.deathFlavorText ?? DEFAULT_DEATH_FLAVOR_TEXT,
+    campaignNotes: saved.campaignNotes ?? [],
   };
 }
 
@@ -185,6 +186,7 @@ export const PeerProvider = ({ children }) => {
     gameState.setTheme(defaults.theme);
     gameState.setCustomColors(defaults.customColors);
     gameState.setDeathFlavorText(defaults.deathFlavorText);
+    gameState.setCampaignNotes(defaults.campaignNotes);
     // The GM never goes through the JOIN handshake that normally creates a
     // presence entry, so seed their own here - otherwise they'd never show
     // up in the online/offline roster at all. A resumed game's saved
@@ -358,6 +360,7 @@ export const PeerProvider = ({ children }) => {
       customColors: gameState.customColors,
       deathFlavorText: gameState.deathFlavorText,
       gameStarted: gameState.gameStarted,
+      campaignNotes: gameState.campaignNotes,
     });
     upsertMyGame(session.gameId, session.hostName, gameState.gameName);
   }, [
@@ -373,6 +376,7 @@ export const PeerProvider = ({ children }) => {
     gameState.customColors,
     gameState.deathFlavorText,
     gameState.gameStarted,
+    gameState.campaignNotes,
   ]);
 
   return (
