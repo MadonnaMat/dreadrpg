@@ -2,6 +2,12 @@
 // sent alongside a system prompt (src/prompts/*.md). No engine/network
 // involvement here, so these are cheaply unit-testable on their own.
 
+import {
+  isCharacterAlive,
+  characterNameFor,
+  getActivePullTargets,
+} from "../helpers/characters";
+
 // Formats every non-empty scenario field (not just `description`) into a
 // labeled block - a question like "what is your biggest fear?" benefits
 // from `threats`, an occupation question from `setting`, etc., not just
@@ -26,6 +32,105 @@ function formatScenarioContext(scenario) {
   );
 
   return lines.length ? `\n\nScenario:\n${lines.join("\n")}` : "";
+}
+
+// One line per character: who's playing them (if anyone) and whether
+// they're still alive - lets AutoGM's turn/self-check prompts see the full
+// roster without needing separate alive/dead or assignment lookups.
+function formatCharacterRosterContext(characters) {
+  const list = Object.values(characters || {});
+  if (!list.length) return "";
+  const lines = list.map((character) => {
+    const who = character.assignedTo
+      ? `played by ${character.assignedTo}`
+      : "unassigned";
+    const status = isCharacterAlive(character)
+      ? "alive"
+      : "removed from the story";
+    return `- ${character.name} (${who}) - ${status}`;
+  });
+  return `\n\nCharacters:\n${lines.join("\n")}`;
+}
+
+// Appended after an item's description so the model can see, at a glance,
+// who already knows about it (don't re-describe it to them) and whether
+// it's been taken (don't narrate it as still sitting in its original spot).
+function formatItemState(item) {
+  const tags = [];
+  if (item.seenBy?.length) tags.push(`seen by: ${item.seenBy.join(", ")}`);
+  tags.push(item.takenBy ? `taken by: ${item.takenBy}` : "not yet taken");
+  return ` [${tags.join("; ")}]`;
+}
+
+// AutoGM's own private GM prep, in the same shape CampaignNotes.jsx edits -
+// deliberately labeled as private so the prompt doesn't treat it as
+// player-facing content.
+function formatCampaignNotesContext(campaignNotes) {
+  const sections = campaignNotes || [];
+  if (!sections.length) return "";
+  const lines = sections.flatMap((section) => [
+    `${section.name}:`,
+    ...(section.items || []).map(
+      (item) =>
+        `  - ${item.text}${item.description ? ` — ${item.description}` : ""}${formatItemState(item)}`
+    ),
+  ]);
+  return `\n\nYour private campaign notes (GM prep - don't reveal directly unless the story calls for it). Each item shows who has already seen it and, for portable items, whether it's already been taken - never re-describe something a character has already seen as if it's new to them, and never narrate a taken item as still sitting in its original spot:\n${lines.join("\n")}`;
+}
+
+function formatRawHistoryContext(rawHistory) {
+  const list = rawHistory || [];
+  if (!list.length) return "";
+  const lines = list.map((message) => `${message.from}: ${message.text}`);
+  return `\n\nRecent chat:\n${lines.join("\n")}`;
+}
+
+// Only these players are ever valid `targetPlayerName` choices for a pull -
+// see helpers/characters.js's getActivePullTargets for the exact rule
+// (alive character, currently-connected player).
+function formatActivePullTargetsContext(characters, presence) {
+  const names = getActivePullTargets({ characters, presence });
+  if (!names.length) {
+    return "\n\nPlayers you may currently call for a pull: none - do not call for a pull right now.";
+  }
+  const list = names
+    .map((name) => `${name} (playing ${characterNameFor(characters, name)})`)
+    .join(", ");
+  return `\n\nPlayers you may currently call for a pull: ${list}. No one else - not an NPC, not an unclaimed character, not anyone currently offline - is a valid target.`;
+}
+
+function formatTowerStateContext({
+  dangerProbability,
+  awaitingReset,
+  designatedSpinner,
+}) {
+  const dangerPct = Math.round((dangerProbability ?? 0) * 100);
+  const lines = [`Current collapse danger: ${dangerPct}%.`];
+  lines.push(
+    awaitingReset
+      ? "The tower just collapsed and is frozen until the table is ready to continue."
+      : "The tower is standing."
+  );
+  if (designatedSpinner) {
+    lines.push(`${designatedSpinner} is currently designated to pull.`);
+  }
+  return `\n\nTower state:\n${lines.join("\n")}`;
+}
+
+function formatStorySummaryContext(storySummary) {
+  return storySummary ? `\n\nStory so far:\n${storySummary}` : "";
+}
+
+// A dedicated pull-check pass (see buildAutoGmPullCheckContext) runs before
+// the turn prompt and, when it decides a pull is warranted, calls it in
+// code directly rather than trusting this creative-writing prompt to also
+// reliably decide it. This tells the turn prompt what already happened so
+// it narrates the moment instead of re-deciding or contradicting it.
+function formatPullJustCalledContext(pullJustCalled) {
+  if (!pullJustCalled) return "";
+  const { targetPlayerName, pullsRequired } = pullJustCalled;
+  const pullWord = pullsRequired > 1 ? "pulls" : "pull";
+  return `\n\nA pull has already been called for ${targetPlayerName} because of the action they just declared (${pullsRequired} ${pullWord} required) - this is already handled, do not set "callForPull" yourself this turn. Just narrate the tension of the moment leading into it; do not narrate the outcome of the pull (success, decline, or collapse) - that will be resolved and narrated separately once it's actually pulled.`;
 }
 
 export function buildScenarioGenerationContext({ premise }) {
@@ -55,4 +160,70 @@ export function buildSheetAnswerContext({ question, otherAnswers, scenario }) {
     ? `\n\nThis character's other answers so far:\n${answeredSoFar}`
     : "";
   return `Suggest an answer to this character questionnaire question:\n\n"${question}"${priorAnswers}${formatScenarioContext(scenario)}`;
+}
+
+export function buildAutoGmTurnContext({
+  scenario,
+  characters,
+  storySummary,
+  rawHistory,
+  dangerProbability,
+  awaitingReset,
+  designatedSpinner,
+  campaignNotes,
+  presence,
+  pullJustCalled,
+}) {
+  return `You are running an AutoGM turn for this Dread RPG game.${formatScenarioContext(scenario)}${formatCharacterRosterContext(characters)}${formatCampaignNotesContext(campaignNotes)}${formatStorySummaryContext(storySummary)}${formatTowerStateContext({ dangerProbability, awaitingReset, designatedSpinner })}${formatActivePullTargetsContext(characters, presence)}${formatPullJustCalledContext(pullJustCalled)}${formatRawHistoryContext(rawHistory)}`;
+}
+
+export function buildAutoGmRemovalNarrationContext({
+  characterName,
+  scenario,
+  storySummary,
+  rawHistory,
+  campaignNotes,
+}) {
+  return `Narrate the removal of "${characterName}" from the story.${formatScenarioContext(scenario)}${formatCampaignNotesContext(campaignNotes)}${formatStorySummaryContext(storySummary)}${formatRawHistoryContext(rawHistory)}`;
+}
+
+export function buildAutoGmCompactionContext({ priorSummary, rawHistory }) {
+  const priorBlock = priorSummary
+    ? `\n\nPrior summary:\n${priorSummary}`
+    : "\n\nThere is no prior summary yet - this is the first compaction.";
+  return `Update the running story summary.${priorBlock}${formatRawHistoryContext(rawHistory)}`;
+}
+
+// Fed as literal JSON rather than prose - this is a structured
+// transform (existing notes + an update -> the whole rebuilt list), and a
+// small local model reproduces untouched entries far more faithfully when
+// it can copy them straight from JSON it was given, rather than
+// reconstructing them from a prose summary of the same data.
+export function buildAutoGmCampaignNotesConsolidationContext({
+  campaignNotes,
+  campaignNoteUpdates,
+}) {
+  const currentJson = JSON.stringify(campaignNotes || [], null, 2);
+  const updatesJson = JSON.stringify(campaignNoteUpdates || [], null, 2);
+  return `Current campaign notes (JSON):\n${currentJson}\n\nNew update(s) just called out this turn (JSON):\n${updatesJson}`;
+}
+
+export function buildAutoGmPullCheckContext({
+  actionText,
+  actorName,
+  scenario,
+}) {
+  return `The player controlling ${actorName} just declared:\n\n"${actionText}"${formatScenarioContext(scenario)}`;
+}
+
+export function buildAutoGmSelfCheckContext({
+  draftNarration,
+  storySummary,
+  rawHistory,
+  campaignNotes,
+  characters,
+  dangerProbability,
+  awaitingReset,
+}) {
+  return `Draft narration to check:\n"${draftNarration}"${formatCharacterRosterContext(characters)}${formatCampaignNotesContext(campaignNotes)}${formatStorySummaryContext(storySummary)}${formatTowerStateContext({ dangerProbability, awaitingReset, designatedSpinner: null })}${formatRawHistoryContext(rawHistory)}`;
 }

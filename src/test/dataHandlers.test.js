@@ -12,6 +12,7 @@ function makeHandlerRefs() {
     scenario: { current: null },
     characterSheet: { current: null },
     ping: { current: null },
+    autoGmChat: { current: null },
   };
 }
 
@@ -238,5 +239,22 @@ describe("createPlayerDataHandler - GM Admin Panel broadcasts", () => {
     handler({ type: MESSAGE_TYPES.PRESENCE_UPDATE, presence });
 
     expect(setPresence).toHaveBeenCalledWith(presence);
+  });
+
+  it("applies a live autogm-thinking-update from the GM", () => {
+    const setAutoGmThinking = vi.fn();
+    const handler = createPlayerDataHandler({
+      handlerRefs: makeHandlerRefs(),
+      setUsers: vi.fn(),
+      setConnectionStatus: vi.fn(),
+      setAutoGmThinking,
+    });
+
+    handler({
+      type: MESSAGE_TYPES.AUTOGM_THINKING_UPDATE,
+      autoGmThinking: "thinking",
+    });
+
+    expect(setAutoGmThinking).toHaveBeenCalledWith("thinking");
   });
 });

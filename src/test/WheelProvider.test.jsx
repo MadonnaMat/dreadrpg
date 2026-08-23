@@ -456,4 +456,65 @@ describe("WheelProvider", () => {
       expect(screen.getByTestId("awaiting-reset")).toHaveTextContent("true");
     });
   });
+
+  describe("notifying AutoGM of spin outcomes", () => {
+    // Captures whatever AutoGmProvider would register on autoGmChat, so
+    // these tests can confirm WheelProvider's own outcome narration reaches
+    // it (see sendSystemChatMessage's notifyAutoGm option, PeerProvider.jsx)
+    // without needing a real AutoGmProvider in the tree.
+    function AutoGmChatSpy({ onMessage }) {
+      const { registerAutoGmChatEventHandler } = usePeer();
+      useEffect(() => {
+        registerAutoGmChatEventHandler(onMessage);
+      }, [registerAutoGmChatEventHandler, onMessage]);
+      return null;
+    }
+
+    it("notifies AutoGM when a designated spinner declines", async () => {
+      const onMessage = vi.fn();
+      render(
+        <TestWrapper isGM={true}>
+          <AutoGmChatSpy onMessage={onMessage} />
+          <TestWheelComponent />
+        </TestWrapper>
+      );
+
+      await user.click(screen.getByText("Assign Host"));
+      await user.click(screen.getByText("Decline"));
+
+      expect(onMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ text: expect.stringContaining("declines") })
+      );
+    });
+
+    it("notifies AutoGM on a successful spin", async () => {
+      const onMessage = vi.fn();
+      render(
+        <TestWrapper isGM={true}>
+          <AutoGmChatSpy onMessage={onMessage} />
+          <TestWheelComponent />
+        </TestWrapper>
+      );
+
+      await user.click(screen.getByText("End Spin Success"));
+
+      expect(onMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ text: expect.stringContaining("survives") })
+      );
+    });
+
+    it("does not notify AutoGM when a pull is merely assigned", async () => {
+      const onMessage = vi.fn();
+      render(
+        <TestWrapper isGM={true}>
+          <AutoGmChatSpy onMessage={onMessage} />
+          <TestWheelComponent />
+        </TestWrapper>
+      );
+
+      await user.click(screen.getByText("Assign Host"));
+
+      expect(onMessage).not.toHaveBeenCalled();
+    });
+  });
 });

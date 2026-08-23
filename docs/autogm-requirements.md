@@ -1,10 +1,17 @@
-# AutoGM mode — requirements (future phase, not implemented yet)
+# AutoGM mode — requirements (implemented)
 
-This captures the full intent for a future "AutoGM" phase, deliberately out
-of scope for the current WebLLM foundation work, so it isn't lost. Treat it
-as a living spec — update it as the AutoGM phase is actually scoped and
-built, the same way `docs/rules/dreadrpg-app-compliance.md` is meant to be
-re-run rather than trusted blindly forever.
+**Status: implemented.** `src/providers/AutoGmProvider.jsx` (plus
+`src/ai/schemas/autoGm*Schema.js`, `src/prompts/autogm-*.v1.md`, and
+`src/components/autogm/AutoGmDebugPanel.jsx`) now runs the chat-driven
+turn loop, host self-assignment, persistence/compaction, campaign-notes
+integration, a self-check reasoning pass, and a live debug panel described
+below. This doc is kept as the original design record; treat it as a
+living spec and update it if the implementation diverges further, the same
+way `docs/rules/dreadrpg-app-compliance.md` is meant to be re-run rather
+than trusted blindly forever.
+
+This captures the full intent for the "AutoGM" phase, originally scoped
+out of the WebLLM foundation work so it wasn't lost.
 
 ## Goal
 
@@ -86,13 +93,24 @@ callForPull: boolean, pullsRequired?: number }`).
   clearly when scoping the AutoGM phase, since it's a meaningfully
   different trust model than everything built in the foundation phase.
 
-## Explicitly not decided yet (for the AutoGM phase's own planning to resolve)
+## How it was resolved
 
-- Exact new `MESSAGE_TYPES` needed.
-- Exact context-compaction strategy/thresholds (e.g. summarize every N
-  turns, or when a token estimate crosses a threshold).
-- Whether AutoGM narration is generated on the host's browser only
-  (matching the GM-hub topology used everywhere else in this app) —
-  presumed yes, but worth confirming explicitly when that phase is
-  scoped.
-- Whether/how a human GM can intervene or pause AutoGM mid-session.
+- **No new `MESSAGE_TYPES`.** AutoGM narration reuses `CHAT` with a
+  `fromBot: true` field; auto-approve reuses `CHARACTER_UPDATE`.
+  `autoGmEnabled` is GM-local state, never synced through the game
+  snapshot.
+- **Compaction**: a plain message-count threshold (20 raw messages), not a
+  token estimate — folds into a rolling `storySummary` via a dedicated
+  `autogm-compaction.v1` prompt call. See `AutoGmProvider.jsx`'s
+  `RAW_HISTORY_COMPACTION_THRESHOLD`.
+- **Confirmed**: AutoGM's LLM calls only ever run on the host's browser,
+  matching the GM-hub topology used everywhere else.
+- **Pause/intervene**: the Admin Panel's "Disable AutoGM" toggle turns it
+  off instantly (with a chat announcement) without losing persisted story
+  state; re-enabling resumes with the same `storySummary`/`rawHistory`.
+  There's no finer-grained "pause one turn" control.
+- **Beyond the original scope**: this phase also ended up covering
+  automatic questionnaire-answer approval, a self-check reasoning pass
+  before any narration posts, and a live debug panel (`AutoGmDebugPanel`)
+  — none of which were in the original core requirements above, but were
+  added during implementation.

@@ -2,13 +2,10 @@ import { useState } from "react";
 import { usePeer } from "../hooks/usePeer";
 import { useAi } from "../hooks/useAi";
 import { DEFAULT_CAMPAIGN_NOTE_SECTION_NAMES } from "../constants/campaignNotes";
+import { generateSectionId } from "../helpers/campaignNotes";
 import CampaignNotesAiGenerator from "./campaign-notes/CampaignNotesAiGenerator";
 import CampaignNoteItemRow from "./campaign-notes/CampaignNoteItemRow";
 import CampaignNoteRow from "./campaign-notes/CampaignNoteRow";
-
-function generateSectionId() {
-  return `note-${Math.random().toString(36).slice(2, 10)}`;
-}
 
 // GM-only campaign-prep page: freeform named sections, each a list of
 // freeform entries. Deliberately local-only (see PeerProvider.jsx) - no
@@ -18,9 +15,12 @@ function generateSectionId() {
 // CharacterSheet.jsx's CRUD handlers rather than Scenario.jsx's
 // draft-then-Save flow.
 export default function CampaignNotes() {
-  const { campaignNotes, setCampaignNotes, scenario } = usePeer();
+  const { campaignNotes, setCampaignNotes, scenario, characters } = usePeer();
   const { aiEnabled } = useAi();
   const [newSectionName, setNewSectionName] = useState("");
+  const characterNames = Object.values(characters || {}).map(
+    (character) => character.name
+  );
 
   const addSection = (name) => {
     const trimmed = name.trim();
@@ -38,6 +38,8 @@ export default function CampaignNotes() {
         .map((item) => ({
           text: item.text,
           description: item.description || "",
+          seenBy: [],
+          takenBy: null,
         })),
     };
     setCampaignNotes((prev) => [...prev, section]);
@@ -61,7 +63,10 @@ export default function CampaignNotes() {
         section.id === sectionId
           ? {
               ...section,
-              items: [...section.items, { text: "", description: "" }],
+              items: [
+                ...section.items,
+                { text: "", description: "", seenBy: [], takenBy: null },
+              ],
             }
           : section
       )
@@ -81,6 +86,32 @@ export default function CampaignNotes() {
           : section
       )
     );
+  };
+
+  const toggleSeenBy = (sectionId, itemIndex, characterName) => {
+    setCampaignNotes((prev) =>
+      prev.map((section) =>
+        section.id === sectionId
+          ? {
+              ...section,
+              items: section.items.map((item, i) => {
+                if (i !== itemIndex) return item;
+                const seenBy = item.seenBy || [];
+                return {
+                  ...item,
+                  seenBy: seenBy.includes(characterName)
+                    ? seenBy.filter((name) => name !== characterName)
+                    : [...seenBy, characterName],
+                };
+              }),
+            }
+          : section
+      )
+    );
+  };
+
+  const setTakenBy = (sectionId, itemIndex, characterName) => {
+    updateItem(sectionId, itemIndex, { takenBy: characterName });
   };
 
   const removeItem = (sectionId, itemIndex) => {
@@ -153,6 +184,11 @@ export default function CampaignNotes() {
                 updateItem(section.id, itemIndex, { description })
               }
               onRemove={() => removeItem(section.id, itemIndex)}
+              characterNames={characterNames}
+              onToggleSeenBy={(name) =>
+                toggleSeenBy(section.id, itemIndex, name)
+              }
+              onSetTakenBy={(name) => setTakenBy(section.id, itemIndex, name)}
             />
           ))}
           <button

@@ -62,4 +62,9 @@ export function dispatchToRegisteredHandlers(data, connection, handlerRefs) {
   if (handlerRefs.ping.current && data.type === MESSAGE_TYPES.PRESENCE_PONG) {
     handlerRefs.ping.current(data, connection);
   }
+  // AutoGmProvider's own observer of the chat stream, independent of
+  // Chat.jsx's `chat` handler above - see useRegisteredHandlers.js.
+  if (handlerRefs.autoGmChat.current && data.type === MESSAGE_TYPES.CHAT) {
+    handlerRefs.autoGmChat.current(data, connection);
+  }
 }

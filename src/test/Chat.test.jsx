@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useEffect } from "react";
@@ -15,13 +15,15 @@ function GmChat() {
   return <Chat />;
 }
 
-// Renders Chat as a named sender with a character already assigned to them,
-// to exercise the "<name> <CharacterName>" display-name decoration.
+// Renders Chat as the GM with a character already claimed (AutoGM mode's
+// self-play case), to exercise the "<name> <CharacterName>" display-name
+// decoration. Uses the GM's local-echo path (see handleSend) since a lone
+// player has no real connection to round-trip through in this test setup.
 function ChatWithCharacter() {
-  const { setIsGM, setUserName, setCharacters } = usePeer();
+  const { setIsGM, setHostName, setCharacters } = usePeer();
   useEffect(() => {
     setIsGM(true);
-    setUserName("Alice");
+    setHostName("Alice");
     setCharacters({
       "char-1": {
         id: "char-1",
@@ -32,7 +34,7 @@ function ChatWithCharacter() {
         answers: {},
       },
     });
-  }, [setIsGM, setUserName, setCharacters]);
+  }, [setIsGM, setHostName, setCharacters]);
   return <Chat />;
 }
 
@@ -135,7 +137,7 @@ describe("Chat Component", () => {
     ).toBeInTheDocument();
   });
 
-  it("decorates the sender's name with their assigned character", async () => {
+  it("decorates the GM's own message with their claimed character once they have one", async () => {
     render(
       <PeerProvider>
         <ChatWithCharacter />
@@ -213,5 +215,148 @@ describe("Chat Component", () => {
     await user.click(screen.getByText("Send"));
 
     expect(screen.getByText("GM Vera <GM>:")).toBeInTheDocument();
+  });
+
+  it("notifies the AutoGM chat observer when the GM sends a message", async () => {
+    const spy = vi.fn();
+    function GmChatWithAutoGmObserver() {
+      const { setIsGM, setHostName, registerAutoGmChatEventHandler } =
+        usePeer();
+      useEffect(() => {
+        setIsGM(true);
+        setHostName("GM Vera");
+        registerAutoGmChatEventHandler(spy);
+      }, [setIsGM, setHostName, registerAutoGmChatEventHandler]);
+      return <Chat />;
+    }
+
+    render(
+      <PeerProvider>
+        <GmChatWithAutoGmObserver />
+      </PeerProvider>
+    );
+
+    const input = screen.getByPlaceholderText("Type a message...");
+    await user.type(input, "Roll for initiative");
+    await user.click(screen.getByText("Send"));
+
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: "Roll for initiative",
+        fromIdentity: "GM Vera",
+      })
+    );
+  });
+
+  it("notifies the AutoGM chat observer when a player sends a message", async () => {
+    const spy = vi.fn();
+    function PlayerChatWithAutoGmObserver() {
+      const { setUserName, registerAutoGmChatEventHandler } = usePeer();
+      useEffect(() => {
+        setUserName("Bob");
+        registerAutoGmChatEventHandler(spy);
+      }, [setUserName, registerAutoGmChatEventHandler]);
+      return <Chat />;
+    }
+
+    render(
+      <PeerProvider>
+        <PlayerChatWithAutoGmObserver />
+      </PeerProvider>
+    );
+
+    const input = screen.getByPlaceholderText("Type a message...");
+    await user.type(input, "I search the room");
+    await user.click(screen.getByText("Send"));
+
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: "I search the room",
+        fromIdentity: "Bob",
+      })
+    );
+  });
+
+  it("renders a bot-attributed message with distinct styling", () => {
+    function ChatWithBotMessage() {
+      const { sendSystemChatMessage } = usePeer();
+      useEffect(() => {
+        sendSystemChatMessage("The tower groans ominously.", {
+          from: "GM",
+          fromBot: true,
+        });
+      }, [sendSystemChatMessage]);
+      return <Chat />;
+    }
+
+    const { container } = render(
+      <PeerProvider>
+        <ChatWithBotMessage />
+      </PeerProvider>
+    );
+
+    expect(
+      screen.getByText("The tower groans ominously.", { exact: false })
+    ).toBeInTheDocument();
+    expect(container.querySelector(".chat-message-bot")).toBeInTheDocument();
+  });
+
+  it("shows a status-specific label while AutoGM is busy", () => {
+    function ChatWhileUpdatingNotes() {
+      const { setAutoGmThinking } = usePeer();
+      useEffect(() => {
+        setAutoGmThinking("updating_notes");
+      }, [setAutoGmThinking]);
+      return <Chat />;
+    }
+
+    render(
+      <PeerProvider>
+        <ChatWhileUpdatingNotes />
+      </PeerProvider>
+    );
+
+    expect(
+      screen.getByText("is updating its notes", { exact: false })
+    ).toBeInTheDocument();
+  });
+
+  it("disables the chat input and Send button while AutoGM is busy", async () => {
+    function ChatWhileThinking() {
+      const { setAutoGmThinking } = usePeer();
+      useEffect(() => {
+        setAutoGmThinking("thinking");
+      }, [setAutoGmThinking]);
+      return <Chat />;
+    }
+
+    render(
+      <PeerProvider>
+        <ChatWhileThinking />
+      </PeerProvider>
+    );
+
+    expect(screen.getByPlaceholderText("Waiting for the GM...")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+  });
+
+  it("re-enables the chat input and Send button once AutoGM settles", () => {
+    function ChatSettling() {
+      const { setAutoGmThinking } = usePeer();
+      useEffect(() => {
+        setAutoGmThinking("thinking");
+        setAutoGmThinking(false);
+      }, [setAutoGmThinking]);
+      return <Chat />;
+    }
+
+    render(
+      <PeerProvider>
+        <ChatSettling />
+      </PeerProvider>
+    );
+
+    expect(screen.getByPlaceholderText("Type a message...")).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: "Send" })).not.toBeDisabled();
   });
 });

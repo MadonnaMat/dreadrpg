@@ -104,20 +104,45 @@ export const PeerProvider = ({ children }) => {
     return () => window.removeEventListener("pagehide", handlePageHide);
   }, []);
 
-  // Lets any component (e.g. WheelProvider narrating a spin/decline) inject
-  // a system-authored chat message without needing direct access to Chat.jsx's
-  // own local `messages` state. Invoking the registered chat handler
-  // directly - the same function Chat.jsx registers to process an inbound
-  // network message - reuses its existing append-locally-and-(if GM)-
-  // forward-to-everyone-else logic exactly, rather than duplicating it here.
+  // Lets any component (e.g. WheelProvider narrating a spin/decline, or
+  // AutoGmProvider posting AI narration) inject a system- or bot-authored
+  // chat message without needing direct access to Chat.jsx's own local
+  // `messages` state. Invoking the registered chat handler directly - the
+  // same function Chat.jsx registers to process an inbound network message -
+  // reuses its existing append-locally-and-(if GM)-forward-to-everyone-else
+  // logic exactly, rather than duplicating it here. `fromBot` lets Chat.jsx
+  // style AutoGM's own narration distinctly from the "System" mechanical
+  // narration WheelProvider posts today.
+  //
+  // `notifyAutoGm` additionally forwards this same message to AutoGM's own
+  // `autoGmChat` observer - used by WheelProvider for spin outcomes (a
+  // decline, or a successful pull) so AutoGM always reacts to what just
+  // happened, not only to a player's next typed message. AutoGM's own
+  // narration (posted via this same function) never sets this flag, so it
+  // can never re-trigger itself.
   const { handlerRefs } = handlers;
   const sendSystemChatMessage = useCallback(
-    (text) => {
-      handlerRefs.chat.current?.({
-        type: MESSAGE_TYPES.CHAT,
-        from: "System",
-        text,
-      });
+    (text, { from = "System", fromBot = false, notifyAutoGm = false } = {}) => {
+      const data = { type: MESSAGE_TYPES.CHAT, from, text, fromBot };
+      handlerRefs.chat.current?.(data);
+      if (notifyAutoGm) {
+        handlerRefs.autoGmChat.current?.(data);
+      }
+    },
+    [handlerRefs]
+  );
+
+  // The GM's own outbound chat message never reaches any handler today -
+  // Chat.jsx's handleSend only network-sends (sendToPeers), it never invokes
+  // its own registered handler, since there's normally nothing locally
+  // listening besides Chat.jsx itself. Once the GM plays a character
+  // (AutoGM mode), their own chat needs to reach AutoGmProvider's
+  // `autoGmChat` observer too - Chat.jsx calls this unconditionally from
+  // handleSend for both GM and player sends; it's a harmless no-op unless
+  // something has actually registered on autoGmChat.
+  const notifyAutoGmChat = useCallback(
+    (data) => {
+      handlerRefs.autoGmChat.current?.(data);
     },
     [handlerRefs]
   );
@@ -318,6 +343,7 @@ export const PeerProvider = ({ children }) => {
         setTheme: gameState.setTheme,
         setCustomColors: gameState.setCustomColors,
         setDeathFlavorText: gameState.setDeathFlavorText,
+        setAutoGmThinking: gameState.setAutoGmThinking,
         userName: userNameArg,
       }),
       onStatusChange: (status) => session.setConnectionStatus(status),
@@ -392,8 +418,10 @@ export const PeerProvider = ({ children }) => {
         registerChatEventHandler: handlers.registerChatEventHandler,
         registerScenarioEventHandler: handlers.registerScenarioEventHandler,
         registerPingEventHandler: handlers.registerPingEventHandler,
+        registerAutoGmChatEventHandler: handlers.registerAutoGmChatEventHandler,
         sendToPeers,
         sendSystemChatMessage,
+        notifyAutoGmChat,
         pingUser,
       }}
     >

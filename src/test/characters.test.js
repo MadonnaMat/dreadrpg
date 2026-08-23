@@ -5,6 +5,10 @@ import {
   formatNameForList,
   isCharacterAlive,
   withUpdatedAnswer,
+  myIdentity,
+  approveAnswer,
+  autoApproveAnswers,
+  getActivePullTargets,
 } from "../helpers/characters";
 
 const characters = {
@@ -100,6 +104,105 @@ describe("formatNameForList", () => {
 
   it("returns a falsy name unchanged", () => {
     expect(formatNameForList(characters, null, "GM Vera")).toBe(null);
+  });
+
+  it("shows the GM's own claimed character instead of <GM> once they have one", () => {
+    const withGmCharacter = {
+      ...characters,
+      "char-4": { id: "char-4", name: "The Warden", assignedTo: "GM Vera" },
+    };
+    expect(formatNameForList(withGmCharacter, "GM Vera", "GM Vera")).toBe(
+      "GM Vera <The Warden>"
+    );
+  });
+});
+
+describe("myIdentity", () => {
+  it("resolves to hostName for the GM", () => {
+    expect(myIdentity({ isGM: true, hostName: "GM Vera", userName: "" })).toBe(
+      "GM Vera"
+    );
+  });
+
+  it("resolves to userName for a player", () => {
+    expect(
+      myIdentity({ isGM: false, hostName: "GM Vera", userName: "Bob" })
+    ).toBe("Bob");
+  });
+});
+
+describe("approveAnswer", () => {
+  it("flips one answer's approved flag to true", () => {
+    const character = { answers: { 0: { text: "Bob", approved: false } } };
+    expect(approveAnswer(character, 0)).toEqual({
+      0: { text: "Bob", approved: true },
+    });
+  });
+
+  it("returns null when the question has no answer yet", () => {
+    const character = { answers: {} };
+    expect(approveAnswer(character, 0)).toBe(null);
+  });
+
+  it("returns null for a missing character", () => {
+    expect(approveAnswer(undefined, 0)).toBe(null);
+  });
+});
+
+describe("autoApproveAnswers", () => {
+  it("approves every unapproved answer that has text", () => {
+    const answers = {
+      0: { text: "Bob", approved: false },
+      1: { text: "", approved: false },
+    };
+    expect(autoApproveAnswers(answers)).toEqual({
+      0: { text: "Bob", approved: true },
+      1: { text: "", approved: false },
+    });
+  });
+
+  it("returns null when nothing needs approving", () => {
+    const answers = { 0: { text: "Bob", approved: true } };
+    expect(autoApproveAnswers(answers)).toBe(null);
+  });
+
+  it("returns null for missing answers", () => {
+    expect(autoApproveAnswers(undefined)).toBe(null);
+  });
+});
+
+describe("getActivePullTargets", () => {
+  const presence = {
+    Bob: { connected: true },
+    Alice: { connected: false },
+  };
+
+  it("includes an alive character's connected player", () => {
+    expect(getActivePullTargets({ characters, presence })).toEqual(["Bob"]);
+  });
+
+  it("excludes a connected player whose only assignment is dead", () => {
+    const result = getActivePullTargets({ characters, presence });
+    expect(result).not.toContain("Alice");
+  });
+
+  it("excludes an unassigned character entirely", () => {
+    const withUnassigned = {
+      ...characters,
+      "char-5": { id: "char-5", name: "The NPC", assignedTo: null },
+    };
+    expect(
+      getActivePullTargets({ characters: withUnassigned, presence })
+    ).toEqual(["Bob"]);
+  });
+
+  it("excludes an alive assignment whose player is offline", () => {
+    const withOfflineAssignment = {
+      "char-6": { id: "char-6", name: "The Recluse", assignedTo: "Carol" },
+    };
+    expect(
+      getActivePullTargets({ characters: withOfflineAssignment, presence })
+    ).toEqual([]);
   });
 });
 

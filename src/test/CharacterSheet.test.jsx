@@ -4,7 +4,9 @@ import userEvent from "@testing-library/user-event";
 import { useEffect } from "react";
 import CharacterSheet from "../components/CharacterSheet";
 import { PeerProvider } from "../providers/PeerProvider";
+import { WheelProvider } from "../providers/WheelProvider";
 import { AiProvider } from "../providers/AiProvider";
+import { AutoGmProvider } from "../providers/AutoGmProvider";
 import { usePeer } from "../hooks/usePeer";
 import { DEFAULT_QUESTIONS } from "../constants/questions";
 
@@ -87,7 +89,11 @@ describe("CharacterSheet Component", () => {
     render(
       <AiProvider>
         <PeerProvider>
-          <PlayerCharacterSheet />
+          <WheelProvider>
+            <AutoGmProvider>
+              <PlayerCharacterSheet />
+            </AutoGmProvider>
+          </WheelProvider>
         </PeerProvider>
       </AiProvider>
     );
@@ -99,7 +105,11 @@ describe("CharacterSheet Component", () => {
     render(
       <AiProvider>
         <PeerProvider>
-          <PlayerCharacterSheet assignedCharacter={makeCharacter()} />
+          <WheelProvider>
+            <AutoGmProvider>
+              <PlayerCharacterSheet assignedCharacter={makeCharacter()} />
+            </AutoGmProvider>
+          </WheelProvider>
         </PeerProvider>
       </AiProvider>
     );
@@ -115,9 +125,13 @@ describe("CharacterSheet Component", () => {
     render(
       <AiProvider>
         <PeerProvider>
-          <PlayerCharacterSheet
-            assignedCharacter={makeCharacter({ alive: false })}
-          />
+          <WheelProvider>
+            <AutoGmProvider>
+              <PlayerCharacterSheet
+                assignedCharacter={makeCharacter({ alive: false })}
+              />
+            </AutoGmProvider>
+          </WheelProvider>
         </PeerProvider>
       </AiProvider>
     );
@@ -135,7 +149,11 @@ describe("CharacterSheet Component", () => {
     render(
       <AiProvider>
         <PeerProvider>
-          <PlayerCharacterSheet assignedCharacter={makeCharacter()} />
+          <WheelProvider>
+            <AutoGmProvider>
+              <PlayerCharacterSheet assignedCharacter={makeCharacter()} />
+            </AutoGmProvider>
+          </WheelProvider>
         </PeerProvider>
       </AiProvider>
     );
@@ -152,7 +170,11 @@ describe("CharacterSheet Component", () => {
     render(
       <AiProvider>
         <PeerProvider>
-          <PlayerCharacterSheet assignedCharacter={makeCharacter()} />
+          <WheelProvider>
+            <AutoGmProvider>
+              <PlayerCharacterSheet assignedCharacter={makeCharacter()} />
+            </AutoGmProvider>
+          </WheelProvider>
         </PeerProvider>
       </AiProvider>
     );
@@ -166,7 +188,11 @@ describe("CharacterSheet Component", () => {
     render(
       <AiProvider>
         <PeerProvider>
-          <GmCharacterSheet />
+          <WheelProvider>
+            <AutoGmProvider>
+              <GmCharacterSheet />
+            </AutoGmProvider>
+          </WheelProvider>
         </PeerProvider>
       </AiProvider>
     );
@@ -185,7 +211,11 @@ describe("CharacterSheet Component", () => {
     render(
       <AiProvider>
         <PeerProvider>
-          <GmCharacterSheet />
+          <WheelProvider>
+            <AutoGmProvider>
+              <GmCharacterSheet />
+            </AutoGmProvider>
+          </WheelProvider>
         </PeerProvider>
       </AiProvider>
     );
@@ -219,7 +249,11 @@ describe("CharacterSheet Component", () => {
     render(
       <AiProvider>
         <PeerProvider>
-          <GmCharacterSheet />
+          <WheelProvider>
+            <AutoGmProvider>
+              <GmCharacterSheet />
+            </AutoGmProvider>
+          </WheelProvider>
         </PeerProvider>
       </AiProvider>
     );
@@ -241,7 +275,11 @@ describe("CharacterSheet Component", () => {
     render(
       <AiProvider>
         <PeerProvider>
-          <PlayerCharacterSheet assignedCharacter={makeCharacter()} />
+          <WheelProvider>
+            <AutoGmProvider>
+              <PlayerCharacterSheet assignedCharacter={makeCharacter()} />
+            </AutoGmProvider>
+          </WheelProvider>
         </PeerProvider>
       </AiProvider>
     );
@@ -261,7 +299,11 @@ describe("CharacterSheet Component", () => {
     render(
       <AiProvider>
         <PeerProvider>
-          <GmCharacterSheetWithCharacter character={character} />
+          <WheelProvider>
+            <AutoGmProvider>
+              <GmCharacterSheetWithCharacter character={character} />
+            </AutoGmProvider>
+          </WheelProvider>
         </PeerProvider>
       </AiProvider>
     );
@@ -286,9 +328,13 @@ describe("CharacterSheet Component", () => {
     render(
       <AiProvider>
         <PeerProvider>
-          <OtherPlayerCharacterSheet
-            characters={{ [character.id]: character }}
-          />
+          <WheelProvider>
+            <AutoGmProvider>
+              <OtherPlayerCharacterSheet
+                characters={{ [character.id]: character }}
+              />
+            </AutoGmProvider>
+          </WheelProvider>
         </PeerProvider>
       </AiProvider>
     );
@@ -304,9 +350,13 @@ describe("CharacterSheet Component", () => {
     render(
       <AiProvider>
         <PeerProvider>
-          <OtherPlayerCharacterSheet
-            characters={{ [character.id]: character }}
-          />
+          <WheelProvider>
+            <AutoGmProvider>
+              <OtherPlayerCharacterSheet
+                characters={{ [character.id]: character }}
+              />
+            </AutoGmProvider>
+          </WheelProvider>
         </PeerProvider>
       </AiProvider>
     );
@@ -318,7 +368,11 @@ describe("CharacterSheet Component", () => {
     render(
       <AiProvider>
         <PeerProvider>
-          <GmCharacterSheet />
+          <WheelProvider>
+            <AutoGmProvider>
+              <GmCharacterSheet />
+            </AutoGmProvider>
+          </WheelProvider>
         </PeerProvider>
       </AiProvider>
     );

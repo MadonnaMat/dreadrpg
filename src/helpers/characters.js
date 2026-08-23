@@ -57,15 +57,74 @@ export function formatUserWithCharacter(characters, targetUserName) {
 }
 
 // Same "<name> <...>" bracket convention, but for a roster/list row that
-// might be the GM's own entry rather than a player's - the GM never has an
-// assigned character, so without this they'd just show as a bare name while
-// every player shows "<CharacterName>". Pass the game's hostName so the GM's
-// own row (matched by name === hostName) can be told apart from a player
-// row reliably - a player can never actually hold that name themselves, since
-// the join handshake rejects any name matching a currently-connected
-// presence entry, and the host's own presence entry is always seeded first.
+// might be the GM's own entry rather than a player's. A GM playing a
+// character (AutoGM mode) should show "<CharacterName>" just like a player
+// would, so the character lookup is tried first; only a GM with no claimed
+// character falls back to the "<GM>" placeholder. Pass the game's hostName
+// so the GM's own row (matched by name === hostName) can be told apart from
+// a player row reliably - a player can never actually hold that name
+// themselves, since the join handshake rejects any name matching a
+// currently-connected presence entry, and the host's own presence entry is
+// always seeded first.
 export function formatNameForList(characters, name, hostName) {
   if (!name) return name;
-  if (name === hostName) return `${name} <GM>`;
+  if (name === hostName) {
+    const character = currentCharacterFor(characters, hostName);
+    return character ? `${name} <${character.name}>` : `${name} <GM>`;
+  }
   return formatUserWithCharacter(characters, name);
+}
+
+// The GM has no `userName` of their own - only players get one via
+// joinGame - so `hostName` is the GM's stable "who am I" identity wherever
+// a player would use `userName` (claiming a character, sending chat, etc).
+export function myIdentity({ isGM, hostName, userName }) {
+  return isGM ? hostName : userName;
+}
+
+// GM-only: marks one answer as officially approved, making it visible to
+// other players once sheet visibility is on. Shared by the manual
+// CharacterSheet.jsx approval button and AutoGM's auto-approve effect.
+export function approveAnswer(character, questionIndex) {
+  const existing = character?.answers?.[questionIndex];
+  if (!existing) return null;
+  return {
+    ...character.answers,
+    [questionIndex]: { ...existing, approved: true },
+  };
+}
+
+// Auto-approves every answer that has text but hasn't been approved yet.
+// Returns null when nothing changed, so callers can skip a no-op update.
+export function autoApproveAnswers(answers) {
+  if (!answers) return null;
+  let changed = false;
+  const patched = {};
+  Object.entries(answers).forEach(([index, answer]) => {
+    if (answer?.text && !answer.approved) {
+      patched[index] = { ...answer, approved: true };
+      changed = true;
+    } else {
+      patched[index] = answer;
+    }
+  });
+  return changed ? patched : null;
+}
+
+// The userNames AutoGM may ever call for a pull: a currently-alive
+// character's player, who is also currently connected. Excludes NPCs/
+// unclaimed characters (no assignedTo) and any player who's gone offline,
+// even if they still hold a live character.
+export function getActivePullTargets({ characters, presence }) {
+  const names = new Set();
+  Object.values(characters || {}).forEach((character) => {
+    if (
+      character.assignedTo &&
+      isCharacterAlive(character) &&
+      presence?.[character.assignedTo]?.connected
+    ) {
+      names.add(character.assignedTo);
+    }
+  });
+  return Array.from(names);
 }

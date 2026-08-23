@@ -3,14 +3,23 @@ import { latest, versionsFor } from "../prompts/index";
 
 describe("prompt registry", () => {
   it("loads .md?raw content as a non-empty string for each registered prompt", () => {
-    ["scenarioGeneration", "castGeneration", "sheetAnswerAssist"].forEach(
-      (name) => {
-        const entry = latest(name);
-        expect(entry).toBeDefined();
-        expect(typeof entry.text).toBe("string");
-        expect(entry.text.length).toBeGreaterThan(0);
-      }
-    );
+    [
+      "scenarioGeneration",
+      "castGeneration",
+      "sheetAnswerAssist",
+      "campaignNotesGeneration",
+      "autogmTurn",
+      "autogmPullCheck",
+      "autogmCampaignNotesConsolidation",
+      "autogmRemovalNarration",
+      "autogmCompaction",
+      "autogmSelfCheck",
+    ].forEach((name) => {
+      const entry = latest(name);
+      expect(entry).toBeDefined();
+      expect(typeof entry.text).toBe("string");
+      expect(entry.text.length).toBeGreaterThan(0);
+    });
   });
 
   it("returns the highest-versioned entry from latest()", () => {

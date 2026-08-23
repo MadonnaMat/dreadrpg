@@ -7,6 +7,7 @@ import AdminPanel from "./AdminPanel";
 import CampaignNotes from "./CampaignNotes";
 import { usePeer } from "../hooks/usePeer";
 import { useWheel } from "../hooks/useWheel";
+import { useAutoGm } from "../hooks/useAutoGm";
 import {
   characterNameFor,
   formatNameForList,
@@ -17,27 +18,14 @@ import { getWheelColors } from "../constants/themes";
 import { useEffect, useRef, useState } from "react";
 import { MESSAGE_TYPES } from "../constants/messageTypes";
 
-// GM's "who spins next" picker plus the Spin/Decline buttons, shown only to
-// whoever is currently designated - split out of GameLoaded purely to keep
-// that component's own branching complexity down.
-function SpinControls({
-  isGM,
-  users,
-  characters,
-  myName,
-  hostName,
-  designatedSpinner,
-  assignSpinner,
-  pullsRequired,
-  pullsRemaining,
-  handleSpin,
-  handleDecline,
-  spinning,
-  awaitingReset,
-}) {
+// The GM's "who spins next" picker, split out of SpinControls purely to
+// keep that component's own branching complexity down. Never shown once
+// AutoGM is enabled - it decides when a pull is warranted itself (see
+// AutoGmProvider.jsx's turn loop); disabling AutoGM (Admin Panel) is the
+// intended way for a human GM to take manual control back.
+function SpinAssignForm({ users, characters, hostName, assignSpinner }) {
   const [selectedName, setSelectedName] = useState("");
   const [requiredPulls, setRequiredPulls] = useState(1);
-  const isMyTurn = designatedSpinner && myName === designatedSpinner;
 
   // A dead character can't be asked to spin again - but a player can end up
   // with *multiple* assigned characters over a game (a dead one, kept as a
@@ -56,43 +44,118 @@ function SpinControls({
   });
 
   return (
+    <div id="spin-assign-section">
+      <select
+        className="pregame-input"
+        value={selectedName}
+        onChange={(e) => setSelectedName(e.target.value)}
+      >
+        <option value="">Choose a player...</option>
+        {eligibleNames.map((name) => (
+          <option key={name} value={name}>
+            {formatNameForList(characters, name, hostName)}
+          </option>
+        ))}
+      </select>
+      <input
+        id="pulls-required-input"
+        className="pregame-input"
+        type="number"
+        min={1}
+        max={10}
+        value={requiredPulls}
+        onChange={(e) => setRequiredPulls(Number(e.target.value) || 1)}
+        title="Pulls required for this action"
+      />
+      <button
+        id="request-pull-btn"
+        onClick={() => {
+          assignSpinner(selectedName, requiredPulls);
+          setSelectedName("");
+          setRequiredPulls(1);
+        }}
+        disabled={!selectedName}
+      >
+        Request Pull
+      </button>
+    </div>
+  );
+}
+
+// The actual Spin/Decline buttons for whoever is currently designated -
+// split out of SpinControls purely to keep that component's own branching
+// complexity down.
+function SpinMyTurnControls({
+  handleSpin,
+  handleDecline,
+  spinning,
+  pullsRequired,
+  pullsRemaining,
+  spinDisabledByThinking,
+}) {
+  return (
+    <>
+      <button
+        id="spin-btn"
+        onClick={handleSpin}
+        disabled={spinning || spinDisabledByThinking}
+      >
+        Spin the Wheel!
+      </button>
+      <button id="decline-btn" onClick={handleDecline} disabled={spinning}>
+        Decline
+      </button>
+      {pullsRequired > 1 && (
+        <p>
+          Step {pullsRequired - pullsRemaining + 1} of {pullsRequired}
+        </p>
+      )}
+      {spinDisabledByThinking && (
+        <p className="no-character-assigned">
+          Waiting for the GM to react to the last pull...
+        </p>
+      )}
+    </>
+  );
+}
+
+// GM's assign-pull form plus the Spin/Decline buttons, shown only to
+// whoever is currently designated - split out of GameLoaded purely to keep
+// that component's own branching complexity down.
+function SpinControls({
+  isGM,
+  users,
+  characters,
+  myName,
+  hostName,
+  designatedSpinner,
+  assignSpinner,
+  pullsRequired,
+  pullsRemaining,
+  handleSpin,
+  handleDecline,
+  spinning,
+  awaitingReset,
+  autoGmEnabled,
+  autoGmThinking,
+}) {
+  const isMyTurn = designatedSpinner && myName === designatedSpinner;
+
+  // Once AutoGM is running the GM role, it's the one deciding when a pull
+  // is warranted (see AutoGmProvider.jsx's turn loop) - a human GM manually
+  // requesting one at the same time would fight with that. Disabling AutoGM
+  // (Admin Panel) is the intended way to take manual control back.
+  const spinDisabledByThinking = autoGmThinking && pullsRequired > 1;
+
+  return (
     <div id="spin-controls">
-      {isGM && !awaitingReset && !designatedSpinner && (
-        <div id="spin-assign-section">
-          <select
-            className="pregame-input"
-            value={selectedName}
-            onChange={(e) => setSelectedName(e.target.value)}
-          >
-            <option value="">Choose a player...</option>
-            {eligibleNames.map((name) => (
-              <option key={name} value={name}>
-                {formatNameForList(characters, name, hostName)}
-              </option>
-            ))}
-          </select>
-          <input
-            id="pulls-required-input"
-            className="pregame-input"
-            type="number"
-            min={1}
-            max={10}
-            value={requiredPulls}
-            onChange={(e) => setRequiredPulls(Number(e.target.value) || 1)}
-            title="Pulls required for this action"
-          />
-          <button
-            id="request-pull-btn"
-            onClick={() => {
-              assignSpinner(selectedName, requiredPulls);
-              setSelectedName("");
-              setRequiredPulls(1);
-            }}
-            disabled={!selectedName}
-          >
-            Request Pull
-          </button>
-        </div>
+      {isGM && !autoGmEnabled && !awaitingReset && !designatedSpinner && (
+        <SpinAssignForm
+          users={users}
+          characters={characters}
+          hostName={hostName}
+          assignSpinner={assignSpinner}
+        />
       )}
       {isGM && !awaitingReset && designatedSpinner && !isMyTurn && (
         <p>
@@ -103,19 +166,14 @@ function SpinControls({
         </p>
       )}
       {!awaitingReset && isMyTurn && (
-        <>
-          <button id="spin-btn" onClick={handleSpin} disabled={spinning}>
-            Spin the Wheel!
-          </button>
-          <button id="decline-btn" onClick={handleDecline} disabled={spinning}>
-            Decline
-          </button>
-          {pullsRequired > 1 && (
-            <p>
-              Step {pullsRequired - pullsRemaining + 1} of {pullsRequired}
-            </p>
-          )}
-        </>
+        <SpinMyTurnControls
+          handleSpin={handleSpin}
+          handleDecline={handleDecline}
+          spinning={spinning}
+          pullsRequired={pullsRequired}
+          pullsRemaining={pullsRemaining}
+          spinDisabledByThinking={spinDisabledByThinking}
+        />
       )}
     </div>
   );
@@ -195,7 +253,9 @@ export default function GameLoaded() {
     characters,
     theme,
     customColors,
+    autoGmThinking,
   } = usePeer();
+  const { autoGmEnabled } = useAutoGm();
   const { success: successColor, death: deathColor } = getWheelColors(
     theme,
     customColors
@@ -347,11 +407,21 @@ export default function GameLoaded() {
               handleDecline={handleDecline}
               spinning={spinning}
               awaitingReset={awaitingReset}
+              autoGmEnabled={autoGmEnabled}
+              autoGmThinking={autoGmThinking}
             />
             {isGM && awaitingReset && (
-              <button id="restack-btn" onClick={handleRestack}>
-                Re-stack Tower
-              </button>
+              <div id="restack-controls">
+                <button id="restack-btn" onClick={handleRestack}>
+                  Re-stack Tower
+                </button>
+                {autoGmEnabled && (
+                  <p className="restack-autogm-hint">
+                    AutoGM will also restack on its own once it judges the table
+                    is ready - use this if it's taking too long.
+                  </p>
+                )}
+              </div>
             )}
             <div id="result">{result}</div>
           </div>
