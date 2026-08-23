@@ -64,6 +64,21 @@ tests green** — there's no separate manual-deploy-only path that skips them
 for `main`. Manual `npm run deploy` is a secondary/fallback path and normally
 unnecessary.
 
+## Git workflow for plans
+
+When implementing a plan (multi-step work agreed with the user, e.g. via plan
+mode), always work on a dedicated branch, not directly on `main`:
+
+- Before branching, make sure local `main` is up to date with the remote
+  (`git fetch origin` + fast-forward/pull `main`) so the new branch starts
+  from current `main`.
+- Create and check out a new branch off that up-to-date `main` for the plan's
+  work.
+- Commit throughout the plan at logical steps (e.g. after each meaningful
+  piece of the plan lands and passes lint/tests) rather than as one big commit
+  at the end — this keeps history reviewable and gives clean rollback points
+  if a later step needs to be reverted.
+
 ## Architecture
 
 ```
