@@ -3,7 +3,12 @@ import { usePeer } from "../hooks/usePeer";
 import { useAi } from "../hooks/useAi";
 import { DEFAULT_QUESTIONS } from "../constants/questions";
 import { MESSAGE_TYPES } from "../constants/messageTypes";
-import { isCharacterAlive, withUpdatedAnswer } from "../helpers/characters";
+import {
+  isCharacterAlive,
+  withUpdatedAnswer,
+  myIdentity,
+  approveAnswer,
+} from "../helpers/characters";
 import QuestionEditor from "./character-sheet/QuestionEditor";
 import CharacterRoster from "./character-sheet/CharacterRoster";
 import CharacterPicker from "./character-sheet/CharacterPicker";
@@ -33,6 +38,7 @@ export default function CharacterSheet() {
   const {
     isGM,
     userName,
+    hostName,
     sendToPeers,
     characters,
     setCharacters,
@@ -41,6 +47,7 @@ export default function CharacterSheet() {
     scenario,
   } = usePeer();
   const { aiEnabled, generateCast } = useAi();
+  const identity = myIdentity({ isGM, hostName, userName });
 
   const [selectedCharacterId, setSelectedCharacterId] = useState("");
   const [isEditingQuestions, setIsEditingQuestions] = useState(false);
@@ -49,10 +56,10 @@ export default function CharacterSheet() {
 
   const selectedCharacter = characters?.[selectedCharacterId];
   const myDeadCharacter = Object.values(characters || {}).find(
-    (c) => c.assignedTo === userName && !isCharacterAlive(c)
+    (c) => c.assignedTo === identity && !isCharacterAlive(c)
   );
   const myCharacter = Object.values(characters || {}).find(
-    (c) => c.assignedTo === userName && isCharacterAlive(c)
+    (c) => c.assignedTo === identity && isCharacterAlive(c)
   );
 
   // Keep the question-editor draft in sync with whichever character is
@@ -140,12 +147,8 @@ export default function CharacterSheet() {
   // other players once sheet visibility is on (see OtherPlayersSheets).
   const handleApproveAnswer = (characterId, questionIndex) => {
     const character = characters?.[characterId];
-    const existing = character?.answers?.[questionIndex];
-    if (!existing) return;
-    const answers = {
-      ...character.answers,
-      [questionIndex]: { ...existing, approved: true },
-    };
+    const answers = approveAnswer(character, questionIndex);
+    if (!answers) return;
     setCharacters((prev) => ({
       ...prev,
       [characterId]: { ...prev[characterId], answers },

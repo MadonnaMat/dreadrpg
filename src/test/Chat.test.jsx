@@ -15,13 +15,15 @@ function GmChat() {
   return <Chat />;
 }
 
-// Renders Chat as a named sender with a character already assigned to them,
-// to exercise the "<name> <CharacterName>" display-name decoration.
+// Renders Chat as the GM with a character already claimed (AutoGM mode's
+// self-play case), to exercise the "<name> <CharacterName>" display-name
+// decoration. Uses the GM's local-echo path (see handleSend) since a lone
+// player has no real connection to round-trip through in this test setup.
 function ChatWithCharacter() {
-  const { setIsGM, setUserName, setCharacters } = usePeer();
+  const { setIsGM, setHostName, setCharacters } = usePeer();
   useEffect(() => {
     setIsGM(true);
-    setUserName("Alice");
+    setHostName("Alice");
     setCharacters({
       "char-1": {
         id: "char-1",
@@ -32,7 +34,7 @@ function ChatWithCharacter() {
         answers: {},
       },
     });
-  }, [setIsGM, setUserName, setCharacters]);
+  }, [setIsGM, setHostName, setCharacters]);
   return <Chat />;
 }
 
@@ -135,7 +137,7 @@ describe("Chat Component", () => {
     ).toBeInTheDocument();
   });
 
-  it("decorates the sender's name with their assigned character", async () => {
+  it("decorates the GM's own message with their claimed character once they have one", async () => {
     render(
       <PeerProvider>
         <ChatWithCharacter />

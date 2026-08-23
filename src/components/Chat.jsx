@@ -1,10 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { usePeer } from "../hooks/usePeer";
 import { MESSAGE_TYPES } from "../constants/messageTypes";
-import {
-  formatUserWithCharacter,
-  formatNameForList,
-} from "../helpers/characters";
+import { formatNameForList, myIdentity } from "../helpers/characters";
 
 export default function Chat() {
   const {
@@ -46,14 +43,17 @@ export default function Chat() {
     }
   }, [messages]);
 
-  // Show "<name> <CharacterName>" once the player has claimed a character,
-  // so other players can tell who's speaking as whom in the transcript. The
-  // GM has no character to show, but gets the same "<...>" bracket
-  // treatment via a literal "<GM>" tag instead, for a consistent look.
-  const userDisplayName = userName
-    ? formatUserWithCharacter(characters, userName)
+  // Show "<name> <CharacterName>" once the user has claimed a character, so
+  // other players can tell who's speaking as whom in the transcript - this
+  // now applies to the GM too (AutoGM mode lets the host play a character),
+  // via the same identity resolution used everywhere else (see
+  // helpers/characters.js). A GM with no claimed character still gets the
+  // "<GM>" bracket instead, for a consistent look.
+  const identity = myIdentity({ isGM, hostName, userName });
+  const userDisplayName = identity
+    ? formatNameForList(characters, identity, hostName)
     : isGM
-      ? `${hostName || gameId} <GM>`
+      ? `${gameId} <GM>`
       : "Player";
 
   const handleSend = () => {

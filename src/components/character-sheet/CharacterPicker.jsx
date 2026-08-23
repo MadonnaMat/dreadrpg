@@ -1,6 +1,6 @@
 import { usePeer } from "../../hooks/usePeer";
 import { MESSAGE_TYPES } from "../../constants/messageTypes";
-import { isCharacterAlive } from "../../helpers/characters";
+import { isCharacterAlive, myIdentity } from "../../helpers/characters";
 
 // Lets a player with no currently-alive assigned character - either they
 // never chose one, or their previous character died - claim one of the GM's
@@ -8,9 +8,13 @@ import { isCharacterAlive } from "../../helpers/characters";
 // PlayerLobby (joined but game not started yet) and the mid-game
 // CharacterSheet tab (a death, or a character the GM adds after the game
 // already started), so a death mid-game doesn't strand a player with no way
-// back into play.
+// back into play. Also reachable by the GM themselves in AutoGM mode (see
+// CharacterSheet.jsx), so identity resolves via hostName in that case
+// rather than the always-empty userName.
 export default function CharacterPicker() {
-  const { userName, characters, setCharacters, sendToPeers } = usePeer();
+  const { isGM, userName, hostName, characters, setCharacters, sendToPeers } =
+    usePeer();
+  const identity = myIdentity({ isGM, hostName, userName });
   const characterList = Object.values(characters || {});
   const unassigned = characterList.filter(
     (c) => !c.assignedTo && isCharacterAlive(c)
@@ -22,12 +26,12 @@ export default function CharacterPicker() {
   const chooseCharacter = (id) => {
     setCharacters((prev) => ({
       ...prev,
-      [id]: { ...prev[id], assignedTo: userName },
+      [id]: { ...prev[id], assignedTo: identity },
     }));
     sendToPeers({
       type: MESSAGE_TYPES.CHARACTER_UPDATE,
       id,
-      assignedTo: userName,
+      assignedTo: identity,
     });
   };
 
