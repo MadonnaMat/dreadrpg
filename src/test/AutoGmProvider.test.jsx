@@ -502,7 +502,7 @@ describe("AutoGmProvider", () => {
       );
     });
 
-    it("sets an error and skips narration when the model result is invalid", async () => {
+    it("skips narration and posts a fallback line when the model result is invalid", async () => {
       const { deliver, chatMessages } = setupEnabled({
         runPromptImpl: async () => ({ valid: false, parsed: null }),
       });
@@ -514,7 +514,10 @@ describe("AutoGmProvider", () => {
       await waitFor(() =>
         expect(screen.getByTestId("turn-log-count")).toHaveTextContent("0")
       );
-      expect(chatMessages).toHaveLength(0);
+      // No real narration was pushed to turnLog, but the player still sees
+      // something instead of total silence (see the dedicated fallback
+      // test below for the exact wording).
+      expect(chatMessages).toHaveLength(1);
     });
 
     it("recovers from a failed turn by compacting and retrying once, when there's history to shrink", async () => {
@@ -583,6 +586,32 @@ describe("AutoGmProvider", () => {
       // Only the one failed turn call - no compaction call was wasted on a
       // single-message window with nothing meaningful to shrink.
       expect(runPrompt).toHaveBeenCalledTimes(1);
+    });
+
+    it("posts a fallback chat line when both the original and recompacted attempts fail", async () => {
+      const { deliver, chatMessages } = setupEnabled({
+        runPromptImpl: async ({ systemPromptText }) => {
+          if (systemPromptText === latest("autogmCompaction").text) {
+            return { valid: true, parsed: { summary: "A short recap." } };
+          }
+          // Every turn attempt fails, however small the context gets.
+          return { valid: false, parsed: null };
+        },
+      });
+
+      await enable();
+      await deliver.current({ from: "Alice", text: "first message" });
+      chatMessages.length = 0;
+      await deliver.current({ from: "Alice", text: "second message" });
+
+      await waitFor(() =>
+        expect(chatMessages).toContainEqual(
+          expect.objectContaining({
+            fromBot: true,
+            text: expect.stringContaining("AutoGM had trouble responding"),
+          })
+        )
+      );
     });
 
     it("compacts the raw history into storySummary once it crosses the threshold", async () => {

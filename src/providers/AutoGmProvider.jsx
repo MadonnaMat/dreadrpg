@@ -586,7 +586,7 @@ export function AutoGmProvider({ children }) {
           historyRef.current = history;
           setRawHistory(history);
         }
-        const succeeded = await runTurn(history, trigger);
+        let succeeded = await runTurn(history, trigger);
         if (!succeeded && history.length > 1) {
           // A turn failing to produce valid structured output most likely
           // means the context has grown too large/complex for the model to
@@ -599,13 +599,32 @@ export function AutoGmProvider({ children }) {
           history = await compactHistory(history);
           historyRef.current = history;
           setRawHistory(history);
-          await runTurn(history, trigger);
+          succeeded = await runTurn(history, trigger);
+        }
+        if (!succeeded) {
+          // Both attempts failed even against a freshly-shrunk context -
+          // whatever's wrong isn't (just) context size. Post something
+          // rather than leaving players staring at total silence with no
+          // idea whether AutoGM is still running at all.
+          sendSystemChatMessage(
+            "The GM pauses for a moment, gathering their thoughts... " +
+              "(AutoGM had trouble responding - try continuing, or check " +
+              "the Admin Panel's AutoGM debug panel.)",
+            { from: "GM", fromBot: true }
+          );
         }
       } finally {
         setThinking(false);
       }
     },
-    [isGM, autoGmEnabled, compactHistory, runTurn, setThinking]
+    [
+      isGM,
+      autoGmEnabled,
+      compactHistory,
+      runTurn,
+      setThinking,
+      sendSystemChatMessage,
+    ]
   );
 
   useEffect(() => {
