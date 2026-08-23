@@ -36,18 +36,40 @@ function truncateDescription(description) {
   return `${description.slice(0, MAX_DESCRIPTION_LENGTH - 1)}…`;
 }
 
-// Applies AutoGM's parsed `campaignNoteUpdates` (each
-// `{sectionName, itemText, description}`) onto the current campaignNotes
-// array: upserts an item into a matching section (by normalized name),
-// creating the section if none matches. Pure - the caller is responsible
-// for actually calling setCampaignNotes with the result.
+// Builds (or updates) one item's state - tracks which characters have seen
+// it and, for a portable item, who took it. This is the piece that lets
+// AutoGM tell "already introduced this" apart from "haven't mentioned this
+// yet" (so it stops re-describing the same discovery every turn), and tell
+// "still sitting where it was" apart from "someone already has it" (so it
+// stops narrating a taken item as still there for someone else to find).
+function nextItemState(
+  existing,
+  { itemText, description, seenByCharacter, takenByCharacter }
+) {
+  const seenBy = new Set(existing?.seenBy || []);
+  if (seenByCharacter) seenBy.add(seenByCharacter);
+  return {
+    text: existing ? existing.text : itemText,
+    description:
+      truncateDescription(description) || existing?.description || "",
+    seenBy: Array.from(seenBy),
+    takenBy: takenByCharacter || existing?.takenBy || null,
+  };
+}
+
+// Applies AutoGM's parsed `campaignNoteUpdates` (each `{sectionName,
+// itemText, description, seenByCharacter, takenByCharacter}`) onto the
+// current campaignNotes array: upserts an item into a matching section (by
+// normalized name), creating the section if none matches. Pure - the
+// caller is responsible for actually calling setCampaignNotes with the
+// result.
 export function applyCampaignNoteUpdates(campaignNotes, updates) {
   if (!updates?.length) return campaignNotes;
   let next = campaignNotes || [];
-  updates.forEach(({ sectionName, itemText, description }) => {
+  updates.forEach((update) => {
+    const { sectionName, itemText } = update;
     const normalizedSectionName = normalize(sectionName);
     const normalizedItemText = normalize(itemText);
-    const truncatedDescription = truncateDescription(description);
     const sectionIndex = next.findIndex(
       (section) => normalize(section.name) === normalizedSectionName
     );
@@ -56,7 +78,7 @@ export function applyCampaignNoteUpdates(campaignNotes, updates) {
       const newSection = {
         id: generateSectionId(),
         name: sectionName,
-        items: [{ text: itemText, description: truncatedDescription }],
+        items: [nextItemState(null, update)],
       };
       const withNewSection = [...next, newSection];
       next =
@@ -74,7 +96,7 @@ export function applyCampaignNoteUpdates(campaignNotes, updates) {
     if (itemIndex === -1) {
       const withNewItem = [
         ...(section.items || []),
-        { text: itemText, description: truncatedDescription },
+        nextItemState(null, update),
       ];
       items =
         withNewItem.length > MAX_ITEMS_PER_SECTION
@@ -82,9 +104,7 @@ export function applyCampaignNoteUpdates(campaignNotes, updates) {
           : withNewItem;
     } else {
       items = section.items.map((item, idx) =>
-        idx === itemIndex
-          ? { ...item, description: truncatedDescription }
-          : item
+        idx === itemIndex ? nextItemState(item, update) : item
       );
     }
     next = next.map((s, idx) => (idx === sectionIndex ? { ...s, items } : s));

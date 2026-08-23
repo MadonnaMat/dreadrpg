@@ -185,7 +185,7 @@ describe("autoGmTurnSchema.validate", () => {
     );
   });
 
-  it("accepts campaign note updates with all three string fields", () => {
+  it("accepts campaign note updates with all five string fields", () => {
     const result = validateAutoGmTurn({
       ...validTurn,
       campaignNoteUpdates: [
@@ -193,6 +193,8 @@ describe("autoGmTurnSchema.validate", () => {
           sectionName: "Locations",
           itemText: "Old Mill",
           description: "Abandoned, downstream.",
+          seenByCharacter: "Alice",
+          takenByCharacter: "",
         },
       ],
     });

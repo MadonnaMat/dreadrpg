@@ -52,6 +52,16 @@ function formatCharacterRosterContext(characters) {
   return `\n\nCharacters:\n${lines.join("\n")}`;
 }
 
+// Appended after an item's description so the model can see, at a glance,
+// who already knows about it (don't re-describe it to them) and whether
+// it's been taken (don't narrate it as still sitting in its original spot).
+function formatItemState(item) {
+  const tags = [];
+  if (item.seenBy?.length) tags.push(`seen by: ${item.seenBy.join(", ")}`);
+  tags.push(item.takenBy ? `taken by: ${item.takenBy}` : "not yet taken");
+  return ` [${tags.join("; ")}]`;
+}
+
 // AutoGM's own private GM prep, in the same shape CampaignNotes.jsx edits -
 // deliberately labeled as private so the prompt doesn't treat it as
 // player-facing content.
@@ -62,10 +72,10 @@ function formatCampaignNotesContext(campaignNotes) {
     `${section.name}:`,
     ...(section.items || []).map(
       (item) =>
-        `  - ${item.text}${item.description ? ` — ${item.description}` : ""}`
+        `  - ${item.text}${item.description ? ` — ${item.description}` : ""}${formatItemState(item)}`
     ),
   ]);
-  return `\n\nYour private campaign notes (GM prep - don't reveal directly unless the story calls for it):\n${lines.join("\n")}`;
+  return `\n\nYour private campaign notes (GM prep - don't reveal directly unless the story calls for it). Each item shows who has already seen it and, for portable items, whether it's already been taken - never re-describe something a character has already seen as if it's new to them, and never narrate a taken item as still sitting in its original spot:\n${lines.join("\n")}`;
 }
 
 function formatRawHistoryContext(rawHistory) {

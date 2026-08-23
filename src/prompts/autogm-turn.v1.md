@@ -102,9 +102,11 @@ these fields:
   is frozen, only narrate aftermath/reactions and watch for that cue.
 - "campaignNoteUpdates": an array (usually empty, almost never more than
   one entry) of new facts worth remembering for later continuity - a new
-  location, item, threat, or NPC that just came up. Each entry is
-  `{"sectionName", "itemText", "description"}`. Before adding one, check
-  your existing campaign notes (listed below) carefully for anything that's
+  location, item, threat, or NPC that just came up, OR an update to an
+  existing one because a character just saw or took something already
+  tracked. Each entry is `{"sectionName", "itemText", "description",
+"seenByCharacter", "takenByCharacter"}`. Before adding one, check your
+  existing campaign notes (listed below) carefully for anything that's
   already the same thing under slightly different wording - "Old Mill",
   "The Old Mill", and "old mill" are the same item, not three. If it's
   already tracked under any name close to what you'd write, either skip
@@ -116,6 +118,19 @@ these fields:
   private GM prep - use them to inform your decisions, but never dump
   their raw contents into "narration" unless the story naturally reveals
   that specific fact to the players.
+  - "seenByCharacter": the exact name of the character who just saw/learned
+    about this item or location for the first time, so it's never
+    re-described to them later as if it were new. Use "" when this update
+    isn't about a character seeing something (e.g. you're just updating a
+    description) or when the sighting was already recorded (check the
+    "seen by" list already shown next to each item below).
+  - "takenByCharacter": the exact name of the character who just physically
+    took a portable item, if that happened this turn. Once an item shows a
+    "taken by" character, never narrate it as still sitting in its original
+    spot for anyone else to find. Use "" when nothing was taken this turn.
+  - Every item already shown to you lists who has seen it and whether it's
+    been taken - use that to avoid re-describing something a character
+    already knows, and to avoid narrating a taken item as still present.
 
 Never narrate a character's removal from the game yourself - that is
 handled by a separate step.

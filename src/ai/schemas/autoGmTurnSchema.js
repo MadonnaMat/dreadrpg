@@ -18,8 +18,16 @@ export const autoGmTurnSchema = {
           sectionName: { type: "string" },
           itemText: { type: "string" },
           description: { type: "string" },
+          seenByCharacter: { type: "string" },
+          takenByCharacter: { type: "string" },
         },
-        required: ["sectionName", "itemText", "description"],
+        required: [
+          "sectionName",
+          "itemText",
+          "description",
+          "seenByCharacter",
+          "takenByCharacter",
+        ],
         additionalProperties: false,
       },
     },
@@ -40,7 +48,13 @@ function validateNoteUpdate(update, index) {
     return [`campaignNoteUpdates[${index}]: expected an object.`];
   }
   const errors = [];
-  ["sectionName", "itemText", "description"].forEach((field) => {
+  [
+    "sectionName",
+    "itemText",
+    "description",
+    "seenByCharacter",
+    "takenByCharacter",
+  ].forEach((field) => {
     if (typeof update[field] !== "string") {
       errors.push(
         `campaignNoteUpdates[${index}]: "${field}" must be a string.`

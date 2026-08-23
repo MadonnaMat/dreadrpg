@@ -228,6 +228,34 @@ describe("buildAutoGmTurnContext", () => {
     expect(context).toContain("Downstream.");
   });
 
+  it("renders an item's seen-by and taken-by state", () => {
+    const context = buildAutoGmTurnContext({
+      scenario: null,
+      characters: {},
+      storySummary: "",
+      rawHistory: [],
+      dangerProbability: 0,
+      awaitingReset: false,
+      designatedSpinner: null,
+      campaignNotes: [
+        {
+          name: "Items",
+          items: [
+            {
+              text: "Rusty Key",
+              description: "",
+              seenBy: ["Alice", "Bob"],
+              takenBy: "Alice",
+            },
+          ],
+        },
+      ],
+      presence: {},
+    });
+    expect(context).toContain("seen by: Alice, Bob");
+    expect(context).toContain("taken by: Alice");
+  });
+
   it("mentions the frozen tower when awaitingReset is true", () => {
     const context = buildAutoGmTurnContext({
       scenario: null,

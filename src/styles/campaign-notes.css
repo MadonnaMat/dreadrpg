@@ -123,3 +123,30 @@
 .campaign-note-item-description {
   margin-top: 4px;
 }
+
+.campaign-note-item-tracking {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 0.85em;
+}
+
+.campaign-note-item-seen-by {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.campaign-note-item-seen-by-option {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.campaign-note-item-taken-by {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

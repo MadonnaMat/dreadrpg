@@ -30,6 +30,18 @@ function GmCampaignNotes() {
   return <CampaignNotes />;
 }
 
+function GmCampaignNotesWithCharacters() {
+  const { setIsGM, setCharacters } = usePeer();
+  useEffect(() => {
+    setIsGM(true);
+    setCharacters({
+      alice: { id: "alice", name: "Alice", alive: true },
+      bob: { id: "bob", name: "Bob", alive: true },
+    });
+  }, [setIsGM, setCharacters]);
+  return <CampaignNotes />;
+}
+
 function EnableAi() {
   const { enableAi } = useAi();
   useEffect(() => {
@@ -43,6 +55,16 @@ function renderAsGm() {
     <AiProvider>
       <PeerProvider>
         <GmCampaignNotes />
+      </PeerProvider>
+    </AiProvider>
+  );
+}
+
+function renderAsGmWithCharacters() {
+  return render(
+    <AiProvider>
+      <PeerProvider>
+        <GmCampaignNotesWithCharacters />
       </PeerProvider>
     </AiProvider>
   );
@@ -114,6 +136,36 @@ describe("CampaignNotes", () => {
 
     await user.click(screen.getByRole("button", { name: "Remove item" }));
     expect(screen.queryByText("Rusty key")).not.toBeInTheDocument();
+  });
+
+  it("lets the GM mark an item seen by/taken by a character", async () => {
+    renderAsGmWithCharacters();
+
+    await user.click(screen.getByText("+ Items"));
+    await user.click(screen.getByRole("button", { name: "Add Item" }));
+    await user.click(screen.getByText("Item 1"));
+
+    const aliceSeenCheckbox = screen.getByRole("checkbox", { name: "Alice" });
+    const bobSeenCheckbox = screen.getByRole("checkbox", { name: "Bob" });
+    expect(aliceSeenCheckbox).not.toBeChecked();
+    await user.click(aliceSeenCheckbox);
+    expect(aliceSeenCheckbox).toBeChecked();
+    expect(bobSeenCheckbox).not.toBeChecked();
+
+    const takenBySelect = screen.getByRole("combobox");
+    await user.selectOptions(takenBySelect, "Bob");
+    expect(takenBySelect).toHaveValue("Bob");
+  });
+
+  it("does not show seen/taken tracking controls when no characters exist", async () => {
+    renderAsGm();
+
+    await user.click(screen.getByText("+ Items"));
+    await user.click(screen.getByRole("button", { name: "Add Item" }));
+    await user.click(screen.getByText("Item 1"));
+
+    expect(screen.queryByText("Seen by:")).not.toBeInTheDocument();
+    expect(screen.queryByText("Taken by:")).not.toBeInTheDocument();
   });
 
   it("renames and deletes a custom section", async () => {

@@ -26,7 +26,9 @@ describe("applyCampaignNoteUpdates", () => {
       {
         id: "note-1",
         name: "Locations",
-        items: [{ text: "Old Mill", description: "" }],
+        items: [
+          { text: "Old Mill", description: "", seenBy: [], takenBy: null },
+        ],
       },
     ];
     const result = applyCampaignNoteUpdates(notes, [
@@ -34,11 +36,18 @@ describe("applyCampaignNoteUpdates", () => {
         sectionName: "locations",
         itemText: "Lighthouse",
         description: "On the cliff.",
+        seenByCharacter: "",
+        takenByCharacter: "",
       },
     ]);
     expect(result[0].items).toEqual([
-      { text: "Old Mill", description: "" },
-      { text: "Lighthouse", description: "On the cliff." },
+      { text: "Old Mill", description: "", seenBy: [], takenBy: null },
+      {
+        text: "Lighthouse",
+        description: "On the cliff.",
+        seenBy: [],
+        takenBy: null,
+      },
     ]);
   });
 
@@ -47,7 +56,14 @@ describe("applyCampaignNoteUpdates", () => {
       {
         id: "note-1",
         name: "Locations",
-        items: [{ text: "Old Mill", description: "Downstream." }],
+        items: [
+          {
+            text: "Old Mill",
+            description: "Downstream.",
+            seenBy: [],
+            takenBy: null,
+          },
+        ],
       },
     ];
     const result = applyCampaignNoteUpdates(notes, [
@@ -55,10 +71,17 @@ describe("applyCampaignNoteUpdates", () => {
         sectionName: "Locations",
         itemText: "old mill",
         description: "Downstream, now flooded.",
+        seenByCharacter: "",
+        takenByCharacter: "",
       },
     ]);
     expect(result[0].items).toEqual([
-      { text: "Old Mill", description: "Downstream, now flooded." },
+      {
+        text: "Old Mill",
+        description: "Downstream, now flooded.",
+        seenBy: [],
+        takenBy: null,
+      },
     ]);
   });
 
@@ -70,19 +93,32 @@ describe("applyCampaignNoteUpdates", () => {
           sectionName: "Threats",
           itemText: "The Hollow Man",
           description: "Follows at night.",
+          seenByCharacter: "",
+          takenByCharacter: "",
         },
       ]
     );
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe("Threats");
     expect(result[0].items).toEqual([
-      { text: "The Hollow Man", description: "Follows at night." },
+      {
+        text: "The Hollow Man",
+        description: "Follows at night.",
+        seenBy: [],
+        takenBy: null,
+      },
     ]);
   });
 
   it("handles a null campaignNotes array as empty", () => {
     const result = applyCampaignNoteUpdates(null, [
-      { sectionName: "Items", itemText: "Rusty Key", description: "" },
+      {
+        sectionName: "Items",
+        itemText: "Rusty Key",
+        description: "",
+        seenByCharacter: "",
+        takenByCharacter: "",
+      },
     ]);
     expect(result).toHaveLength(1);
   });
@@ -92,7 +128,14 @@ describe("applyCampaignNoteUpdates", () => {
       {
         id: "note-1",
         name: "Locations",
-        items: [{ text: "Old Mill", description: "Downstream." }],
+        items: [
+          {
+            text: "Old Mill",
+            description: "Downstream.",
+            seenBy: [],
+            takenBy: null,
+          },
+        ],
       },
     ];
     const result = applyCampaignNoteUpdates(notes, [
@@ -100,11 +143,80 @@ describe("applyCampaignNoteUpdates", () => {
         sectionName: "Locations",
         itemText: "The Old Mill",
         description: "Downstream, now flooded.",
+        seenByCharacter: "",
+        takenByCharacter: "",
       },
     ]);
     expect(result[0].items).toEqual([
-      { text: "Old Mill", description: "Downstream, now flooded." },
+      {
+        text: "Old Mill",
+        description: "Downstream, now flooded.",
+        seenBy: [],
+        takenBy: null,
+      },
     ]);
+  });
+
+  it("tracks which characters have seen an item, deduping repeats", () => {
+    const result = applyCampaignNoteUpdates(
+      [],
+      [
+        {
+          sectionName: "Items",
+          itemText: "Journal",
+          description: "A leather journal.",
+          seenByCharacter: "Alice",
+          takenByCharacter: "",
+        },
+      ]
+    );
+    const afterSecondSighting = applyCampaignNoteUpdates(result, [
+      {
+        sectionName: "Items",
+        itemText: "Journal",
+        description: "",
+        seenByCharacter: "Alice",
+        takenByCharacter: "",
+      },
+    ]);
+    const afterThirdSighting = applyCampaignNoteUpdates(afterSecondSighting, [
+      {
+        sectionName: "Items",
+        itemText: "Journal",
+        description: "",
+        seenByCharacter: "Bob",
+        takenByCharacter: "",
+      },
+    ]);
+    expect(afterThirdSighting[0].items[0].seenBy).toEqual(["Alice", "Bob"]);
+  });
+
+  it("records who took an item and keeps it once set", () => {
+    const result = applyCampaignNoteUpdates(
+      [],
+      [
+        {
+          sectionName: "Items",
+          itemText: "Rusty Key",
+          description: "",
+          seenByCharacter: "Alice",
+          takenByCharacter: "Alice",
+        },
+      ]
+    );
+    expect(result[0].items[0].takenBy).toBe("Alice");
+
+    const afterAnotherUpdate = applyCampaignNoteUpdates(result, [
+      {
+        sectionName: "Items",
+        itemText: "Rusty Key",
+        description: "It unlocks the shed.",
+        seenByCharacter: "Bob",
+        takenByCharacter: "",
+      },
+    ]);
+    expect(afterAnotherUpdate[0].items[0].takenBy).toBe("Alice");
+    expect(afterAnotherUpdate[0].items[0].seenBy).toEqual(["Alice", "Bob"]);
   });
 
   it("truncates an unusually long description instead of letting it grow unbounded", () => {
