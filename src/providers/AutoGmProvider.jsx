@@ -13,6 +13,7 @@ import { latest } from "../prompts/index";
 import {
   buildAutoGmTurnContext,
   buildAutoGmCompactionContext,
+  buildAutoGmRemovalNarrationContext,
 } from "../ai/promptContexts";
 import {
   autoGmTurnSchema,
@@ -22,6 +23,10 @@ import {
   autoGmCompactionSchema,
   validate as validateAutoGmCompaction,
 } from "../ai/schemas/autoGmCompactionSchema";
+import {
+  autoGmRemovalNarrationSchema,
+  validate as validateAutoGmRemovalNarration,
+} from "../ai/schemas/autoGmRemovalNarrationSchema";
 import {
   loadAutoGmState,
   saveAutoGmState,
@@ -92,6 +97,10 @@ export function AutoGmProvider({ children }) {
   // Serializes turn processing so overlapping LLM calls (multiple chat
   // messages arriving close together) never race each other.
   const queueRef = useRef(Promise.resolve());
+  // Detect the awaitingReset false->true transition (a death just
+  // happened) and which character it was, for removal narration below.
+  const prevAwaitingResetRef = useRef(false);
+  const prevCharactersRef = useRef(characters);
 
   // GM only: restore a previous session's AutoGM state on refresh instead of
   // silently starting fresh (mirrors WheelProvider.jsx's restore effect).
@@ -309,6 +318,86 @@ export function AutoGmProvider({ children }) {
     },
     [storySummary, runPrompt]
   );
+
+  // Posts one additional, richer line of narration after a character is
+  // removed (the terse, mechanical deathFlavorText line already posted
+  // separately from WheelProvider.jsx) - see autogm-removal-narration.v1.md
+  // for the copyright/original-content constraints this must follow.
+  const runRemovalNarration = useCallback(
+    async (characterName) => {
+      const context = buildAutoGmRemovalNarrationContext({
+        characterName,
+        scenario,
+        storySummary,
+        rawHistory: historyRef.current,
+        campaignNotes,
+      });
+      const result = await runPrompt({
+        systemPromptText: latest("autogmRemovalNarration").text,
+        userContent: context,
+        schema: autoGmRemovalNarrationSchema,
+        validate: validateAutoGmRemovalNarration,
+      });
+
+      if (!result.valid) {
+        setAutoGmError("AutoGM couldn't generate removal narration.");
+        return;
+      }
+      setAutoGmError(null);
+
+      sendSystemChatMessage(result.parsed.narration, {
+        from: "GM",
+        fromBot: true,
+      });
+
+      pushTurnLogEntry({
+        kind: "removal",
+        trigger: null,
+        draftNarration: result.parsed.narration,
+        finalNarration: result.parsed.narration,
+        reasoning: null,
+        consistent: null,
+        callForPull: false,
+        targetPlayerName: "",
+        pullsRequired: 1,
+        readyToRestack: false,
+        campaignNoteUpdates: [],
+        pullSkippedReason: null,
+      });
+    },
+    [
+      scenario,
+      storySummary,
+      campaignNotes,
+      runPrompt,
+      sendSystemChatMessage,
+      pushTurnLogEntry,
+    ]
+  );
+
+  // Detects a death (awaitingReset flipping false->true) and narrates the
+  // removal of whichever character's `alive` just flipped to false. Ref
+  // updates run unconditionally, before the isGM/autoGmEnabled check, so
+  // they can't drift out of sync if AutoGM is toggled mid-session.
+  useEffect(() => {
+    const wasAwaitingReset = prevAwaitingResetRef.current;
+    prevAwaitingResetRef.current = awaitingReset;
+    const prevCharacters = prevCharactersRef.current;
+    prevCharactersRef.current = characters;
+
+    if (!isGM || !autoGmEnabled) return;
+    if (wasAwaitingReset || !awaitingReset) return;
+
+    const removed = Object.values(characters || {}).find((character) => {
+      const before = prevCharacters?.[character.id];
+      return character.alive === false && before && before.alive !== false;
+    });
+    if (!removed) return;
+
+    queueRef.current = queueRef.current
+      .then(() => runRemovalNarration(removed.name))
+      .catch(() => {});
+  }, [awaitingReset, characters, isGM, autoGmEnabled, runRemovalNarration]);
 
   // Every human-authored chat message (inbound over the network, or the
   // GM's own local send via notifyAutoGmChat - see PeerProvider.jsx) lands

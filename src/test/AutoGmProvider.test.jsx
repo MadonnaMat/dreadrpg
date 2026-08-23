@@ -201,6 +201,27 @@ describe("AutoGmProvider", () => {
     expect(screen.getByTestId("autogm-enabled")).toHaveTextContent("true");
   });
 
+  function validTurnResult(overrides = {}) {
+    return {
+      valid: true,
+      parsed: {
+        narration: "The floor creaks beneath your feet.",
+        callForPull: false,
+        targetPlayerName: "",
+        pullsRequired: 1,
+        readyToRestack: false,
+        campaignNoteUpdates: [],
+        ...overrides,
+      },
+    };
+  }
+
+  async function enable() {
+    await userEvent
+      .setup({ skipPointerEventsCheck: true })
+      .click(screen.getByText("enable"));
+  }
+
   describe("turn loop", () => {
     // AutoGmProvider itself is the sole registrant on the single-slot
     // autoGmChat handler, so tests can't register their own competing
@@ -225,21 +246,6 @@ describe("AutoGmProvider", () => {
       return null;
     }
 
-    function validTurnResult(overrides = {}) {
-      return {
-        valid: true,
-        parsed: {
-          narration: "The floor creaks beneath your feet.",
-          callForPull: false,
-          targetPlayerName: "",
-          pullsRequired: 1,
-          readyToRestack: false,
-          campaignNoteUpdates: [],
-          ...overrides,
-        },
-      };
-    }
-
     function setupEnabled({ runPromptImpl, wheelOverrides, seed = null } = {}) {
       const runPrompt = vi.fn(runPromptImpl);
       mockUseAi.mockReturnValue({ aiEnabled: true, runPrompt });
@@ -262,12 +268,6 @@ describe("AutoGmProvider", () => {
         </PeerProvider>
       );
       return { runPrompt, deliver, chatMessages, wheel };
-    }
-
-    async function enable() {
-      await userEvent
-        .setup({ skipPointerEventsCheck: true })
-        .click(screen.getByText("enable"));
     }
 
     it("posts narration from a valid turn result, using the turn prompt", async () => {
@@ -452,6 +452,130 @@ describe("AutoGmProvider", () => {
         expect(screen.getByTestId("raw-history-count")).toHaveTextContent("1")
       );
       expect(screen.getByTestId("story-summary")).toHaveTextContent("");
+    });
+  });
+
+  describe("removal narration", () => {
+    function SeedCharacter() {
+      const { setCharacters } = usePeer();
+      useEffect(() => {
+        setCharacters({
+          "char-1": {
+            id: "char-1",
+            name: "Marcus",
+            assignedTo: "Alice",
+            alive: true,
+          },
+        });
+      }, [setCharacters]);
+      return null;
+    }
+
+    // Kills the character and flips awaitingReset (via the already-updated
+    // wheel mock) in the same click - a single React commit, matching how
+    // WheelProvider's real handleSpinEnd batches both changes together.
+    // Staging them as two separate commits would let the removal-detection
+    // effect's ref bookkeeping run in between and miss the transition.
+    function KillCharacter() {
+      const { setCharacters } = usePeer();
+      return (
+        <button
+          onClick={() =>
+            setCharacters((prev) => ({
+              ...prev,
+              "char-1": { ...prev["char-1"], alive: false },
+            }))
+          }
+        >
+          kill
+        </button>
+      );
+    }
+
+    it("posts additional narration when a character's death flips awaitingReset true", async () => {
+      const runPrompt = vi.fn(async ({ systemPromptText }) => {
+        if (systemPromptText === latest("autogmRemovalNarration").text) {
+          return {
+            valid: true,
+            parsed: { narration: "Marcus vanishes into the dark." },
+          };
+        }
+        return validTurnResult();
+      });
+      mockUseAi.mockReturnValue({ aiEnabled: true, runPrompt });
+      mockUseWheel.mockReturnValue(defaultWheel({ awaitingReset: false }));
+
+      const chatMessages = [];
+      function ChatSpy() {
+        const { registerChatEventHandler } = usePeer();
+        useEffect(() => {
+          registerChatEventHandler((data) => chatMessages.push(data));
+        }, [registerChatEventHandler]);
+        return null;
+      }
+
+      render(
+        <PeerProvider>
+          <AutoGmProvider>
+            <GmSetup>
+              <Probe />
+              <SeedCharacter />
+              <ChatSpy />
+              <KillCharacter />
+            </GmSetup>
+          </AutoGmProvider>
+        </PeerProvider>
+      );
+
+      await enable();
+      mockUseWheel.mockReturnValue(defaultWheel({ awaitingReset: true }));
+      await userEvent
+        .setup({ skipPointerEventsCheck: true })
+        .click(screen.getByText("kill"));
+
+      await waitFor(() =>
+        expect(chatMessages).toContainEqual(
+          expect.objectContaining({
+            text: "Marcus vanishes into the dark.",
+            fromBot: true,
+          })
+        )
+      );
+      expect(runPrompt).toHaveBeenCalledWith(
+        expect.objectContaining({
+          systemPromptText: latest("autogmRemovalNarration").text,
+        })
+      );
+    });
+
+    it("does not narrate a removal while AutoGM is disabled", async () => {
+      const runPrompt = vi.fn(async () => ({
+        valid: true,
+        parsed: { narration: "Should not be called." },
+      }));
+      mockUseAi.mockReturnValue({ aiEnabled: true, runPrompt });
+      mockUseWheel.mockReturnValue(defaultWheel({ awaitingReset: false }));
+
+      render(
+        <PeerProvider>
+          <AutoGmProvider>
+            <GmSetup>
+              <Probe />
+              <SeedCharacter />
+              <KillCharacter />
+            </GmSetup>
+          </AutoGmProvider>
+        </PeerProvider>
+      );
+
+      // AutoGM never enabled here.
+      mockUseWheel.mockReturnValue(defaultWheel({ awaitingReset: true }));
+      await userEvent
+        .setup({ skipPointerEventsCheck: true })
+        .click(screen.getByText("kill"));
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(runPrompt).not.toHaveBeenCalled();
     });
   });
 });
