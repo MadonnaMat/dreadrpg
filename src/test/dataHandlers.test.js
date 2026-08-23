@@ -12,6 +12,7 @@ function makeHandlerRefs() {
     scenario: { current: null },
     characterSheet: { current: null },
     ping: { current: null },
+    autoGmChat: { current: null },
   };
 }
 

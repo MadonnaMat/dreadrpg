@@ -119,9 +119,9 @@ describe("formatNameForList", () => {
 
 describe("myIdentity", () => {
   it("resolves to hostName for the GM", () => {
-    expect(
-      myIdentity({ isGM: true, hostName: "GM Vera", userName: "" })
-    ).toBe("GM Vera");
+    expect(myIdentity({ isGM: true, hostName: "GM Vera", userName: "" })).toBe(
+      "GM Vera"
+    );
   });
 
   it("resolves to userName for a player", () => {
@@ -191,9 +191,9 @@ describe("getActivePullTargets", () => {
       ...characters,
       "char-5": { id: "char-5", name: "The NPC", assignedTo: null },
     };
-    expect(getActivePullTargets({ characters: withUnassigned, presence })).toEqual(
-      ["Bob"]
-    );
+    expect(
+      getActivePullTargets({ characters: withUnassigned, presence })
+    ).toEqual(["Bob"]);
   });
 
   it("excludes an alive assignment whose player is offline", () => {

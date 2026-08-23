@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useEffect } from "react";
@@ -215,5 +215,81 @@ describe("Chat Component", () => {
     await user.click(screen.getByText("Send"));
 
     expect(screen.getByText("GM Vera <GM>:")).toBeInTheDocument();
+  });
+
+  it("notifies the AutoGM chat observer when the GM sends a message", async () => {
+    const spy = vi.fn();
+    function GmChatWithAutoGmObserver() {
+      const { setIsGM, registerAutoGmChatEventHandler } = usePeer();
+      useEffect(() => {
+        setIsGM(true);
+        registerAutoGmChatEventHandler(spy);
+      }, [setIsGM, registerAutoGmChatEventHandler]);
+      return <Chat />;
+    }
+
+    render(
+      <PeerProvider>
+        <GmChatWithAutoGmObserver />
+      </PeerProvider>
+    );
+
+    const input = screen.getByPlaceholderText("Type a message...");
+    await user.type(input, "Roll for initiative");
+    await user.click(screen.getByText("Send"));
+
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({ text: "Roll for initiative" })
+    );
+  });
+
+  it("notifies the AutoGM chat observer when a player sends a message", async () => {
+    const spy = vi.fn();
+    function PlayerChatWithAutoGmObserver() {
+      const { setUserName, registerAutoGmChatEventHandler } = usePeer();
+      useEffect(() => {
+        setUserName("Bob");
+        registerAutoGmChatEventHandler(spy);
+      }, [setUserName, registerAutoGmChatEventHandler]);
+      return <Chat />;
+    }
+
+    render(
+      <PeerProvider>
+        <PlayerChatWithAutoGmObserver />
+      </PeerProvider>
+    );
+
+    const input = screen.getByPlaceholderText("Type a message...");
+    await user.type(input, "I search the room");
+    await user.click(screen.getByText("Send"));
+
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({ text: "I search the room" })
+    );
+  });
+
+  it("renders a bot-attributed message with distinct styling", () => {
+    function ChatWithBotMessage() {
+      const { sendSystemChatMessage } = usePeer();
+      useEffect(() => {
+        sendSystemChatMessage("The tower groans ominously.", {
+          from: "GM",
+          fromBot: true,
+        });
+      }, [sendSystemChatMessage]);
+      return <Chat />;
+    }
+
+    const { container } = render(
+      <PeerProvider>
+        <ChatWithBotMessage />
+      </PeerProvider>
+    );
+
+    expect(
+      screen.getByText("The tower groans ominously.", { exact: false })
+    ).toBeInTheDocument();
+    expect(container.querySelector(".chat-message-bot")).toBeInTheDocument();
   });
 });

@@ -83,6 +83,7 @@ describe("dispatchToRegisteredHandlers", () => {
       scenario: { current: vi.fn() },
       characterSheet: { current: vi.fn() },
       ping: { current: vi.fn() },
+      autoGmChat: { current: vi.fn() },
     };
   }
 
@@ -103,6 +104,23 @@ describe("dispatchToRegisteredHandlers", () => {
     );
 
     expect(handlerRefs.chat.current).not.toHaveBeenCalled();
+  });
+
+  it("forwards chat messages to both the chat and autoGmChat handlers independently", () => {
+    const handlerRefs = makeHandlerRefs();
+    const data = { type: "chat", from: "Bob", text: "hi" };
+    dispatchToRegisteredHandlers(data, "conn", handlerRefs);
+
+    expect(handlerRefs.chat.current).toHaveBeenCalledWith(data, "conn");
+    expect(handlerRefs.autoGmChat.current).toHaveBeenCalledWith(data, "conn");
+
+    handlerRefs.autoGmChat.current.mockClear();
+    dispatchToRegisteredHandlers(
+      { type: "scenario-update" },
+      "conn",
+      handlerRefs
+    );
+    expect(handlerRefs.autoGmChat.current).not.toHaveBeenCalled();
   });
 
   it("forwards all five character-sheet-related types to the same handler", () => {

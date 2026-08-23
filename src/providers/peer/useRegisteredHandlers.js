@@ -13,12 +13,14 @@ export function useRegisteredHandlers() {
   const scenario = useRef(null);
   const characterSheet = useRef(null);
   const ping = useRef(null);
+  const autoGmChat = useRef(null);
   const handlerRefs = useRef({
     wheel,
     chat,
     scenario,
     characterSheet,
     ping,
+    autoGmChat,
   }).current;
 
   const registerWheelEventHandler = useCallback((handler) => {
@@ -41,6 +43,13 @@ export function useRegisteredHandlers() {
   const registerPingEventHandler = useCallback((handler) => {
     ping.current = handler;
   }, []);
+  // A second, independent observer of every CHAT message, alongside (not
+  // instead of) Chat.jsx's own `chat` registration - lets AutoGmProvider see
+  // the same chat stream Chat.jsx renders without contending for that single
+  // slot. One owner (AutoGmProvider), so single-slot is fine here too.
+  const registerAutoGmChatEventHandler = useCallback((handler) => {
+    autoGmChat.current = handler;
+  }, []);
 
   return {
     handlerRefs,
@@ -49,5 +58,6 @@ export function useRegisteredHandlers() {
     registerScenarioEventHandler,
     registerCharacterSheetEventHandler,
     registerPingEventHandler,
+    registerAutoGmChatEventHandler,
   };
 }

@@ -10,6 +10,7 @@ export default function Chat() {
     isGM,
     sendToPeers,
     registerChatEventHandler,
+    notifyAutoGmChat,
     gameId,
     characters,
     presence,
@@ -22,7 +23,10 @@ export default function Chat() {
   useEffect(() => {
     registerChatEventHandler((data) => {
       if (data.type === MESSAGE_TYPES.CHAT) {
-        setMessages((prev) => [...prev, { from: data.from, text: data.text }]);
+        setMessages((prev) => [
+          ...prev,
+          { from: data.from, text: data.text, fromBot: !!data.fromBot },
+        ]);
 
         if (isGM) {
           // forward chat messages to all players
@@ -30,6 +34,7 @@ export default function Chat() {
             type: MESSAGE_TYPES.CHAT,
             from: data.from,
             text: data.text,
+            fromBot: data.fromBot,
           });
         }
       }
@@ -64,8 +69,21 @@ export default function Chat() {
       text: input,
     });
     if (isGM) {
-      setMessages((prev) => [...prev, { from: userDisplayName, text: input }]);
+      setMessages((prev) => [
+        ...prev,
+        { from: userDisplayName, text: input, fromBot: false },
+      ]);
     }
+    // The GM's own send never round-trips through any handler (there's
+    // nothing to send it *to* on the GM's own client) - notify AutoGM's
+    // observer directly so a GM playing a character (AutoGM mode) still has
+    // their own lines reach it. A no-op on a player's client, and on the
+    // GM's client whenever nothing has registered on autoGmChat.
+    notifyAutoGmChat({
+      type: MESSAGE_TYPES.CHAT,
+      from: userDisplayName,
+      text: input,
+    });
     setInput("");
   };
 
@@ -88,7 +106,12 @@ export default function Chat() {
 
       <div className="chat-messages">
         {messages.map((msg, idx) => (
-          <div key={idx} className="chat-message">
+          <div
+            key={idx}
+            className={
+              msg.fromBot ? "chat-message chat-message-bot" : "chat-message"
+            }
+          >
             <strong>{msg.from}:</strong> {msg.text}
           </div>
         ))}

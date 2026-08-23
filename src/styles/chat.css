@@ -68,6 +68,14 @@
   color: var(--color-accent, #2196f3);
 }
 
+.chat-message-bot {
+  font-style: italic;
+}
+
+.chat-message-bot strong {
+  color: var(--color-danger, #f44336);
+}
+
 .chat-input-container {
   display: flex;
   gap: 4px;
