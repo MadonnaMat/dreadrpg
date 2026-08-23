@@ -40,4 +40,13 @@ export default defineConfig([
       globals: globals.node,
     },
   },
+  // Web Worker entry files run in WorkerGlobalScope, not window - `self` is
+  // the worker itself here (not an alias for `window`), and globals.browser
+  // doesn't declare the worker-only APIs these files use.
+  {
+    files: ["**/*.worker.js"],
+    languageOptions: {
+      globals: globals.worker,
+    },
+  },
 ]);
