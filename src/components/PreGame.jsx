@@ -321,6 +321,13 @@ export default function PreGame() {
           falls.
         </p>
         <p>
+          A GM normally runs the game live and narrates through chat, but a GM
+          can also opt into an on-device AI assistant (top-right of the screen)
+          to help draft scenarios, questionnaires, and answers - or go further
+          with <strong>AutoGM</strong>, where the AI plays the GM role itself so
+          the host can join in as a character instead.
+        </p>
+        <p>
           Learn more about Dread at the{" "}
           <a
             href="https://www.tiltingatwindmills.net/games/dread/"

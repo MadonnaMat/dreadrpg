@@ -64,8 +64,8 @@ export default function PlayerLobby() {
           Copy my rejoin link
         </button>
         <span className="rejoin-link-hint">
-          Use this link if you get disconnected - it'll bring you back as{" "}
-          {userName}.
+          Use this link if you get disconnected - it'll prefill this game and{" "}
+          {userName} on the join screen so you just have to click Join.
         </span>
       </div>
 
