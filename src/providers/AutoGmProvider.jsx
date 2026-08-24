@@ -122,7 +122,11 @@ function resolveMainPromptPull({
   } else if (!activeTargets.includes(targetPlayerName)) {
     pullSkippedReason = "target not an active player";
   } else {
-    assignSpinner(targetPlayerName, pullsRequired || 1);
+    // Same bound as checkForPull's own clamp below - the model's
+    // self-reported pullsRequired is otherwise unbounded, and a hallucinated
+    // large value would soft-lock the target player's turn.
+    const clampedPullsRequired = Math.min(10, Math.max(1, pullsRequired || 1));
+    assignSpinner(targetPlayerName, clampedPullsRequired);
   }
   return {
     callForPull: true,
@@ -220,6 +224,17 @@ export function AutoGmProvider({ children }) {
   const prevAwaitingResetRef = useRef(false);
   const prevCharactersRef = useRef(characters);
 
+  // Gates the persist effect below until the restore effect's own setState
+  // calls have actually landed. Both effects share the same isGM/gameId/
+  // hostName guard, so without this they'd both fire in the very first
+  // eligible commit - the persist effect would read the pre-restore default
+  // state (still in scope via closure) and immediately overwrite the entry
+  // the restore effect just read, before React had re-rendered with the
+  // restored values. Flipping this via its own setState batches together
+  // with the restore effect's other setState calls, so it only becomes true
+  // in the same render that already reflects the restored state.
+  const [restoreComplete, setRestoreComplete] = useState(false);
+
   // GM only: restore a previous session's AutoGM state on refresh instead of
   // silently starting fresh (mirrors WheelProvider.jsx's restore effect).
   useEffect(() => {
@@ -233,18 +248,25 @@ export function AutoGmProvider({ children }) {
     }
     restoredForGameRef.current = gameId;
     const saved = loadAutoGmState(gameId, hostName);
-    if (!saved) return;
-    setAutoGmEnabled(saved.enabled ?? false);
-    setStorySummary(saved.storySummary ?? "");
-    setOpeningNarrationDone(saved.openingNarrationDone ?? false);
-    const history = saved.rawHistory ?? [];
-    setRawHistory(history);
-    historyRef.current = history;
+    if (saved) {
+      setAutoGmEnabled(saved.enabled ?? false);
+      setStorySummary(saved.storySummary ?? "");
+      setOpeningNarrationDone(saved.openingNarrationDone ?? false);
+      // Guard against a corrupted/malformed localStorage entry: a
+      // non-array rawHistory would otherwise throw the first time it's
+      // spread in processIncomingChat, and that throw is swallowed by the
+      // queued turn handler's own catch - AutoGM would silently stop
+      // responding to every future message with no diagnostic trail.
+      const history = Array.isArray(saved.rawHistory) ? saved.rawHistory : [];
+      setRawHistory(history);
+      historyRef.current = history;
+    }
+    setRestoreComplete(true);
   }, [isGM, gameId, hostName]);
 
   // GM only: persist AutoGM state so a refresh can restore it above.
   useEffect(() => {
-    if (!isGM || !gameId || !hostName) return;
+    if (!isGM || !gameId || !hostName || !restoreComplete) return;
     saveAutoGmState(gameId, hostName, {
       enabled: autoGmEnabled,
       storySummary,
@@ -255,6 +277,7 @@ export function AutoGmProvider({ children }) {
     isGM,
     gameId,
     hostName,
+    restoreComplete,
     autoGmEnabled,
     storySummary,
     rawHistory,

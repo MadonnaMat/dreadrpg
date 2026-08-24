@@ -165,20 +165,27 @@ export const PeerProvider = ({ children }) => {
   // hub every player is connected to.
   const { registerCharacterSheetEventHandler } = handlers;
   useEffect(() => {
-    registerCharacterSheetEventHandler((data) => {
+    registerCharacterSheetEventHandler((data, connection) => {
       applyCharacterEvent(
         data,
         gameState.setCharacters,
         gameState.setAllowPlayersToViewSheets
       );
-      if (session.isGM) sendToPeers(data);
+      // Exclude the sender the same way the JOIN handler does - without
+      // this, a player's own character update gets rebroadcast right back
+      // to them and silently re-applied (idempotent, but wasted traffic and
+      // an extra re-render).
+      if (session.isGM) {
+        managerRef.current?.sendToPeers(data, {
+          excludePeerId: connection?.peer,
+        });
+      }
     });
   }, [
     registerCharacterSheetEventHandler,
     gameState.setCharacters,
     gameState.setAllowPlayersToViewSheets,
     session.isGM,
-    sendToPeers,
   ]);
 
   // Host: create game. `restoredState` (from gamePersistence.js), when
@@ -243,33 +250,45 @@ export const PeerProvider = ({ children }) => {
       },
       onConnectionOpen: (c) => session.setConn(c),
       onData,
+      // Reads/writes through currentStateRef and computes the next
+      // users/presence up front, rather than reaching for sendToPeers from
+      // inside a setState updater function - React (under <StrictMode>, and
+      // potentially future concurrent scheduling) can invoke an updater
+      // function more than once to check its purity, which would have sent
+      // duplicate USER_LIST_UPDATE/PRESENCE_UPDATE broadcasts to every peer.
+      // Mirrors the JOIN handler's own synchronous currentStateRef patch
+      // (dataHandlers.js) so a disconnect that arrives before this render
+      // commits still sees up-to-date users/presence.
       onConnectionClosed: (droppedPeerId) => {
-        session.setUsers((prev) => {
-          if (!(droppedPeerId in prev)) return prev;
-          const droppedUserName = prev[droppedPeerId];
-          const next = { ...prev };
-          delete next[droppedPeerId];
-          manager.sendToPeers({
-            type: MESSAGE_TYPES.USER_LIST_UPDATE,
-            users: next,
-          });
-          // Mark presence disconnected rather than deleting it - the name
-          // stays visible in the roster (as offline) and reclaimable by the
-          // same player reconnecting, instead of just vanishing.
-          gameState.setPresence((prevPresence) => {
-            const nextPresence = {
-              ...prevPresence,
-              [droppedUserName]: { connected: false },
-            };
-            manager.sendToPeers({
-              type: MESSAGE_TYPES.PRESENCE_UPDATE,
-              presence: nextPresence,
-            });
-            return nextPresence;
-          });
-          return next;
+        const prevUsers = currentStateRef.current.users;
+        if (!(droppedPeerId in prevUsers)) return;
+        const droppedUserName = prevUsers[droppedPeerId];
+        const nextUsers = { ...prevUsers };
+        delete nextUsers[droppedPeerId];
+        // Mark presence disconnected rather than deleting it - the name
+        // stays visible in the roster (as offline) and reclaimable by the
+        // same player reconnecting, instead of just vanishing.
+        const nextPresence = {
+          ...currentStateRef.current.presence,
+          [droppedUserName]: { connected: false },
+        };
+        currentStateRef.current = {
+          ...currentStateRef.current,
+          users: nextUsers,
+          presence: nextPresence,
+        };
+        session.setUsers(nextUsers);
+        gameState.setPresence(nextPresence);
+        manager.sendToPeers({
+          type: MESSAGE_TYPES.USER_LIST_UPDATE,
+          users: nextUsers,
+        });
+        manager.sendToPeers({
+          type: MESSAGE_TYPES.PRESENCE_UPDATE,
+          presence: nextPresence,
         });
       },
+      onStatusChange: (status) => session.setConnectionStatus(status),
     });
     managerRef.current = manager;
     peerRef.current = manager.peer;

@@ -52,9 +52,12 @@ export function createHostConnectionManager({
   onConnectionOpen,
   onData,
   onConnectionClosed,
+  onStatusChange,
 }) {
   const peer = new Peer(normalizedId(gameId));
   const connections = new Map(); // peerId -> { connection, lastPongAt }
+  let reconnectAttempt = 0;
+  let hasOpenedBefore = false;
 
   function pruneConnection(peerId, entry) {
     if (connections.get(peerId) === entry) {
@@ -91,8 +94,43 @@ export function createHostConnectionManager({
     c.on("error", () => pruneConnection(c.peer, entry));
   }
 
-  peer.on("open", (id) => onPeerOpen(id));
+  // Unlike a player's Peer, the GM's own Peer never recovers from a
+  // signaling-server disconnect on its own - existing DataConnections to
+  // already-joined players keep working (direct WebRTC), so nothing looks
+  // wrong, but the GM's id is no longer registered with the signaling
+  // server and no *new* player can join until it's re-registered.
+  function scheduleReconnect() {
+    if (reconnectAttempt >= RECONNECT_DELAYS_MS.length) {
+      onStatusChange?.(
+        "Lost connection to the signaling server - new players won't be able to join. Try refreshing."
+      );
+      return;
+    }
+    const delay = RECONNECT_DELAYS_MS[reconnectAttempt++];
+    onStatusChange?.("Reconnecting to signaling server...");
+    setTimeout(() => {
+      if (peer.disconnected && !peer.destroyed) {
+        peer.reconnect();
+      }
+    }, delay);
+  }
+
+  peer.on("open", (id) => {
+    reconnectAttempt = 0;
+    // A reconnect re-emits "open" with the same id - only the very first
+    // open should run onPeerOpen (it seeds session.setUsers with a fresh
+    // GM-only roster, which would wipe out already-joined players if it
+    // ran again after a reconnect).
+    if (hasOpenedBefore) {
+      onStatusChange?.("Reconnected to the signaling server.");
+      return;
+    }
+    hasOpenedBefore = true;
+    onPeerOpen(id);
+  });
   peer.on("connection", registerConnection);
+  peer.on("disconnected", scheduleReconnect);
+  peer.on("error", scheduleReconnect);
 
   const stopHeartbeat = startHeartbeat(
     () => connections.values(),
@@ -174,8 +212,17 @@ export function createPlayerConnectionManager({
       }
       onData(data, c);
     });
-    c.on("close", scheduleReconnect);
-    c.on("error", scheduleReconnect);
+    // A delayed close/error firing on an already-abandoned connection (e.g.
+    // one the heartbeat above already gave up on and replaced) must not
+    // tear down a subsequently-healthy reconnection - only react if `c` is
+    // still the current connection, mirroring the identity check the host
+    // side already does in pruneConnection.
+    c.on("close", () => {
+      if (c === connection) scheduleReconnect();
+    });
+    c.on("error", () => {
+      if (c === connection) scheduleReconnect();
+    });
   }
 
   function scheduleReconnect() {

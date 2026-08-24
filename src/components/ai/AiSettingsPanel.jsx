@@ -74,8 +74,10 @@ export default function AiSettingsPanel() {
       <p>
         Opt in to a local AI assistant that can help draft scenarios, character
         questionnaires, and answer suggestions. Nothing downloads until you
-        enable it below, and everything it drafts is only a suggestion for you
-        to review before saving.
+        enable it below, and everything it drafts here is only a suggestion for
+        you to review before saving. (The separate AutoGM mode, available to the
+        GM from the Admin Panel once this is on, goes further and lets the AI
+        narrate and run the game live through chat on its own.)
       </p>
 
       {recommendedTier === null ? (
