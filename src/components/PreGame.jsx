@@ -333,9 +333,16 @@ export default function PreGame() {
             href="https://www.tiltingatwindmills.net/games/dread/"
             target="_blank"
             rel="noopener noreferrer"
-            style={{ color: "#2196f3", textDecoration: "underline" }}
           >
             official website
+          </a>
+          . This app's source code is available on{" "}
+          <a
+            href="https://github.com/MadonnaMat/dreadrpg"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            GitHub
           </a>
           .
         </p>
