@@ -18,10 +18,15 @@
     color-mix(in srgb, var(--color-accent, #2196f3) 30%, transparent);
 }
 
-/* Dread RPG Info styling */
+/* Dread RPG Info styling - driven by the same theme tokens as .lobby-info
+   below, instead of its own hardcoded dark palette with a light-mode media
+   query bolted on: --color-surface/--color-text/--color-accent already
+   account for light vs. dark (and every preset theme) at the token level,
+   so this panel now actually reflects the GM's chosen theme instead of
+   only ever looking like "Default". */
 .dread-info {
-  background-color: #1a1a1a;
-  border: 1px solid #333;
+  background-color: var(--color-surface, #f5f5f5);
+  border: 1px solid color-mix(in srgb, var(--color-text, #ddd) 20%, transparent);
   border-radius: 8px;
   padding: 20px;
   margin: 20px auto;
@@ -32,7 +37,7 @@
 
 .dread-info p {
   margin: 0 0 12px 0;
-  color: #e0e0e0;
+  color: var(--color-text, #333);
 }
 
 .dread-info p:last-child {
@@ -40,41 +45,18 @@
 }
 
 .dread-info strong {
-  color: #fff;
+  color: var(--color-text, #000);
   font-weight: 600;
 }
 
 .dread-info a {
-  color: #646cff;
+  color: var(--color-accent, #2196f3);
   text-decoration: underline;
-  transition: color 0.2s ease;
+  transition: filter 0.2s ease;
 }
 
 .dread-info a:hover {
-  color: #535bf2;
-}
-
-@media (prefers-color-scheme: light) {
-  .dread-info {
-    background-color: #f5f5f5;
-    border-color: #ddd;
-  }
-
-  .dread-info p {
-    color: #333;
-  }
-
-  .dread-info strong {
-    color: #000;
-  }
-
-  .dread-info a {
-    color: #2196f3;
-  }
-
-  .dread-info a:hover {
-    color: #1976d2;
-  }
+  filter: brightness(0.85);
 }
 
 /* PreGame lobby styling */
