@@ -207,7 +207,7 @@
 
 .answer-approved-badge {
   font-weight: bold;
-  color: #4caf50;
+  color: var(--color-accent, #2196f3);
 }
 
 .answer-pending-badge {
