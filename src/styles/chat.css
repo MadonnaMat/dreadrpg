@@ -154,6 +154,6 @@
 }
 
 .chat-send-button:disabled {
-  background-color: #ccc;
+  opacity: 0.5;
   cursor: not-allowed;
 }
