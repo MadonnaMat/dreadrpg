@@ -24,7 +24,7 @@
 
 .campaign-notes-section {
   background-color: var(--color-surface);
-  border: 1px solid var(--border-color, #444);
+  border: 1px solid color-mix(in srgb, var(--color-text, #444) 20%, transparent);
   border-radius: 6px;
   padding: 8px 12px;
   margin-bottom: 16px;
