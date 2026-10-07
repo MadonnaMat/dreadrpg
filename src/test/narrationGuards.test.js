@@ -148,6 +148,23 @@ describe("collapseRepeatedSentences", () => {
     );
   });
 
+  it("collapses a sentence reworded with one noun swapped", () => {
+    // Verbatim from a live 1B opening: three sentences sharing "with the
+    // only sound being the creaking of old wooden beams".
+    const looped =
+      "The foundry is dimly lit, with the only sound being the creaking of old wooden beams. The night watchman's lantern casts flickering shadows on the walls. The sub-level is dimly lit, with the only sound being the creaking of old wooden beams. The sub-level's walls are dimly lit, with the only sound being the creaking of old wooden beams.";
+    const result = collapseRepeatedSentences(looped);
+    expect(result).toBe(
+      "The foundry is dimly lit, with the only sound being the creaking of old wooden beams. The night watchman's lantern casts flickering shadows on the walls."
+    );
+  });
+
+  it("leaves short lookalike sentences alone", () => {
+    // Too few content words to tell a loop from ordinary prose.
+    const text = "The door opens. The hatch opens.";
+    expect(collapseRepeatedSentences(text)).toBe(text);
+  });
+
   it("leaves distinct sentences alone", () => {
     const text = "The door opens. Something moves. The light fails.";
     expect(collapseRepeatedSentences(text)).toBe(text);

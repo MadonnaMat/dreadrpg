@@ -48,10 +48,32 @@ function normalize(text) {
     .trim();
 }
 
-// Small models fall into loops, emitting the same sentence several times in
-// one response ("The Drifter is standing near the sub-level, checking the
-// water level." three times over). It is never deliberate, and no prompt
-// wording reliably prevents it, so collapse it on the way out.
+// How much of a sentence has to overlap an earlier one before it counts as
+// the same sentence reworded. The loop rarely repeats verbatim - it swaps a
+// noun and keeps the rest ("The foundry is dimly lit, with the only sound
+// being the creaking of old wooden beams." then "The sub-level is dimly
+// lit, with the only sound being...") - so exact matching missed most of it.
+const SENTENCE_OVERLAP_LIMIT = 0.6;
+// Below this many content words, two sentences can overlap heavily by
+// coincidence ("The door opens." / "The hatch opens.") and are left alone.
+const MIN_SENTENCE_TOKENS = 6;
+
+function contentTokens(sentence) {
+  return new Set(normalize(sentence).split(" ").filter(Boolean));
+}
+
+function overlapRatio(a, b) {
+  let shared = 0;
+  a.forEach((token) => {
+    if (b.has(token)) shared += 1;
+  });
+  return shared / (a.size + b.size - shared);
+}
+
+// Small models fall into loops, emitting the same sentence - or the same
+// sentence with one word changed - several times in one response. It is
+// never deliberate, and no prompt wording reliably prevents it, so collapse
+// it on the way out.
 export function collapseRepeatedSentences(text) {
   const value = String(text || "").trim();
   if (!value) return value;
@@ -59,12 +81,19 @@ export function collapseRepeatedSentences(text) {
   const parts = value.match(/[^.!?]+[.!?]*\s*/g);
   if (!parts || parts.length < 2) return value;
 
-  const seen = new Set();
+  const keptTokens = [];
   const kept = parts.filter((part) => {
-    const key = normalize(part);
-    if (!key) return true;
-    if (seen.has(key)) return false;
-    seen.add(key);
+    const tokens = contentTokens(part);
+    if (!tokens.size) return true;
+    const duplicate = keptTokens.some(
+      (earlier) =>
+        (earlier.size >= MIN_SENTENCE_TOKENS &&
+          tokens.size >= MIN_SENTENCE_TOKENS &&
+          overlapRatio(tokens, earlier) >= SENTENCE_OVERLAP_LIMIT) ||
+        overlapRatio(tokens, earlier) === 1
+    );
+    if (duplicate) return false;
+    keptTokens.push(tokens);
     return true;
   });
   return kept.length === parts.length ? value : kept.join("").trim();
