@@ -61,6 +61,26 @@ out the same, relevance is matching on something ambient rather than on the
 turn - that is exactly the bug this harness caught once already (the query
 was including the whole story summary, so everything matched every turn).
 
+## The failure mode to suspect first
+
+`ContextWindowSizeExceededError`. The SMALL tier runs a **4096-token**
+window (`prebuiltAppConfig` in `@mlc-ai/web-llm`), and the turn prompt plus
+scenario, roster, notes, summary and chat has to fit inside it with room to
+generate. It was once ~2400 tokens of system prompt alone, which meant a
+populated game could not fit and failures clustered on exactly the turns
+with the most story behind them.
+
+So when turns start failing, check prompt size before anything else:
+
+```bash
+wc -c src/prompts/autogm-turn.v*.md   # chars / 4 ≈ tokens
+```
+
+Note the debug panel shows the engine's own words now - WebLLM rejects with
+a plain string rather than an Error, and reading `.message` off it used to
+discard the only description there was. Any new "every failure looks
+identical" symptom is probably that same shape of bug.
+
 ## Setup
 
 1. `npm run dev`, open `localhost:5173/dreadrpg/`, **Create Game** as GM.
