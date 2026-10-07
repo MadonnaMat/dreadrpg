@@ -29,6 +29,15 @@ const MAX_SECTIONS = 8;
 const MAX_ITEMS_PER_SECTION = 8;
 const MAX_DESCRIPTION_LENGTH = 240;
 
+// Pinned items are canon the GM (or AutoGM, at compaction) marked as
+// must-never-be-forgotten, so FIFO eviction skips them. That exemption is
+// itself capped, or pinning everything would quietly defeat the caps above
+// and put us back to blowing out the model's context. The budget is spent in
+// document order, i.e. the *oldest* pins keep their exemption: recent facts
+// are still in rawHistory and the story summary anyway, while early-campaign
+// canon is exactly what currently leaks away.
+const MAX_PINNED_ITEMS = 10;
+
 function truncateDescription(description) {
   if (!description || description.length <= MAX_DESCRIPTION_LENGTH) {
     return description;
@@ -42,10 +51,20 @@ function truncateDescription(description) {
 // yet" (so it stops re-describing the same discovery every turn), and tell
 // "still sitting where it was" apart from "someone already has it" (so it
 // stops narrating a taken item as still there for someone else to find).
-function nextItemState(
-  existing,
-  { itemText, description, seenByCharacter, takenByCharacter }
-) {
+function nextPinState(existing, { pinned, pinnedSource }) {
+  if (!pinned && !existing?.pinned) {
+    return { pinned: false, pinnedSource: null };
+  }
+  // An existing source wins, so AutoGM re-pinning something the GM pinned by
+  // hand never relabels it as AutoGM's own.
+  return {
+    pinned: true,
+    pinnedSource: existing?.pinnedSource || pinnedSource || null,
+  };
+}
+
+function nextItemState(existing, update) {
+  const { itemText, description, seenByCharacter, takenByCharacter } = update;
   const seenBy = new Set(existing?.seenBy || []);
   if (seenByCharacter) seenBy.add(seenByCharacter);
   return {
@@ -54,24 +73,64 @@ function nextItemState(
       truncateDescription(description) || existing?.description || "",
     seenBy: Array.from(seenBy),
     takenBy: takenByCharacter || existing?.takenBy || null,
+    ...nextPinState(existing, update),
   };
 }
 
-// Same FIFO-oldest-first eviction as the incremental upsert below, applied
-// to an already-built list instead of one insert at a time - shared by
-// both paths so campaignNotes can never grow past these caps regardless of
-// which one produced the result.
+// Which pinned items still hold an eviction exemption, as "sectionIdx:itemIdx"
+// keys. Spent in document order against MAX_PINNED_ITEMS - see that constant.
+function pinnedExemptKeys(notes) {
+  const keys = new Set();
+  let budget = MAX_PINNED_ITEMS;
+  notes.forEach((section, sectionIdx) => {
+    (section.items || []).forEach((item, itemIdx) => {
+      if (item?.pinned && budget > 0) {
+        keys.add(`${sectionIdx}:${itemIdx}`);
+        budget -= 1;
+      }
+    });
+  });
+  return keys;
+}
+
+// FIFO-oldest-first eviction that spares exempt entries, falling back to
+// dropping exempt ones only when sparing them all would leave us over the
+// limit (an entirely-pinned section still can't exceed its cap).
+function evictOldestFirst(entries, limit, isExempt) {
+  if (entries.length <= limit) return entries;
+  const dropCount = entries.length - limit;
+  const dropped = new Set();
+  entries.forEach((entry, idx) => {
+    if (dropped.size < dropCount && !isExempt(entry, idx)) dropped.add(idx);
+  });
+  entries.forEach((_entry, idx) => {
+    if (dropped.size < dropCount) dropped.add(idx);
+  });
+  return entries.filter((_entry, idx) => !dropped.has(idx));
+}
+
+// Applied to an already-built list rather than one insert at a time, and
+// shared by both write paths (the consolidation reconcile above and the
+// incremental upsert below) so campaignNotes can never grow past these caps
+// regardless of which one produced the result. A section is only droppable
+// if it holds no exempt pins, since dropping it would take its canon with it.
 function capNotes(notes) {
-  const limitedSections =
-    notes.length > MAX_SECTIONS
-      ? notes.slice(notes.length - MAX_SECTIONS)
-      : notes;
-  return limitedSections.map((section) => ({
+  const exempt = pinnedExemptKeys(notes);
+  const keptSections = evictOldestFirst(
+    notes.map((section, idx) => ({ section, idx })),
+    MAX_SECTIONS,
+    ({ section, idx }) =>
+      (section.items || []).some((_item, itemIdx) =>
+        exempt.has(`${idx}:${itemIdx}`)
+      )
+  );
+  return keptSections.map(({ section, idx }) => ({
     ...section,
-    items:
-      section.items.length > MAX_ITEMS_PER_SECTION
-        ? section.items.slice(section.items.length - MAX_ITEMS_PER_SECTION)
-        : section.items,
+    items: evictOldestFirst(
+      section.items || [],
+      MAX_ITEMS_PER_SECTION,
+      (_item, itemIdx) => exempt.has(`${idx}:${itemIdx}`)
+    ),
   }));
 }
 
@@ -91,6 +150,8 @@ export function reconcileConsolidatedNotes(consolidated, previous) {
       description: truncateDescription(item.description) || "",
       seenBy: item.seenBy || [],
       takenBy: item.takenBy || null,
+      pinned: Boolean(item.pinned),
+      pinnedSource: item.pinned ? item.pinnedSource || null : null,
     })),
   }));
   return capNotes(normalized).map((section) => {
@@ -128,16 +189,14 @@ export function applyCampaignNoteUpdates(campaignNotes, updates) {
     );
 
     if (sectionIndex === -1) {
-      const newSection = {
-        id: generateSectionId(),
-        name: sectionName,
-        items: [nextItemState(null, update)],
-      };
-      const withNewSection = [...next, newSection];
-      next =
-        withNewSection.length > MAX_SECTIONS
-          ? withNewSection.slice(withNewSection.length - MAX_SECTIONS)
-          : withNewSection;
+      next = [
+        ...next,
+        {
+          id: generateSectionId(),
+          name: sectionName,
+          items: [nextItemState(null, update)],
+        },
+      ];
       return;
     }
 
@@ -145,22 +204,13 @@ export function applyCampaignNoteUpdates(campaignNotes, updates) {
     const itemIndex = (section.items || []).findIndex(
       (item) => normalize(item.text) === normalizedItemText
     );
-    let items;
-    if (itemIndex === -1) {
-      const withNewItem = [
-        ...(section.items || []),
-        nextItemState(null, update),
-      ];
-      items =
-        withNewItem.length > MAX_ITEMS_PER_SECTION
-          ? withNewItem.slice(withNewItem.length - MAX_ITEMS_PER_SECTION)
-          : withNewItem;
-    } else {
-      items = section.items.map((item, idx) =>
-        idx === itemIndex ? nextItemState(item, update) : item
-      );
-    }
+    const items =
+      itemIndex === -1
+        ? [...(section.items || []), nextItemState(null, update)]
+        : section.items.map((item, idx) =>
+            idx === itemIndex ? nextItemState(item, update) : item
+          );
     next = next.map((s, idx) => (idx === sectionIndex ? { ...s, items } : s));
   });
-  return next;
+  return capNotes(next);
 }

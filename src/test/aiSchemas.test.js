@@ -260,6 +260,37 @@ describe("autoGmCompactionSchema.validate", () => {
   it("rejects a non-object", () => {
     expect(validateAutoGmCompaction(null).valid).toBe(false);
   });
+
+  it("accepts a summary with key beats", () => {
+    expect(
+      validateAutoGmCompaction({
+        summary: "The party reached the mill.",
+        keyBeats: ["Marcus set the fire at the mill."],
+      })
+    ).toEqual({ valid: true, errors: [] });
+  });
+
+  it("accepts an empty key-beats array", () => {
+    expect(
+      validateAutoGmCompaction({ summary: "Nothing much.", keyBeats: [] }).valid
+    ).toBe(true);
+  });
+
+  it("treats absent key beats as none rather than failing the compaction", () => {
+    expect(
+      validateAutoGmCompaction({ summary: "The party reached the mill." }).valid
+    ).toBe(true);
+  });
+
+  it("rejects key beats that aren't an array of strings", () => {
+    expect(
+      validateAutoGmCompaction({ summary: "Fine.", keyBeats: "a beat" }).valid
+    ).toBe(false);
+    expect(
+      validateAutoGmCompaction({ summary: "Fine.", keyBeats: [{ beat: 1 }] })
+        .valid
+    ).toBe(false);
+  });
 });
 
 describe("autoGmSelfCheckSchema.validate", () => {
@@ -338,6 +369,8 @@ describe("autoGmCampaignNotesConsolidationSchema.validate", () => {
           description: "Downstream.",
           seenBy: ["Alice"],
           takenBy: "",
+          pinned: false,
+          pinnedSource: "",
         },
       ],
     },
@@ -351,6 +384,64 @@ describe("autoGmCampaignNotesConsolidationSchema.validate", () => {
 
   it("accepts an empty list", () => {
     expect(validateAutoGmCampaignNotesConsolidation([]).valid).toBe(true);
+  });
+
+  it("accepts a pinned item carrying its source", () => {
+    expect(
+      validateAutoGmCampaignNotesConsolidation([
+        {
+          name: "Established Facts",
+          items: [
+            {
+              text: "Marcus set the fire.",
+              description: "",
+              seenBy: [],
+              takenBy: "",
+              pinned: true,
+              pinnedSource: "autogm",
+            },
+          ],
+        },
+      ])
+    ).toEqual({ valid: true, errors: [] });
+  });
+
+  it("rejects an item missing the pinned fields", () => {
+    const result = validateAutoGmCampaignNotesConsolidation([
+      {
+        name: "Locations",
+        items: [
+          {
+            text: "Old Mill",
+            description: "",
+            seenBy: [],
+            takenBy: "",
+          },
+        ],
+      },
+    ]);
+    expect(result.valid).toBe(false);
+    expect(result.errors.join(" ")).toContain("pinned");
+  });
+
+  it("rejects a non-boolean pinned flag", () => {
+    expect(
+      validateAutoGmCampaignNotesConsolidation([
+        {
+          name: "Locations",
+          items: [
+            {
+              text: "Old Mill",
+              description: "",
+              seenBy: [],
+              takenBy: "",
+              pinned: "yes",
+              pinnedSource: "gm",
+            },
+          ],
+        },
+      ]).valid
+    ).toBe(false);
   });
 
   it("accepts a section with an empty items array", () => {

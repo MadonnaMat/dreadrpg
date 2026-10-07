@@ -5,8 +5,10 @@ import campaignNotesGenerationV1 from "./campaign-notes-generation.v1.md?raw";
 import autogmTurnV1 from "./autogm-turn.v1.md?raw";
 import autogmPullCheckV1 from "./autogm-pull-check.v1.md?raw";
 import autogmCampaignNotesConsolidationV1 from "./autogm-campaign-notes-consolidation.v1.md?raw";
+import autogmCampaignNotesConsolidationV2 from "./autogm-campaign-notes-consolidation.v2.md?raw";
 import autogmRemovalNarrationV1 from "./autogm-removal-narration.v1.md?raw";
 import autogmCompactionV1 from "./autogm-compaction.v1.md?raw";
+import autogmCompactionV2 from "./autogm-compaction.v2.md?raw";
 import autogmSelfCheckV1 from "./autogm-self-check.v1.md?raw";
 
 // Versioned system-prompt registry. Product code always uses latest();
@@ -21,9 +23,13 @@ const REGISTRY = {
   autogmPullCheck: [{ version: 1, text: autogmPullCheckV1 }],
   autogmCampaignNotesConsolidation: [
     { version: 1, text: autogmCampaignNotesConsolidationV1 },
+    { version: 2, text: autogmCampaignNotesConsolidationV2 },
   ],
   autogmRemovalNarration: [{ version: 1, text: autogmRemovalNarrationV1 }],
-  autogmCompaction: [{ version: 1, text: autogmCompactionV1 }],
+  autogmCompaction: [
+    { version: 1, text: autogmCompactionV1 },
+    { version: 2, text: autogmCompactionV2 },
+  ],
   autogmSelfCheck: [{ version: 1, text: autogmSelfCheckV1 }],
 };
 

@@ -48,6 +48,8 @@ describe("applyCampaignNoteUpdates", () => {
         description: "On the cliff.",
         seenBy: [],
         takenBy: null,
+        pinned: false,
+        pinnedSource: null,
       },
     ]);
   });
@@ -82,6 +84,8 @@ describe("applyCampaignNoteUpdates", () => {
         description: "Downstream, now flooded.",
         seenBy: [],
         takenBy: null,
+        pinned: false,
+        pinnedSource: null,
       },
     ]);
   });
@@ -107,6 +111,8 @@ describe("applyCampaignNoteUpdates", () => {
         description: "Follows at night.",
         seenBy: [],
         takenBy: null,
+        pinned: false,
+        pinnedSource: null,
       },
     ]);
   });
@@ -154,6 +160,8 @@ describe("applyCampaignNoteUpdates", () => {
         description: "Downstream, now flooded.",
         seenBy: [],
         takenBy: null,
+        pinned: false,
+        pinnedSource: null,
       },
     ]);
   });
@@ -259,6 +267,121 @@ describe("applyCampaignNoteUpdates", () => {
     expect(notes.map((section) => section.name)).not.toContain("Section 0");
     expect(notes.map((section) => section.name)).toContain("Section 8");
   });
+
+  it("spares a pinned item from per-section eviction, dropping an unpinned one instead", () => {
+    let notes = applyCampaignNoteUpdates(
+      [],
+      [
+        {
+          sectionName: "Items",
+          itemText: "Pinned Fact",
+          description: "",
+          pinned: true,
+          pinnedSource: "gm",
+        },
+      ]
+    );
+    for (let i = 0; i < 8; i += 1) {
+      notes = applyCampaignNoteUpdates(notes, [
+        { sectionName: "Items", itemText: `Item ${i}`, description: "" },
+      ]);
+    }
+    const texts = notes[0].items.map((item) => item.text);
+    expect(notes[0].items).toHaveLength(8);
+    expect(texts).toContain("Pinned Fact");
+    expect(texts).not.toContain("Item 0");
+  });
+
+  it("spares a section holding a pinned item from section eviction", () => {
+    let notes = applyCampaignNoteUpdates(
+      [],
+      [
+        {
+          sectionName: "Established Facts",
+          itemText: "Marcus set the fire",
+          description: "",
+          pinned: true,
+          pinnedSource: "autogm",
+        },
+      ]
+    );
+    for (let i = 0; i < 8; i += 1) {
+      notes = applyCampaignNoteUpdates(notes, [
+        { sectionName: `Section ${i}`, itemText: "First", description: "" },
+      ]);
+    }
+    const names = notes.map((section) => section.name);
+    expect(notes).toHaveLength(8);
+    expect(names).toContain("Established Facts");
+    expect(names).not.toContain("Section 0");
+  });
+
+  it("stops exempting pins beyond the pinned-item budget, so pinning cannot defeat the caps", () => {
+    let notes = [];
+    for (let i = 0; i < 12; i += 1) {
+      notes = applyCampaignNoteUpdates(notes, [
+        {
+          sectionName: "Facts",
+          itemText: `Fact ${i}`,
+          description: "",
+          pinned: true,
+          pinnedSource: "gm",
+        },
+      ]);
+    }
+    // Still capped despite every item being pinned.
+    expect(notes[0].items).toHaveLength(8);
+  });
+
+  it("keeps an existing pin when a later update does not mention pinning", () => {
+    const pinned = applyCampaignNoteUpdates(
+      [],
+      [
+        {
+          sectionName: "Items",
+          itemText: "Journal",
+          description: "A leather journal.",
+          pinned: true,
+          pinnedSource: "gm",
+        },
+      ]
+    );
+    const afterUpdate = applyCampaignNoteUpdates(pinned, [
+      {
+        sectionName: "Items",
+        itemText: "Journal",
+        description: "Now water-damaged.",
+        seenByCharacter: "Alice",
+      },
+    ]);
+    expect(afterUpdate[0].items[0].pinned).toBe(true);
+    expect(afterUpdate[0].items[0].pinnedSource).toBe("gm");
+  });
+
+  it("does not relabel a GM pin as AutoGM's when AutoGM re-pins the same item", () => {
+    const pinned = applyCampaignNoteUpdates(
+      [],
+      [
+        {
+          sectionName: "Items",
+          itemText: "Journal",
+          description: "",
+          pinned: true,
+          pinnedSource: "gm",
+        },
+      ]
+    );
+    const afterAutoGm = applyCampaignNoteUpdates(pinned, [
+      {
+        sectionName: "Items",
+        itemText: "Journal",
+        description: "",
+        pinned: true,
+        pinnedSource: "autogm",
+      },
+    ]);
+    expect(afterAutoGm[0].items[0].pinnedSource).toBe("gm");
+  });
 });
 
 describe("reconcileConsolidatedNotes", () => {
@@ -289,6 +412,8 @@ describe("reconcileConsolidatedNotes", () => {
             description: "Downstream.",
             seenBy: ["Alice"],
             takenBy: null,
+            pinned: false,
+            pinnedSource: null,
           },
         ],
       },

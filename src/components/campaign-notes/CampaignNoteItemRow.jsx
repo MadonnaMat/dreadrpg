@@ -46,6 +46,29 @@ function ItemTrackingControls({
   );
 }
 
+// Pinning marks an item as canon that must never be lost: pinned items are
+// exempt from the notes caps' FIFO eviction and are always included in
+// AutoGM's turn context, however irrelevant they look to the current scene
+// (see helpers/campaignNotes.js and helpers/contextRelevance.js). AutoGM
+// pins beats of its own at compaction, so the source is shown too - the GM
+// needs to tell their own canon from AutoGM's guesses to curate them.
+function ItemPinControl({ item, onTogglePinned }) {
+  const pinnedByAutoGm = item.pinned && item.pinnedSource === "autogm";
+  return (
+    <label className="campaign-note-item-pin">
+      <input
+        type="checkbox"
+        checked={Boolean(item.pinned)}
+        onChange={() => onTogglePinned(!item.pinned)}
+      />
+      <span>Pin as canon</span>
+      {pinnedByAutoGm && (
+        <span className="campaign-note-item-pin-source">found by AutoGM</span>
+      )}
+    </label>
+  );
+}
+
 // One item row - clicking the bar opens/closes its details textarea (where
 // it's located, how to beat it, what it connects to, etc); the pencil icon
 // edits the item's title, the trash icon removes it. Shared by
@@ -61,6 +84,7 @@ export default function CampaignNoteItemRow({
   characterNames,
   onToggleSeenBy,
   onSetTakenBy,
+  onTogglePinned,
 }) {
   return (
     <CampaignNoteRow
@@ -80,6 +104,9 @@ export default function CampaignNoteItemRow({
         placeholder="Details - e.g. where it's located, how to beat it, what it connects to"
         rows={2}
       />
+      {onTogglePinned && (
+        <ItemPinControl item={item} onTogglePinned={onTogglePinned} />
+      )}
       {characterNames?.length > 0 && (
         <ItemTrackingControls
           item={item}

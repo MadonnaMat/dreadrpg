@@ -4,7 +4,11 @@ import { useWheel } from "../hooks/useWheel";
 import { useAi } from "../hooks/useAi";
 import { AutoGmContext } from "../contexts/AutoGmContext";
 import { MESSAGE_TYPES } from "../constants/messageTypes";
-import { AUTOGM_STATUS } from "../constants/autoGm";
+import {
+  AUTOGM_STATUS,
+  CANON_SECTION_NAME,
+  MAX_KEY_BEAT_LENGTH,
+} from "../constants/autoGm";
 import {
   autoApproveAnswers,
   getActivePullTargets,
@@ -643,6 +647,37 @@ export function AutoGmProvider({ children }) {
     ]
   );
 
+  // Files the compaction pass's key beats into campaignNotes as pinned
+  // items, so the hard facts of a stretch about to leave rawHistory survive
+  // verbatim. They have to land somewhere outside storySummary because that
+  // summary is re-summarized every compaction, which is exactly what blurs
+  // specifics away; pinned notes are also exempt from the notes caps' FIFO
+  // eviction (see helpers/campaignNotes.js), so early-campaign canon stops
+  // aging out. Pins are deduped by the same normalized-name match every
+  // other note update uses, so a restated beat updates in place.
+  const pinKeyBeats = useCallback(
+    (keyBeats) => {
+      const beats = (keyBeats || [])
+        .filter((beat) => typeof beat === "string")
+        .map((beat) => beat.trim().slice(0, MAX_KEY_BEAT_LENGTH))
+        .filter(Boolean);
+      if (!beats.length) return;
+      setCampaignNotes((prev) =>
+        applyCampaignNoteUpdates(
+          prev,
+          beats.map((beat) => ({
+            sectionName: CANON_SECTION_NAME,
+            itemText: beat,
+            description: "",
+            pinned: true,
+            pinnedSource: "autogm",
+          }))
+        )
+      );
+    },
+    [setCampaignNotes]
+  );
+
   // Folds the retiring raw-history window into one updated running summary,
   // fail-soft: on any failure, the prior summary is kept rather than losing
   // everything compaction was meant to preserve.
@@ -664,9 +699,10 @@ export function AutoGmProvider({ children }) {
         );
         return storySummary;
       }
+      pinKeyBeats(result.parsed.keyBeats);
       return result.parsed.summary;
     },
-    [storySummary, runPrompt]
+    [storySummary, runPrompt, pinKeyBeats]
   );
 
   // Posts one additional, richer line of narration after a character is

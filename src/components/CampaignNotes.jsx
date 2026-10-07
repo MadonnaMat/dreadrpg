@@ -114,6 +114,15 @@ export default function CampaignNotes() {
     updateItem(sectionId, itemIndex, { takenBy: characterName });
   };
 
+  // A hand-pinned item is always sourced "gm", including when the GM pins
+  // something AutoGM filed unpinned - it's the GM's call now.
+  const setPinned = (sectionId, itemIndex, pinned) => {
+    updateItem(sectionId, itemIndex, {
+      pinned,
+      pinnedSource: pinned ? "gm" : null,
+    });
+  };
+
   const removeItem = (sectionId, itemIndex) => {
     setCampaignNotes((prev) =>
       prev.map((section) =>
@@ -189,6 +198,9 @@ export default function CampaignNotes() {
                 toggleSeenBy(section.id, itemIndex, name)
               }
               onSetTakenBy={(name) => setTakenBy(section.id, itemIndex, name)}
+              onTogglePinned={(pinned) =>
+                setPinned(section.id, itemIndex, pinned)
+              }
             />
           ))}
           <button

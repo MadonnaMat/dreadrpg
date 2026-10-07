@@ -12,6 +12,19 @@ export const AUTOGM_STATUS = {
   SELF_CHECKING: "self_checking",
 };
 
+// Section the compaction pass files its key beats under (see
+// autogm-compaction.v2.md). Named like a GM's own prep heading so it reads
+// naturally in the Campaign Notes UI alongside hand-written sections, and
+// shared so AutoGmProvider and any future consumer agree on the one name -
+// the notes helpers match sections by normalized name, so a second spelling
+// would quietly create a duplicate section.
+export const CANON_SECTION_NAME = "Established Facts";
+
+// Beats are stored as item text, which the notes helpers don't truncate the
+// way they do descriptions - so bound it here instead, since a rambling
+// model can otherwise undo the context savings pinning is meant to protect.
+export const MAX_KEY_BEAT_LENGTH = 240;
+
 const AUTOGM_STATUS_LABELS = {
   [AUTOGM_STATUS.THINKING]: "is thinking",
   [AUTOGM_STATUS.CHECKING_PULL]: "is weighing the risk of that action",

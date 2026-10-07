@@ -157,6 +157,24 @@ describe("CampaignNotes", () => {
     expect(takenBySelect).toHaveValue("Bob");
   });
 
+  it("lets the GM pin an item as canon", async () => {
+    renderAsGm();
+
+    await user.click(screen.getByText("+ Items"));
+    await user.click(screen.getByRole("button", { name: "Add Item" }));
+    await user.click(screen.getByText("Item 1"));
+
+    const pinCheckbox = screen.getByRole("checkbox", { name: /Pin as canon/ });
+    expect(pinCheckbox).not.toBeChecked();
+    await user.click(pinCheckbox);
+    expect(pinCheckbox).toBeChecked();
+    // A hand-pinned item is the GM's own canon, so it carries no AutoGM marker.
+    expect(screen.queryByText("found by AutoGM")).not.toBeInTheDocument();
+
+    await user.click(pinCheckbox);
+    expect(pinCheckbox).not.toBeChecked();
+  });
+
   it("does not show seen/taken tracking controls when no characters exist", async () => {
     renderAsGm();
 

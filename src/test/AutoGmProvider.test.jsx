@@ -982,6 +982,63 @@ describe("AutoGmProvider", () => {
       );
     });
 
+    it("pins the compaction pass's key beats into campaignNotes as canon", async () => {
+      const { deliver } = setupEnabled({
+        runPromptImpl: async ({ systemPromptText }) => {
+          if (systemPromptText === latest("autogmCompaction").text) {
+            return {
+              valid: true,
+              parsed: {
+                summary: "The party explored the mill.",
+                keyBeats: ["Marcus set the fire at the mill."],
+              },
+            };
+          }
+          return validTurnResult();
+        },
+      });
+
+      await enable();
+      for (let i = 0; i < 21; i += 1) {
+        await deliver.current({ from: "Alice", text: `message ${i}` });
+      }
+
+      await waitFor(() => {
+        const notes = JSON.parse(
+          screen.getByTestId("campaign-notes").textContent
+        );
+        const beat = notes
+          .flatMap((section) => section.items)
+          .find((item) => item.text === "Marcus set the fire at the mill.");
+        expect(beat).toMatchObject({ pinned: true, pinnedSource: "autogm" });
+      });
+    });
+
+    it("survives a compaction that reports no key beats", async () => {
+      const { deliver } = setupEnabled({
+        runPromptImpl: async ({ systemPromptText }) => {
+          if (systemPromptText === latest("autogmCompaction").text) {
+            return {
+              valid: true,
+              parsed: { summary: "Nothing much happened.", keyBeats: [] },
+            };
+          }
+          return validTurnResult();
+        },
+      });
+
+      await enable();
+      for (let i = 0; i < 21; i += 1) {
+        await deliver.current({ from: "Alice", text: `message ${i}` });
+      }
+
+      await waitFor(() =>
+        expect(screen.getByTestId("story-summary")).toHaveTextContent(
+          "Nothing much happened."
+        )
+      );
+    });
+
     it("keeps the prior summary when compaction itself fails", async () => {
       const { deliver } = setupEnabled({
         runPromptImpl: async ({ systemPromptText }) => {
