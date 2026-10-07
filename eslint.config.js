@@ -40,6 +40,17 @@ export default defineConfig([
       globals: globals.node,
     },
   },
+  // The AutoGM verification harness runs under Node (on the Windows side of
+  // WSL, in fact - see its README), not in the app.
+  {
+    files: ["scripts/**/*.js"],
+    extends: [js.configs.recommended],
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      globals: { ...globals.node, ...globals.browser },
+    },
+  },
   // Web Worker entry files run in WorkerGlobalScope, not window - `self` is
   // the worker itself here (not an alias for `window`), and globals.browser
   // doesn't declare the worker-only APIs these files use.

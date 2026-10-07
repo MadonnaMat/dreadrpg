@@ -21,26 +21,22 @@ verification of a prompt change.
 
 **Check WebGPU before planning a session.** Every tier is a `q4f16_1` build,
 which needs the `shader-f16` WebGPU feature - a browser can expose a working
-adapter and still not have it, and WebLLM will refuse to load. Headless
-Chromium has no `navigator.gpu` at all; headed Chrome needs
-`--enable-unsafe-webgpu`:
+adapter and still not have it, and WebLLM will refuse to load:
 
-```js
-const b = await chromium.launch({
-  channel: "chrome",
-  headless: false,
-  args: ["--enable-unsafe-webgpu"],
-});
-const a = await (
-  await b.newPage()
-).evaluate(async () =>
-  (await navigator.gpu?.requestAdapter())?.features.has("shader-f16")
-);
+```bash
+node scripts/autogm-verify/run.js gpu
 ```
 
-`false` means the model path can't run here, full stop. (Under WSL, WSLg
-gives you `DISPLAY` so headed Chrome works, but the D3D12 adapter has
-reported no f16.)
+`shaderF16: false` means the model path can't run on this machine, full
+stop. Headless Chromium has no `navigator.gpu` at all, and under WSL the
+Linux-side adapter has reported no f16 - so this needs the host's own
+Chrome. See `scripts/autogm-verify/README.md` for launching it.
+
+## The harness is committed
+
+`scripts/autogm-verify/` holds both halves of this - a CDP driver for a live
+session and a token-budget measurement - with setup instructions in its
+README. Use it rather than rebuilding one.
 
 ## Without a model: drive the real prompt builders
 
@@ -51,8 +47,7 @@ realistic mid-campaign fixture (full notes, a cast, a long story summary,
 several turns of history) and print prompt sizes and which notes survived:
 
 ```bash
-./node_modules/.bin/vite-node path/to/harness.mjs   # not plain node:
-                                                    # sources use extensionless imports
+./node_modules/.bin/vite-node scripts/autogm-verify/budget.js
 ```
 
 Compare a turn focused on a location, one on an item, and one that's pure
@@ -73,7 +68,7 @@ with the most story behind them.
 So when turns start failing, check prompt size before anything else:
 
 ```bash
-wc -c src/prompts/autogm-turn.v*.md   # chars / 4 ≈ tokens
+./node_modules/.bin/vite-node scripts/autogm-verify/budget.js
 ```
 
 Note the debug panel shows the engine's own words now - WebLLM rejects with
