@@ -18,6 +18,12 @@ import {
   applyCampaignNoteUpdates,
   reconcileConsolidatedNotes,
 } from "../helpers/campaignNotes";
+import {
+  buildRelevanceQuery,
+  selectRelevantCampaignNotes,
+  countNoteItems,
+  countPinnedNoteItems,
+} from "../helpers/contextRelevance";
 import { latest } from "../prompts/index";
 import {
   buildAutoGmTurnContext,
@@ -510,6 +516,18 @@ export function AutoGmProvider({ children }) {
       const classifierPull = await checkForPull(trigger);
 
       setThinking(AUTOGM_STATUS.THINKING);
+      // Only the turn prompt gets the filtered notes. selfCheckNarration and
+      // consolidateCampaignNotes deliberately keep the full list: the first
+      // exists to catch contradictions against facts this turn never
+      // mentioned, and the second rebuilds the whole list.
+      const relevantCampaignNotes = selectRelevantCampaignNotes({
+        campaignNotes,
+        query: buildRelevanceQuery({
+          trigger,
+          storySummary,
+          rawHistory: history,
+        }),
+      });
       const context = buildAutoGmTurnContext({
         scenario,
         characters,
@@ -518,10 +536,15 @@ export function AutoGmProvider({ children }) {
         dangerProbability,
         awaitingReset,
         designatedSpinner,
-        campaignNotes,
+        campaignNotes: relevantCampaignNotes,
         presence,
         pullJustCalled: classifierPull,
       });
+      const contextStats = {
+        campaignNoteItemsIncluded: countNoteItems(relevantCampaignNotes),
+        campaignNoteItemsTotal: countNoteItems(campaignNotes),
+        pinnedIncluded: countPinnedNoteItems(relevantCampaignNotes),
+      };
       const result = await runPromptWithTimeout(runPrompt, {
         systemPromptText: latest("autogmTurn").text,
         userContent: context,
@@ -546,6 +569,7 @@ export function AutoGmProvider({ children }) {
           awaitingResetAtTurn: awaitingReset,
           campaignNoteUpdates: [],
           pullSkippedReason: null,
+          contextStats,
           error: reason,
         });
         return false;
@@ -622,6 +646,7 @@ export function AutoGmProvider({ children }) {
         awaitingResetAtTurn: awaitingReset,
         campaignNoteUpdates,
         pullSkippedReason,
+        contextStats,
       });
       return true;
     },

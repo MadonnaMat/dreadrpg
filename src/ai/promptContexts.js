@@ -162,6 +162,11 @@ export function buildSheetAnswerContext({ question, otherAnswers, scenario }) {
   return `Suggest an answer to this character questionnaire question:\n\n"${question}"${priorAnswers}${formatScenarioContext(scenario)}`;
 }
 
+// `campaignNotes` is expected to be the relevance-filtered subset for this
+// turn (see helpers/contextRelevance.js) rather than the whole list. The
+// roster and scenario stay whole: both are a handful of lines that the GM
+// needs to stay consistent about, unlike notes, which grow to dozens of
+// items of which any one turn concerns almost none.
 export function buildAutoGmTurnContext({
   scenario,
   characters,

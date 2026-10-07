@@ -84,6 +84,55 @@ describe("AutoGmDebugPanel", () => {
     expect(screen.getByText(/Campaign notes: Old Mill/)).toBeInTheDocument();
   });
 
+  it("reports how much of the campaign notes the turn's context included", () => {
+    setState({
+      turnLog: [
+        {
+          id: "turn-1",
+          kind: "turn",
+          trigger: { from: "Alice", text: "I search the mill." },
+          draftNarration: "Dust rises.",
+          finalNarration: "Dust rises.",
+          campaignNoteUpdates: [],
+          contextStats: {
+            campaignNoteItemsIncluded: 3,
+            campaignNoteItemsTotal: 18,
+            pinnedIncluded: 2,
+          },
+        },
+      ],
+    });
+    render(<AutoGmDebugPanel />);
+
+    expect(
+      screen.getByText(/Context: 3\/18 note items \(2 pinned\)/)
+    ).toBeInTheDocument();
+  });
+
+  it("omits the pinned count when no pinned canon was included", () => {
+    setState({
+      turnLog: [
+        {
+          id: "turn-1",
+          kind: "turn",
+          trigger: { from: "Alice", text: "I wait." },
+          draftNarration: "Silence.",
+          finalNarration: "Silence.",
+          campaignNoteUpdates: [],
+          contextStats: {
+            campaignNoteItemsIncluded: 0,
+            campaignNoteItemsTotal: 4,
+            pinnedIncluded: 0,
+          },
+        },
+      ],
+    });
+    render(<AutoGmDebugPanel />);
+
+    expect(screen.getByText(/Context: 0\/4 note items/)).toBeInTheDocument();
+    expect(screen.queryByText(/pinned/)).not.toBeInTheDocument();
+  });
+
   it("shows the original draft and reasoning when the self-check revised it", () => {
     setState({
       turnLog: [

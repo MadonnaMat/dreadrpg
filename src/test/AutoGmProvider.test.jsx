@@ -543,6 +543,123 @@ describe("AutoGmProvider", () => {
       expect(wheel.assignSpinner).not.toHaveBeenCalled();
     });
 
+    describe("turn-context filtering", () => {
+      function seedCastAndNotes() {
+        function Seed() {
+          const { setCharacters, setPresence, setCampaignNotes } = usePeer();
+          useEffect(() => {
+            setCharacters({
+              "char-1": {
+                id: "char-1",
+                name: "The Drifter",
+                assignedTo: "Alice",
+              },
+              "char-2": {
+                id: "char-2",
+                name: "The Archivist",
+                assignedTo: "Bob",
+                answers: { 0: { text: "She fears deep water." } },
+              },
+            });
+            setPresence({
+              Alice: { connected: true },
+              Bob: { connected: true },
+            });
+            setCampaignNotes([
+              {
+                id: "note-1",
+                name: "Locations",
+                items: [
+                  {
+                    text: "Old Mill",
+                    description: "Downstream by the river.",
+                    seenBy: [],
+                    takenBy: null,
+                    pinned: false,
+                    pinnedSource: null,
+                  },
+                ],
+              },
+              {
+                id: "note-2",
+                name: "Items",
+                items: [
+                  {
+                    text: "Brass Lantern",
+                    description: "Hangs in the shed.",
+                    seenBy: [],
+                    takenBy: null,
+                    pinned: false,
+                    pinnedSource: null,
+                  },
+                ],
+              },
+              {
+                id: "note-3",
+                name: "Established Facts",
+                items: [
+                  {
+                    text: "Marcus set the fire",
+                    description: "",
+                    seenBy: [],
+                    takenBy: null,
+                    pinned: true,
+                    pinnedSource: "autogm",
+                  },
+                ],
+              },
+            ]);
+          }, [setCharacters, setPresence, setCampaignNotes]);
+          return null;
+        }
+        return <Seed />;
+      }
+
+      async function turnContextFor(text) {
+        const { runPrompt, deliver } = setupEnabled({
+          runPromptImpl: async () => validTurnResult(),
+          seed: seedCastAndNotes(),
+        });
+        await enable();
+        await deliver.current({ from: "Alice", text, fromIdentity: "Alice" });
+        await waitFor(() =>
+          expect(runPrompt).toHaveBeenCalledWith(
+            expect.objectContaining({
+              systemPromptText: latest("autogmTurn").text,
+            })
+          )
+        );
+        const call = runPrompt.mock.calls
+          .map(([args]) => args)
+          .find((args) => args.systemPromptText === latest("autogmTurn").text);
+        return call.userContent;
+      }
+
+      it("leaves out notes the turn has nothing to do with", async () => {
+        const context = await turnContextFor("I search the old mill.");
+
+        expect(context).toContain("Old Mill");
+        // Another section's unrelated item isn't worth the context budget.
+        expect(context).not.toContain("Brass Lantern");
+      });
+
+      it("still includes pinned canon on a turn that has nothing to do with it", async () => {
+        const context = await turnContextFor("I order another drink.");
+        expect(context).toContain("Marcus set the fire");
+        expect(context).not.toContain("Brass Lantern");
+      });
+
+      it("keeps the whole roster and every valid pull target", async () => {
+        const context = await turnContextFor("I search the old mill.");
+        // The roster is one line per character, so it is never filtered -
+        // and a quiet player is still a legal pull target.
+        expect(context).toContain("The Drifter");
+        expect(context).toContain("The Archivist");
+        expect(context).toContain("Players you may currently call for a pull");
+        expect(context).toContain("Bob");
+      });
+    });
+
     describe("pull-check classifier", () => {
       function seedAliceAsDrifter() {
         function SeedCharacter() {
