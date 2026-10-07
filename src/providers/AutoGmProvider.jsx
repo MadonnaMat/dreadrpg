@@ -379,12 +379,13 @@ export function AutoGmProvider({ children }) {
   // unchanged rather than blocking narration on a second model call
   // succeeding.
   const selfCheckNarration = useCallback(
-    async (draftNarration, triggerText) => {
+    async (draftNarration, triggerText, detailedNotes) => {
       const context = buildAutoGmSelfCheckContext({
         draftNarration,
         storySummary,
         rawHistory: historyRef.current,
         campaignNotes,
+        detailedNotes,
         characters,
         dangerProbability,
         awaitingReset,
@@ -656,7 +657,11 @@ export function AutoGmProvider({ children }) {
       let consistent = null;
       if (narration) {
         setThinking(AUTOGM_STATUS.SELF_CHECKING);
-        const checked = await selfCheckNarration(narration, trigger?.text);
+        const checked = await selfCheckNarration(
+          narration,
+          trigger?.text,
+          relevantCampaignNotes
+        );
         finalNarration = checked.finalNarration;
         reasoning = checked.reasoning;
         consistent = checked.consistent;

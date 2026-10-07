@@ -13,6 +13,7 @@ import autogmCompactionV1 from "./autogm-compaction.v1.md?raw";
 import autogmCompactionV2 from "./autogm-compaction.v2.md?raw";
 import autogmSelfCheckV1 from "./autogm-self-check.v1.md?raw";
 import autogmSelfCheckV2 from "./autogm-self-check.v2.md?raw";
+import autogmSelfCheckV3 from "./autogm-self-check.v3.md?raw";
 import autogmScenePacingV1 from "./autogm-scene-pacing.v1.md?raw";
 
 // Versioned system-prompt registry. Product code always uses latest();
@@ -41,6 +42,7 @@ const REGISTRY = {
   autogmSelfCheck: [
     { version: 1, text: autogmSelfCheckV1 },
     { version: 2, text: autogmSelfCheckV2 },
+    { version: 3, text: autogmSelfCheckV3 },
   ],
   autogmScenePacing: [{ version: 1, text: autogmScenePacingV1 }],
 };

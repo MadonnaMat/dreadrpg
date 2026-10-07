@@ -78,6 +78,43 @@ function formatCampaignNotesContext(campaignNotes) {
   return `\n\nYour private campaign notes (GM prep - don't reveal directly unless the story calls for it). Each item shows who has already seen it and, for portable items, whether it's already been taken - never re-describe something a character has already seen as if it's new to them, and never narrate a taken item as still sitting in its original spot:\n${lines.join("\n")}`;
 }
 
+function noteKey(sectionName, itemText) {
+  return `${String(sectionName || "")
+    .trim()
+    .toLowerCase()}::${String(itemText || "")
+    .trim()
+    .toLowerCase()}`;
+}
+
+// The self-check's job is spotting contradictions, which turns on an item's
+// name and on who has seen or taken it - not on its prose description,
+// which is most of the bulk. So the pass still sees every item (it can't
+// catch a contradiction against something it was never shown) but only
+// keeps descriptions for the ones that matter: pinned canon, and whatever
+// the turn itself was given. On a full notes set that's the difference
+// between fitting the small tier's window and not.
+function formatCampaignNotesForCheck(campaignNotes, detailedNotes) {
+  const sections = campaignNotes || [];
+  if (!sections.length) return "";
+  const detailed = new Set();
+  (detailedNotes || []).forEach((section) =>
+    (section.items || []).forEach((item) =>
+      detailed.add(noteKey(section.name, item.text))
+    )
+  );
+  const lines = sections.flatMap((section) => [
+    `${section.name}:`,
+    ...(section.items || []).map((item) => {
+      const keepDescription =
+        item.pinned || detailed.has(noteKey(section.name, item.text));
+      const description =
+        keepDescription && item.description ? ` — ${item.description}` : "";
+      return `  - ${item.text}${description}${formatItemState(item)}`;
+    }),
+  ]);
+  return `\n\nEstablished facts from your private campaign notes, with who has seen each one and whether it's been taken:\n${lines.join("\n")}`;
+}
+
 function formatRawHistoryContext(rawHistory) {
   const list = rawHistory || [];
   if (!list.length) return "";
@@ -276,9 +313,10 @@ export function buildAutoGmSelfCheckContext({
   storySummary,
   rawHistory,
   campaignNotes,
+  detailedNotes,
   characters,
   dangerProbability,
   awaitingReset,
 }) {
-  return `Draft narration to check:\n"${draftNarration}"${formatCharacterRosterContext(characters)}${formatCampaignNotesContext(campaignNotes)}${formatStorySummaryContext(storySummary)}${formatTowerStateContext({ dangerProbability, awaitingReset, designatedSpinner: null })}${formatRawHistoryContext(rawHistory)}`;
+  return `Draft narration to check:\n"${draftNarration}"${formatCharacterRosterContext(characters)}${formatCampaignNotesForCheck(campaignNotes, detailedNotes)}${formatStorySummaryContext(storySummary)}${formatTowerStateContext({ dangerProbability, awaitingReset, designatedSpinner: null })}${formatRawHistoryContext(rawHistory)}`;
 }
