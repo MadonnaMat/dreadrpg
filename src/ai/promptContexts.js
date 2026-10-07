@@ -78,6 +78,43 @@ function formatCampaignNotesContext(campaignNotes) {
   return `\n\nYour private campaign notes (GM prep - don't reveal directly unless the story calls for it). Each item shows who has already seen it and, for portable items, whether it's already been taken - never re-describe something a character has already seen as if it's new to them, and never narrate a taken item as still sitting in its original spot:\n${lines.join("\n")}`;
 }
 
+function noteKey(sectionName, itemText) {
+  return `${String(sectionName || "")
+    .trim()
+    .toLowerCase()}::${String(itemText || "")
+    .trim()
+    .toLowerCase()}`;
+}
+
+// The self-check's job is spotting contradictions, which turns on an item's
+// name and on who has seen or taken it - not on its prose description,
+// which is most of the bulk. So the pass still sees every item (it can't
+// catch a contradiction against something it was never shown) but only
+// keeps descriptions for the ones that matter: pinned canon, and whatever
+// the turn itself was given. On a full notes set that's the difference
+// between fitting the small tier's window and not.
+function formatCampaignNotesForCheck(campaignNotes, detailedNotes) {
+  const sections = campaignNotes || [];
+  if (!sections.length) return "";
+  const detailed = new Set();
+  (detailedNotes || []).forEach((section) =>
+    (section.items || []).forEach((item) =>
+      detailed.add(noteKey(section.name, item.text))
+    )
+  );
+  const lines = sections.flatMap((section) => [
+    `${section.name}:`,
+    ...(section.items || []).map((item) => {
+      const keepDescription =
+        item.pinned || detailed.has(noteKey(section.name, item.text));
+      const description =
+        keepDescription && item.description ? ` — ${item.description}` : "";
+      return `  - ${item.text}${description}${formatItemState(item)}`;
+    }),
+  ]);
+  return `\n\nEstablished facts from your private campaign notes, with who has seen each one and whether it's been taken:\n${lines.join("\n")}`;
+}
+
 function formatRawHistoryContext(rawHistory) {
   const list = rawHistory || [];
   if (!list.length) return "";
@@ -133,6 +170,48 @@ function formatPullJustCalledContext(pullJustCalled) {
   return `\n\nA pull has already been called for ${targetPlayerName} because of the action they just declared (${pullsRequired} ${pullWord} required) - this is already handled, do not set "callForPull" yourself this turn. Just narrate the tension of the moment leading into it; do not narrate the outcome of the pull (success, decline, or collapse) - that will be resolved and narrated separately once it's actually pulled.`;
 }
 
+// The scene-pacing pass's read on what the moment calls for (see
+// autogm-scene-pacing.v1.md), so the turn prompt isn't inferring pacing from
+// scratch while also writing prose. Advisory in both directions: "continue"
+// adds nothing at all, and "call_for_pull" is worded as a suggestion rather
+// than a decision, since the pull-check pass - not this one - is what
+// actually calls pulls (see formatPullJustCalledContext above).
+const SCENE_PACING_HINTS = {
+  escalate:
+    "The scene has been running slack: consider tightening it now with a new complication, a sign the threat is closer, or a cost coming due.",
+  wrap_scene:
+    "This beat looks like it has given what it has to give: consider moving toward a transition or resolution rather than holding the table in it.",
+  call_for_pull:
+    'The fiction may have reached real physical stakes. This is a suggestion only, not a pull that has been called - decide for yourself whether to set "callForPull" this turn.',
+};
+
+function formatScenePacingContext(pacingMove) {
+  const hint = SCENE_PACING_HINTS[pacingMove];
+  return hint ? `\n\nPacing read for this moment: ${hint}` : "";
+}
+
+// Quoted back when a turn's whole narration turned out to be something the
+// GM had already said. Telling it which line to avoid is far more use to a
+// small model than the standing "don't repeat yourself" rule it just
+// demonstrably ignored.
+function formatAlreadySaidContext(alreadySaid) {
+  if (!alreadySaid) return "";
+  return `\n\nYou already said this, almost word for word, in a recent turn:\n"${alreadySaid}"\nDo not say it again, and do not reword it. Respond with something that has not happened in the story yet.`;
+}
+
+// Deliberately far smaller than the turn context: pacing is a read on the
+// scene's rhythm, which the recent chat, the summary, and the tower's state
+// already carry. The scenario, roster, and campaign notes would just be
+// weight on a cheap classification call.
+export function buildAutoGmScenePacingContext({
+  storySummary,
+  rawHistory,
+  dangerProbability,
+  awaitingReset,
+}) {
+  return `Judge the pacing of this Dread RPG scene.${formatStorySummaryContext(storySummary)}${formatTowerStateContext({ dangerProbability, awaitingReset, designatedSpinner: null })}${formatRawHistoryContext(rawHistory)}`;
+}
+
 export function buildScenarioGenerationContext({ premise }) {
   return `Generate a Dread RPG scenario based on this premise:\n\n${premise}`;
 }
@@ -162,6 +241,11 @@ export function buildSheetAnswerContext({ question, otherAnswers, scenario }) {
   return `Suggest an answer to this character questionnaire question:\n\n"${question}"${priorAnswers}${formatScenarioContext(scenario)}`;
 }
 
+// `campaignNotes` is expected to be the relevance-filtered subset for this
+// turn (see helpers/contextRelevance.js) rather than the whole list. The
+// roster and scenario stay whole: both are a handful of lines that the GM
+// needs to stay consistent about, unlike notes, which grow to dozens of
+// items of which any one turn concerns almost none.
 export function buildAutoGmTurnContext({
   scenario,
   characters,
@@ -173,8 +257,10 @@ export function buildAutoGmTurnContext({
   campaignNotes,
   presence,
   pullJustCalled,
+  pacingMove,
+  alreadySaid,
 }) {
-  return `You are running an AutoGM turn for this Dread RPG game.${formatScenarioContext(scenario)}${formatCharacterRosterContext(characters)}${formatCampaignNotesContext(campaignNotes)}${formatStorySummaryContext(storySummary)}${formatTowerStateContext({ dangerProbability, awaitingReset, designatedSpinner })}${formatActivePullTargetsContext(characters, presence)}${formatPullJustCalledContext(pullJustCalled)}${formatRawHistoryContext(rawHistory)}`;
+  return `You are running an AutoGM turn for this Dread RPG game.${formatScenarioContext(scenario)}${formatCharacterRosterContext(characters)}${formatCampaignNotesContext(campaignNotes)}${formatStorySummaryContext(storySummary)}${formatTowerStateContext({ dangerProbability, awaitingReset, designatedSpinner })}${formatActivePullTargetsContext(characters, presence)}${formatPullJustCalledContext(pullJustCalled)}${formatScenePacingContext(pacingMove)}${formatAlreadySaidContext(alreadySaid)}${formatRawHistoryContext(rawHistory)}`;
 }
 
 export function buildAutoGmRemovalNarrationContext({
@@ -194,6 +280,22 @@ export function buildAutoGmCompactionContext({ priorSummary, rawHistory }) {
   return `Update the running story summary.${priorBlock}${formatRawHistoryContext(rawHistory)}`;
 }
 
+// The consolidation schema requires every item field, and the prompt asks
+// the model to copy the pin fields through as given - so they have to
+// actually be given. Notes saved before pinning existed don't carry them,
+// and a model can't faithfully echo a field that was never in its input, so
+// fill the defaults in here rather than letting those turns fail validation.
+function withPinFields(campaignNotes) {
+  return (campaignNotes || []).map((section) => ({
+    ...section,
+    items: (section.items || []).map((item) => ({
+      ...item,
+      pinned: Boolean(item?.pinned),
+      pinnedSource: item?.pinned ? item.pinnedSource || "" : "",
+    })),
+  }));
+}
+
 // Fed as literal JSON rather than prose - this is a structured
 // transform (existing notes + an update -> the whole rebuilt list), and a
 // small local model reproduces untouched entries far more faithfully when
@@ -203,7 +305,7 @@ export function buildAutoGmCampaignNotesConsolidationContext({
   campaignNotes,
   campaignNoteUpdates,
 }) {
-  const currentJson = JSON.stringify(campaignNotes || [], null, 2);
+  const currentJson = JSON.stringify(withPinFields(campaignNotes), null, 2);
   const updatesJson = JSON.stringify(campaignNoteUpdates || [], null, 2);
   return `Current campaign notes (JSON):\n${currentJson}\n\nNew update(s) just called out this turn (JSON):\n${updatesJson}`;
 }
@@ -221,9 +323,10 @@ export function buildAutoGmSelfCheckContext({
   storySummary,
   rawHistory,
   campaignNotes,
+  detailedNotes,
   characters,
   dangerProbability,
   awaitingReset,
 }) {
-  return `Draft narration to check:\n"${draftNarration}"${formatCharacterRosterContext(characters)}${formatCampaignNotesContext(campaignNotes)}${formatStorySummaryContext(storySummary)}${formatTowerStateContext({ dangerProbability, awaitingReset, designatedSpinner: null })}${formatRawHistoryContext(rawHistory)}`;
+  return `Draft narration to check:\n"${draftNarration}"${formatCharacterRosterContext(characters)}${formatCampaignNotesForCheck(campaignNotes, detailedNotes)}${formatStorySummaryContext(storySummary)}${formatTowerStateContext({ dangerProbability, awaitingReset, designatedSpinner: null })}${formatRawHistoryContext(rawHistory)}`;
 }

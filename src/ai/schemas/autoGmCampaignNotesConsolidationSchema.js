@@ -2,8 +2,14 @@
 // same array-of-sections shape as the app's real campaignNotes state, plus
 // each item's seenBy/takenBy tracking (see helpers/campaignNotes.js's
 // reconcileConsolidatedNotes, which converts this back into the app's
-// actual shape). "takenBy" uses "" for not-taken rather than null, matching
-// every other optional-string field in this app's structured schemas.
+// actual shape). "takenBy" and "pinnedSource" use "" for not-taken/unpinned
+// rather than null, matching every other optional-string field in this app's
+// structured schemas.
+//
+// The pinned fields are required rather than optional because this schema
+// sets additionalProperties: false and the prompt is fed the current notes as
+// JSON to echo back - an unlisted field would make the model's faithful copy
+// of its own input fail validation, silently dropping canon the GM pinned.
 export const autoGmCampaignNotesConsolidationSchema = {
   type: "array",
   items: {
@@ -19,8 +25,17 @@ export const autoGmCampaignNotesConsolidationSchema = {
             description: { type: "string" },
             seenBy: { type: "array", items: { type: "string" } },
             takenBy: { type: "string" },
+            pinned: { type: "boolean" },
+            pinnedSource: { type: "string" },
           },
-          required: ["text", "description", "seenBy", "takenBy"],
+          required: [
+            "text",
+            "description",
+            "seenBy",
+            "takenBy",
+            "pinned",
+            "pinnedSource",
+          ],
           additionalProperties: false,
         },
       },
@@ -56,6 +71,16 @@ function validateItem(item, sectionIndex, itemIndex) {
   if (typeof item.takenBy !== "string") {
     errors.push(
       `Section ${sectionIndex}, item ${itemIndex}: "takenBy" must be a string.`
+    );
+  }
+  if (typeof item.pinned !== "boolean") {
+    errors.push(
+      `Section ${sectionIndex}, item ${itemIndex}: "pinned" must be a boolean.`
+    );
+  }
+  if (typeof item.pinnedSource !== "string") {
+    errors.push(
+      `Section ${sectionIndex}, item ${itemIndex}: "pinnedSource" must be a string.`
     );
   }
   return errors;

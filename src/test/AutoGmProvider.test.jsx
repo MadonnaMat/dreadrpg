@@ -543,6 +543,353 @@ describe("AutoGmProvider", () => {
       expect(wheel.assignSpinner).not.toHaveBeenCalled();
     });
 
+    describe("turn-context filtering", () => {
+      function seedCastAndNotes() {
+        function Seed() {
+          const { setCharacters, setPresence, setCampaignNotes } = usePeer();
+          useEffect(() => {
+            setCharacters({
+              "char-1": {
+                id: "char-1",
+                name: "The Drifter",
+                assignedTo: "Alice",
+              },
+              "char-2": {
+                id: "char-2",
+                name: "The Archivist",
+                assignedTo: "Bob",
+                answers: { 0: { text: "She fears deep water." } },
+              },
+            });
+            setPresence({
+              Alice: { connected: true },
+              Bob: { connected: true },
+            });
+            setCampaignNotes([
+              {
+                id: "note-1",
+                name: "Locations",
+                items: [
+                  {
+                    text: "Old Mill",
+                    description: "Downstream by the river.",
+                    seenBy: [],
+                    takenBy: null,
+                    pinned: false,
+                    pinnedSource: null,
+                  },
+                ],
+              },
+              {
+                id: "note-2",
+                name: "Items",
+                items: [
+                  {
+                    text: "Brass Lantern",
+                    description: "Hangs in the shed.",
+                    seenBy: [],
+                    takenBy: null,
+                    pinned: false,
+                    pinnedSource: null,
+                  },
+                ],
+              },
+              {
+                id: "note-3",
+                name: "Established Facts",
+                items: [
+                  {
+                    text: "Marcus set the fire",
+                    description: "",
+                    seenBy: [],
+                    takenBy: null,
+                    pinned: true,
+                    pinnedSource: "autogm",
+                  },
+                ],
+              },
+            ]);
+          }, [setCharacters, setPresence, setCampaignNotes]);
+          return null;
+        }
+        return <Seed />;
+      }
+
+      async function turnContextFor(text) {
+        const { runPrompt, deliver } = setupEnabled({
+          runPromptImpl: async () => validTurnResult(),
+          seed: seedCastAndNotes(),
+        });
+        await enable();
+        await deliver.current({ from: "Alice", text, fromIdentity: "Alice" });
+        await waitFor(() =>
+          expect(runPrompt).toHaveBeenCalledWith(
+            expect.objectContaining({
+              systemPromptText: latest("autogmTurn").text,
+            })
+          )
+        );
+        const call = runPrompt.mock.calls
+          .map(([args]) => args)
+          .find((args) => args.systemPromptText === latest("autogmTurn").text);
+        return call.userContent;
+      }
+
+      it("leaves out notes the turn has nothing to do with", async () => {
+        const context = await turnContextFor("I search the old mill.");
+
+        expect(context).toContain("Old Mill");
+        // Another section's unrelated item isn't worth the context budget.
+        expect(context).not.toContain("Brass Lantern");
+      });
+
+      it("still includes pinned canon on a turn that has nothing to do with it", async () => {
+        const context = await turnContextFor("I order another drink.");
+        expect(context).toContain("Marcus set the fire");
+        expect(context).not.toContain("Brass Lantern");
+      });
+
+      it("keeps the whole roster and every valid pull target", async () => {
+        const context = await turnContextFor("I search the old mill.");
+        // The roster is one line per character, so it is never filtered -
+        // and a quiet player is still a legal pull target.
+        expect(context).toContain("The Drifter");
+        expect(context).toContain("The Archivist");
+        expect(context).toContain("Players you may currently call for a pull");
+        expect(context).toContain("Bob");
+      });
+    });
+
+    describe("scene-pacing classifier", () => {
+      function setupWithPacing(pacingResult) {
+        return setupEnabled({
+          runPromptImpl: async ({ systemPromptText }) => {
+            if (systemPromptText === latest("autogmScenePacing").text) {
+              return pacingResult;
+            }
+            return validTurnResult();
+          },
+        });
+      }
+
+      async function turnContextAfter(runPrompt, deliver) {
+        await enable();
+        await deliver.current({ from: "Alice", text: "I keep searching." });
+        await waitFor(() =>
+          expect(runPrompt).toHaveBeenCalledWith(
+            expect.objectContaining({
+              systemPromptText: latest("autogmTurn").text,
+            })
+          )
+        );
+        return runPrompt.mock.calls
+          .map(([args]) => args)
+          .find((args) => args.systemPromptText === latest("autogmTurn").text)
+          .userContent;
+      }
+
+      it("asks only about the scene's rhythm, not the whole game state", async () => {
+        const { runPrompt, deliver } = setupWithPacing({
+          valid: true,
+          parsed: { pacingMove: "continue", reasoning: "Scene is working." },
+        });
+
+        await enable();
+        await deliver.current({ from: "Alice", text: "I keep searching." });
+
+        await waitFor(() =>
+          expect(runPrompt).toHaveBeenCalledWith(
+            expect.objectContaining({
+              systemPromptText: latest("autogmScenePacing").text,
+            })
+          )
+        );
+        const pacingCall = runPrompt.mock.calls
+          .map(([args]) => args)
+          .find(
+            (args) => args.systemPromptText === latest("autogmScenePacing").text
+          );
+        expect(pacingCall.userContent).toContain("Tower state");
+        expect(pacingCall.userContent).toContain("I keep searching.");
+        // The expensive blocks belong to the turn prompt, not this one.
+        expect(pacingCall.userContent).not.toContain("Scenario:");
+        expect(pacingCall.userContent).not.toContain("private campaign notes");
+      });
+
+      it("adds nothing to the turn prompt when the scene should just continue", async () => {
+        const { runPrompt, deliver } = setupWithPacing({
+          valid: true,
+          parsed: { pacingMove: "continue", reasoning: "Scene is working." },
+        });
+        const context = await turnContextAfter(runPrompt, deliver);
+        expect(context).not.toContain("Pacing read for this moment");
+      });
+
+      it("passes an escalate read to the turn prompt as a hint", async () => {
+        const { runPrompt, deliver } = setupWithPacing({
+          valid: true,
+          parsed: { pacingMove: "escalate", reasoning: "Gone quiet." },
+        });
+        const context = await turnContextAfter(runPrompt, deliver);
+        expect(context).toContain("Pacing read for this moment");
+        expect(context).toContain("tightening it now");
+      });
+
+      it("passes a wrap_scene read to the turn prompt as a hint", async () => {
+        const { runPrompt, deliver } = setupWithPacing({
+          valid: true,
+          parsed: { pacingMove: "wrap_scene", reasoning: "Beat is spent." },
+        });
+        const context = await turnContextAfter(runPrompt, deliver);
+        expect(context).toContain("transition or resolution");
+      });
+
+      it("frames a call_for_pull read as advice, not a pull already called", async () => {
+        const { runPrompt, deliver } = setupWithPacing({
+          valid: true,
+          parsed: { pacingMove: "call_for_pull", reasoning: "Real stakes." },
+        });
+        const context = await turnContextAfter(runPrompt, deliver);
+        expect(context).toContain("suggestion only");
+        // The authoritative "a pull has been called" wording belongs to the
+        // pull-check pass alone, which found nothing here.
+        expect(context).not.toContain("A pull has already been called");
+      });
+
+      it("skips the pacing call entirely when a pull was just called", async () => {
+        function seedAlice() {
+          function Seed() {
+            const { setCharacters, setPresence } = usePeer();
+            useEffect(() => {
+              setCharacters({
+                "char-1": {
+                  id: "char-1",
+                  name: "The Drifter",
+                  assignedTo: "Alice",
+                },
+              });
+              setPresence({ Alice: { connected: true } });
+            }, [setCharacters, setPresence]);
+            return null;
+          }
+          return <Seed />;
+        }
+
+        const { runPrompt, deliver } = setupEnabled({
+          runPromptImpl: async ({ systemPromptText }) => {
+            if (systemPromptText === latest("autogmPullCheck").text) {
+              return {
+                valid: true,
+                parsed: { requiresPull: true, pullsRequired: 1 },
+              };
+            }
+            return validTurnResult();
+          },
+          seed: seedAlice(),
+        });
+
+        await enable();
+        await deliver.current({
+          from: "Alice",
+          text: "I kick the hatch open.",
+          fromIdentity: "Alice",
+        });
+
+        await waitFor(() =>
+          expect(runPrompt).toHaveBeenCalledWith(
+            expect.objectContaining({
+              systemPromptText: latest("autogmTurn").text,
+            })
+          )
+        );
+        // A called pull is already the escalation - spending a generation on
+        // advice the turn would ignore is just another chance to fail.
+        expect(
+          runPrompt.mock.calls
+            .map(([args]) => args.systemPromptText)
+            .filter((t) => t === latest("autogmScenePacing").text)
+        ).toHaveLength(0);
+      });
+
+      it("still runs the turn when the pacing read fails or is invalid", async () => {
+        const { runPrompt, deliver, chatMessages } = setupWithPacing({
+          valid: false,
+          parsed: null,
+        });
+
+        await enable();
+        await deliver.current({ from: "Alice", text: "I keep searching." });
+
+        await waitFor(() =>
+          expect(chatMessages).toContainEqual(
+            expect.objectContaining({
+              text: "The floor creaks beneath your feet.",
+              fromBot: true,
+            })
+          )
+        );
+        const context = runPrompt.mock.calls
+          .map(([args]) => args)
+          .find(
+            (args) => args.systemPromptText === latest("autogmTurn").text
+          ).userContent;
+        expect(context).not.toContain("Pacing read for this moment");
+      });
+    });
+
+    describe("cross-turn repetition", () => {
+      it("regenerates once when the whole response repeats an earlier line, and posts the new one", async () => {
+        const repeated = "The hall is silent, and the rain keeps falling.";
+        let turnCalls = 0;
+        const { deliver, chatMessages } = setupEnabled({
+          runPromptImpl: async ({ systemPromptText, userContent }) => {
+            if (systemPromptText === latest("autogmTurn").text) {
+              turnCalls += 1;
+              // First two turns say the same thing; the retry is the call
+              // that gets told what it already said.
+              if (userContent.includes("You already said this")) {
+                return validTurnResult({
+                  narration: "A hatch bangs open somewhere below.",
+                });
+              }
+              return validTurnResult({ narration: repeated });
+            }
+            if (systemPromptText === latest("autogmSelfCheck").text) {
+              return {
+                valid: true,
+                parsed: {
+                  consistent: true,
+                  reasoning: "fine",
+                  revisedNarration: "",
+                },
+              };
+            }
+            return validTurnResult();
+          },
+        });
+
+        await enable();
+        await deliver.current({ from: "Alice", text: "I listen." });
+        await waitFor(() =>
+          expect(chatMessages.some((m) => m.text === repeated)).toBe(true)
+        );
+
+        chatMessages.length = 0;
+        await deliver.current({ from: "Alice", text: "I keep listening." });
+
+        await waitFor(() =>
+          expect(chatMessages).toContainEqual(
+            expect.objectContaining({
+              text: "A hatch bangs open somewhere below.",
+            })
+          )
+        );
+        // The parrot never reaches the table.
+        expect(chatMessages.some((m) => m.text === repeated)).toBe(false);
+        expect(turnCalls).toBeGreaterThanOrEqual(3);
+      });
+    });
+
     describe("pull-check classifier", () => {
       function seedAliceAsDrifter() {
         function SeedCharacter() {
@@ -873,14 +1220,20 @@ describe("AutoGmProvider", () => {
               },
             };
           }
-          // Only autogmTurn calls reach here - counted separately from
-          // compaction/self-check so the "second call fails" below means
-          // the second *turn*, not whichever call happens to land second.
+          if (systemPromptText === latest("autogmScenePacing").text) {
+            return {
+              valid: true,
+              parsed: { pacingMove: "continue", reasoning: "fine" },
+            };
+          }
+          // Only autogmTurn calls reach here - counted separately from the
+          // other passes so the "second call fails" below means the second
+          // *turn*, not whichever call happens to land second.
           turnCallCount += 1;
           if (turnCallCount === 2) {
             return { valid: false, parsed: null };
           }
-          return validTurnResult({ narration: `Response ${turnCallCount}` });
+          return validTurnResult({ narration: `Response ${turnCallCount}.` });
         },
       });
 
@@ -888,7 +1241,7 @@ describe("AutoGmProvider", () => {
       await deliver.current({ from: "Alice", text: "first message" });
       await waitFor(() =>
         expect(chatMessages).toContainEqual(
-          expect.objectContaining({ text: "Response 1" })
+          expect.objectContaining({ text: "Response 1." })
         )
       );
 
@@ -897,7 +1250,7 @@ describe("AutoGmProvider", () => {
 
       await waitFor(() =>
         expect(chatMessages).toContainEqual(
-          expect.objectContaining({ text: "Response 3" })
+          expect.objectContaining({ text: "Response 3." })
         )
       );
       expect(screen.getByTestId("story-summary")).toHaveTextContent(
@@ -915,8 +1268,17 @@ describe("AutoGmProvider", () => {
 
       await new Promise((resolve) => setTimeout(resolve, 10));
       // Only the one failed turn call - no compaction call was wasted on a
-      // single-message window with nothing meaningful to shrink.
-      expect(runPrompt).toHaveBeenCalledTimes(1);
+      // single-message window with nothing meaningful to shrink. Counted by
+      // prompt rather than in total, since the pacing read runs every turn.
+      const turnCalls = runPrompt.mock.calls
+        .map(([args]) => args.systemPromptText)
+        .filter((text) => text === latest("autogmTurn").text);
+      expect(turnCalls).toHaveLength(1);
+      expect(
+        runPrompt.mock.calls
+          .map(([args]) => args.systemPromptText)
+          .filter((text) => text === latest("autogmCompaction").text)
+      ).toHaveLength(0);
     });
 
     it("posts a fallback chat line when both the original and recompacted attempts fail", async () => {
@@ -979,6 +1341,63 @@ describe("AutoGmProvider", () => {
         expect.objectContaining({
           systemPromptText: latest("autogmCompaction").text,
         })
+      );
+    });
+
+    it("pins the compaction pass's key beats into campaignNotes as canon", async () => {
+      const { deliver } = setupEnabled({
+        runPromptImpl: async ({ systemPromptText }) => {
+          if (systemPromptText === latest("autogmCompaction").text) {
+            return {
+              valid: true,
+              parsed: {
+                summary: "The party explored the mill.",
+                keyBeats: ["Marcus set the fire at the mill."],
+              },
+            };
+          }
+          return validTurnResult();
+        },
+      });
+
+      await enable();
+      for (let i = 0; i < 21; i += 1) {
+        await deliver.current({ from: "Alice", text: `message ${i}` });
+      }
+
+      await waitFor(() => {
+        const notes = JSON.parse(
+          screen.getByTestId("campaign-notes").textContent
+        );
+        const beat = notes
+          .flatMap((section) => section.items)
+          .find((item) => item.text === "Marcus set the fire at the mill.");
+        expect(beat).toMatchObject({ pinned: true, pinnedSource: "autogm" });
+      });
+    });
+
+    it("survives a compaction that reports no key beats", async () => {
+      const { deliver } = setupEnabled({
+        runPromptImpl: async ({ systemPromptText }) => {
+          if (systemPromptText === latest("autogmCompaction").text) {
+            return {
+              valid: true,
+              parsed: { summary: "Nothing much happened.", keyBeats: [] },
+            };
+          }
+          return validTurnResult();
+        },
+      });
+
+      await enable();
+      for (let i = 0; i < 21; i += 1) {
+        await deliver.current({ from: "Alice", text: `message ${i}` });
+      }
+
+      await waitFor(() =>
+        expect(screen.getByTestId("story-summary")).toHaveTextContent(
+          "Nothing much happened."
+        )
       );
     });
 

@@ -211,3 +211,246 @@ describe("runStructuredPrompt", () => {
     expect(typeof result.latencyMs).toBe("number");
   });
 });
+
+describe("runStructuredPrompt truncation", () => {
+  it("tells the model it was cut off, rather than just that it was invalid", async () => {
+    let correction = null;
+    const engine = {
+      chatCompletion: vi.fn(async (messages) => {
+        const last = messages[messages.length - 1];
+        if (last.role === "user" && /invalid/.test(last.content)) {
+          correction = last.content;
+          return completionWith('{"ok":true}');
+        }
+        // Generation hit its cap mid-string.
+        return completionWith('{"narration":"The hall is dark and the');
+      }),
+    };
+
+    const result = await runStructuredPrompt({
+      engine,
+      systemPromptText: "system",
+      userContent: "user",
+      schema: { type: "object" },
+      validate: passthroughValidate,
+    });
+
+    expect(result.valid).toBe(true);
+    expect(correction).toMatch(/cut off|briefly/i);
+  });
+
+  it("uses the plain correction for JSON that is merely malformed", async () => {
+    let correction = null;
+    const engine = {
+      chatCompletion: vi.fn(async (messages) => {
+        const last = messages[messages.length - 1];
+        if (last.role === "user" && /invalid/.test(last.content)) {
+          correction = last.content;
+          return completionWith('{"ok":true}');
+        }
+        return completionWith("not json at all");
+      }),
+    };
+
+    await runStructuredPrompt({
+      engine,
+      systemPromptText: "system",
+      userContent: "user",
+      schema: { type: "object" },
+      validate: passthroughValidate,
+    });
+
+    expect(correction).not.toMatch(/cut off/i);
+  });
+});
+
+describe("runStructuredPrompt attempt timeouts", () => {
+  it("gives up on a generation that outruns its timeout and says so", async () => {
+    const engine = {
+      // Never settles - the exact case nothing in the WebLLM stack bounds.
+      chatCompletion: vi.fn(() => new Promise(() => {})),
+      interrupt: vi.fn(),
+    };
+
+    const result = await runStructuredPrompt({
+      engine,
+      systemPromptText: "system",
+      userContent: "user",
+      schema: { type: "object" },
+      validate: passthroughValidate,
+      maxRetries: 0,
+      attemptTimeoutMs: 20,
+    });
+
+    expect(result.valid).toBe(false);
+    expect(result.errors.join(" ")).toMatch(/timed out/i);
+  });
+
+  it("interrupts the abandoned generation so the next call isn't queued behind it", async () => {
+    const engine = {
+      chatCompletion: vi.fn(() => new Promise(() => {})),
+      interrupt: vi.fn(),
+    };
+
+    await runStructuredPrompt({
+      engine,
+      systemPromptText: "system",
+      userContent: "user",
+      schema: { type: "object" },
+      validate: passthroughValidate,
+      maxRetries: 0,
+      attemptTimeoutMs: 20,
+    });
+
+    expect(engine.interrupt).toHaveBeenCalled();
+  });
+
+  it("times out each attempt separately rather than sharing one budget", async () => {
+    let calls = 0;
+    const engine = {
+      chatCompletion: vi.fn(() => {
+        calls += 1;
+        // First attempt hangs; a shared budget would leave nothing for the
+        // retry, which is the whole point of retrying.
+        if (calls === 1) return new Promise(() => {});
+        return Promise.resolve(completionWith('{"answer":"recovered"}'));
+      }),
+      interrupt: vi.fn(),
+    };
+
+    const result = await runStructuredPrompt({
+      engine,
+      systemPromptText: "system",
+      userContent: "user",
+      schema: { type: "object" },
+      validate: passthroughValidate,
+      attemptTimeoutMs: 20,
+    });
+
+    expect(result).toMatchObject({
+      valid: true,
+      parsed: { answer: "recovered" },
+    });
+    expect(engine.chatCompletion).toHaveBeenCalledTimes(2);
+  });
+
+  it("survives an engine with no interrupt support", async () => {
+    const engine = { chatCompletion: vi.fn(() => new Promise(() => {})) };
+    const result = await runStructuredPrompt({
+      engine,
+      systemPromptText: "system",
+      userContent: "user",
+      schema: { type: "object" },
+      validate: passthroughValidate,
+      maxRetries: 0,
+      attemptTimeoutMs: 20,
+    });
+    expect(result.valid).toBe(false);
+  });
+
+  it("keeps the text when the engine rejects with a plain string", async () => {
+    // WebLLM's worker bridge does exactly this, and reading .message off it
+    // discarded the only description of what actually went wrong.
+    const engine = {
+      chatCompletion: vi
+        .fn()
+        .mockRejectedValue("WebGPU device was lost during generation"),
+    };
+
+    const result = await runStructuredPrompt({
+      engine,
+      systemPromptText: "system",
+      userContent: "user",
+      schema: { type: "object" },
+      validate: passthroughValidate,
+      maxRetries: 0,
+    });
+
+    expect(result.errors.join(" ")).toContain("WebGPU device was lost");
+  });
+
+  it("falls back to something readable for an empty or odd rejection", async () => {
+    for (const thrown of ["", null, undefined, 42]) {
+      const engine = { chatCompletion: vi.fn().mockRejectedValue(thrown) };
+      const result = await runStructuredPrompt({
+        engine,
+        systemPromptText: "system",
+        userContent: "user",
+        schema: { type: "object" },
+        validate: passthroughValidate,
+        maxRetries: 0,
+      });
+      expect(result.errors.join(" ").trim().length).toBeGreaterThan(0);
+    }
+  });
+
+  it("does not retry a context-window overflow", async () => {
+    // Re-sending the same oversized prompt can only fail the same way, and
+    // each attempt costs a full generation before the caller can react by
+    // sending less. This is routine on the 4096-token small tier.
+    const engine = {
+      chatCompletion: vi
+        .fn()
+        .mockRejectedValue("ContextWindowSizeExceededError: 5200 > 4096"),
+    };
+
+    const result = await runStructuredPrompt({
+      engine,
+      systemPromptText: "system",
+      userContent: "user",
+      schema: { type: "object" },
+      validate: passthroughValidate,
+    });
+
+    expect(result.valid).toBe(false);
+    expect(engine.chatCompletion).toHaveBeenCalledTimes(1);
+    expect(result.errors.join(" ")).toContain("ContextWindowSizeExceeded");
+  });
+
+  it("still retries ordinary engine failures", async () => {
+    let calls = 0;
+    const engine = {
+      chatCompletion: vi.fn(() => {
+        calls += 1;
+        if (calls === 1) return Promise.reject("transient worker hiccup");
+        return Promise.resolve(completionWith('{"ok":true}'));
+      }),
+    };
+
+    const result = await runStructuredPrompt({
+      engine,
+      systemPromptText: "system",
+      userContent: "user",
+      schema: { type: "object" },
+      validate: passthroughValidate,
+    });
+
+    expect(result.valid).toBe(true);
+    expect(engine.chatCompletion).toHaveBeenCalledTimes(2);
+  });
+
+  it("names the error class when a rejection carries no message", async () => {
+    class DeviceLostError extends Error {
+      constructor() {
+        super("");
+        this.name = "DeviceLostError";
+      }
+    }
+    const engine = {
+      chatCompletion: vi.fn().mockRejectedValue(new DeviceLostError()),
+    };
+
+    const result = await runStructuredPrompt({
+      engine,
+      systemPromptText: "system",
+      userContent: "user",
+      schema: { type: "object" },
+      validate: passthroughValidate,
+      maxRetries: 0,
+    });
+
+    // "Model request failed." told us nothing; the class name is the only
+    // thing distinguishing a lost GPU from a bad response format.
+    expect(result.errors.join(" ")).toContain("DeviceLostError");
+  });
+});

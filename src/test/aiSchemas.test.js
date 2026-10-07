@@ -9,6 +9,10 @@ import { validate as validateAutoGmCompaction } from "../ai/schemas/autoGmCompac
 import { validate as validateAutoGmSelfCheck } from "../ai/schemas/autoGmSelfCheckSchema";
 import { validate as validateAutoGmPullCheck } from "../ai/schemas/autoGmPullCheckSchema";
 import { validate as validateAutoGmCampaignNotesConsolidation } from "../ai/schemas/autoGmCampaignNotesConsolidationSchema";
+import {
+  validate as validateAutoGmScenePacing,
+  PACING_MOVES,
+} from "../ai/schemas/autoGmScenePacingSchema";
 
 describe("scenarioSchema.validate", () => {
   const validScenario = {
@@ -260,6 +264,37 @@ describe("autoGmCompactionSchema.validate", () => {
   it("rejects a non-object", () => {
     expect(validateAutoGmCompaction(null).valid).toBe(false);
   });
+
+  it("accepts a summary with key beats", () => {
+    expect(
+      validateAutoGmCompaction({
+        summary: "The party reached the mill.",
+        keyBeats: ["Marcus set the fire at the mill."],
+      })
+    ).toEqual({ valid: true, errors: [] });
+  });
+
+  it("accepts an empty key-beats array", () => {
+    expect(
+      validateAutoGmCompaction({ summary: "Nothing much.", keyBeats: [] }).valid
+    ).toBe(true);
+  });
+
+  it("treats absent key beats as none rather than failing the compaction", () => {
+    expect(
+      validateAutoGmCompaction({ summary: "The party reached the mill." }).valid
+    ).toBe(true);
+  });
+
+  it("rejects key beats that aren't an array of strings", () => {
+    expect(
+      validateAutoGmCompaction({ summary: "Fine.", keyBeats: "a beat" }).valid
+    ).toBe(false);
+    expect(
+      validateAutoGmCompaction({ summary: "Fine.", keyBeats: [{ beat: 1 }] })
+        .valid
+    ).toBe(false);
+  });
 });
 
 describe("autoGmSelfCheckSchema.validate", () => {
@@ -338,6 +373,8 @@ describe("autoGmCampaignNotesConsolidationSchema.validate", () => {
           description: "Downstream.",
           seenBy: ["Alice"],
           takenBy: "",
+          pinned: false,
+          pinnedSource: "",
         },
       ],
     },
@@ -351,6 +388,64 @@ describe("autoGmCampaignNotesConsolidationSchema.validate", () => {
 
   it("accepts an empty list", () => {
     expect(validateAutoGmCampaignNotesConsolidation([]).valid).toBe(true);
+  });
+
+  it("accepts a pinned item carrying its source", () => {
+    expect(
+      validateAutoGmCampaignNotesConsolidation([
+        {
+          name: "Established Facts",
+          items: [
+            {
+              text: "Marcus set the fire.",
+              description: "",
+              seenBy: [],
+              takenBy: "",
+              pinned: true,
+              pinnedSource: "autogm",
+            },
+          ],
+        },
+      ])
+    ).toEqual({ valid: true, errors: [] });
+  });
+
+  it("rejects an item missing the pinned fields", () => {
+    const result = validateAutoGmCampaignNotesConsolidation([
+      {
+        name: "Locations",
+        items: [
+          {
+            text: "Old Mill",
+            description: "",
+            seenBy: [],
+            takenBy: "",
+          },
+        ],
+      },
+    ]);
+    expect(result.valid).toBe(false);
+    expect(result.errors.join(" ")).toContain("pinned");
+  });
+
+  it("rejects a non-boolean pinned flag", () => {
+    expect(
+      validateAutoGmCampaignNotesConsolidation([
+        {
+          name: "Locations",
+          items: [
+            {
+              text: "Old Mill",
+              description: "",
+              seenBy: [],
+              takenBy: "",
+              pinned: "yes",
+              pinnedSource: "gm",
+            },
+          ],
+        },
+      ]).valid
+    ).toBe(false);
   });
 
   it("accepts a section with an empty items array", () => {
@@ -393,5 +488,47 @@ describe("autoGmCampaignNotesConsolidationSchema.validate", () => {
   it("rejects a non-array top level", () => {
     expect(validateAutoGmCampaignNotesConsolidation(null).valid).toBe(false);
     expect(validateAutoGmCampaignNotesConsolidation({}).valid).toBe(false);
+  });
+});
+
+describe("autoGmScenePacingSchema.validate", () => {
+  it("accepts every pacing move the prompt may return", () => {
+    PACING_MOVES.forEach((pacingMove) => {
+      expect(
+        validateAutoGmScenePacing({ pacingMove, reasoning: "Because." })
+      ).toEqual({ valid: true, errors: [] });
+    });
+  });
+
+  it("accepts an empty reasoning string", () => {
+    expect(
+      validateAutoGmScenePacing({ pacingMove: "continue", reasoning: "" }).valid
+    ).toBe(true);
+  });
+
+  it("rejects a pacing move outside the enum, which the schema alone won't catch", () => {
+    const result = validateAutoGmScenePacing({
+      pacingMove: "improvise",
+      reasoning: "Felt right.",
+    });
+    expect(result.valid).toBe(false);
+    expect(result.errors.join(" ")).toContain("pacingMove");
+  });
+
+  it("rejects a missing pacing move", () => {
+    expect(validateAutoGmScenePacing({ reasoning: "Because." }).valid).toBe(
+      false
+    );
+  });
+
+  it("rejects a non-string reasoning", () => {
+    expect(
+      validateAutoGmScenePacing({ pacingMove: "escalate", reasoning: 3 }).valid
+    ).toBe(false);
+  });
+
+  it("rejects a non-object", () => {
+    expect(validateAutoGmScenePacing(null).valid).toBe(false);
+    expect(validateAutoGmScenePacing([]).valid).toBe(false);
   });
 });

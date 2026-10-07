@@ -84,6 +84,100 @@ describe("AutoGmDebugPanel", () => {
     expect(screen.getByText(/Campaign notes: Old Mill/)).toBeInTheDocument();
   });
 
+  it("reports how much of the campaign notes the turn's context included", () => {
+    setState({
+      turnLog: [
+        {
+          id: "turn-1",
+          kind: "turn",
+          trigger: { from: "Alice", text: "I search the mill." },
+          draftNarration: "Dust rises.",
+          finalNarration: "Dust rises.",
+          campaignNoteUpdates: [],
+          contextStats: {
+            campaignNoteItemsIncluded: 3,
+            campaignNoteItemsTotal: 18,
+            pinnedIncluded: 2,
+          },
+        },
+      ],
+    });
+    render(<AutoGmDebugPanel />);
+
+    expect(
+      screen.getByText(/Context: 3\/18 note items \(2 pinned\)/)
+    ).toBeInTheDocument();
+  });
+
+  it("renders the scene-pacing read and its reasoning", () => {
+    setState({
+      turnLog: [
+        {
+          id: "turn-1",
+          kind: "turn",
+          trigger: { from: "Alice", text: "I keep searching." },
+          draftNarration: "Nothing yet.",
+          finalNarration: "Nothing yet.",
+          campaignNoteUpdates: [],
+          scenePacing: {
+            pacingMove: "escalate",
+            reasoning: "The room has been searched three times.",
+          },
+        },
+      ],
+    });
+    render(<AutoGmDebugPanel />);
+
+    expect(
+      screen.getByText(
+        /Pacing: escalate — The room has been searched three times\./
+      )
+    ).toBeInTheDocument();
+  });
+
+  it("omits the pacing line when the read failed", () => {
+    setState({
+      turnLog: [
+        {
+          id: "turn-1",
+          kind: "turn",
+          trigger: { from: "Alice", text: "I wait." },
+          draftNarration: "Silence.",
+          finalNarration: "Silence.",
+          campaignNoteUpdates: [],
+          scenePacing: null,
+        },
+      ],
+    });
+    render(<AutoGmDebugPanel />);
+
+    expect(screen.queryByText(/Pacing:/)).not.toBeInTheDocument();
+  });
+
+  it("omits the pinned count when no pinned canon was included", () => {
+    setState({
+      turnLog: [
+        {
+          id: "turn-1",
+          kind: "turn",
+          trigger: { from: "Alice", text: "I wait." },
+          draftNarration: "Silence.",
+          finalNarration: "Silence.",
+          campaignNoteUpdates: [],
+          contextStats: {
+            campaignNoteItemsIncluded: 0,
+            campaignNoteItemsTotal: 4,
+            pinnedIncluded: 0,
+          },
+        },
+      ],
+    });
+    render(<AutoGmDebugPanel />);
+
+    expect(screen.getByText(/Context: 0\/4 note items/)).toBeInTheDocument();
+    expect(screen.queryByText(/pinned/)).not.toBeInTheDocument();
+  });
+
   it("shows the original draft and reasoning when the self-check revised it", () => {
     setState({
       turnLog: [

@@ -18,6 +18,13 @@ export async function createLlmEngine({ modelId, onProgress }) {
     chatCompletion(messages, options = {}) {
       return engine.chatCompletion({ messages, ...options });
     },
+    // WebLLM holds a per-model lock for the duration of a generation, so an
+    // abandoned call doesn't just waste its own time - every later call
+    // queues behind it. Callers that give up on a slow generation need a way
+    // to actually stop it rather than leaving it holding the lock.
+    interrupt() {
+      return engine.interruptGenerate();
+    },
     dispose() {
       worker.terminate();
     },

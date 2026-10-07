@@ -1,8 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
-  generateSectionId,
   applyCampaignNoteUpdates,
+  generateSectionId,
+  mergeConsolidatedScope,
   reconcileConsolidatedNotes,
+  scopeNotesForConsolidation,
 } from "../helpers/campaignNotes";
 
 describe("generateSectionId", () => {
@@ -48,6 +50,8 @@ describe("applyCampaignNoteUpdates", () => {
         description: "On the cliff.",
         seenBy: [],
         takenBy: null,
+        pinned: false,
+        pinnedSource: null,
       },
     ]);
   });
@@ -82,6 +86,8 @@ describe("applyCampaignNoteUpdates", () => {
         description: "Downstream, now flooded.",
         seenBy: [],
         takenBy: null,
+        pinned: false,
+        pinnedSource: null,
       },
     ]);
   });
@@ -107,6 +113,8 @@ describe("applyCampaignNoteUpdates", () => {
         description: "Follows at night.",
         seenBy: [],
         takenBy: null,
+        pinned: false,
+        pinnedSource: null,
       },
     ]);
   });
@@ -154,6 +162,8 @@ describe("applyCampaignNoteUpdates", () => {
         description: "Downstream, now flooded.",
         seenBy: [],
         takenBy: null,
+        pinned: false,
+        pinnedSource: null,
       },
     ]);
   });
@@ -259,6 +269,121 @@ describe("applyCampaignNoteUpdates", () => {
     expect(notes.map((section) => section.name)).not.toContain("Section 0");
     expect(notes.map((section) => section.name)).toContain("Section 8");
   });
+
+  it("spares a pinned item from per-section eviction, dropping an unpinned one instead", () => {
+    let notes = applyCampaignNoteUpdates(
+      [],
+      [
+        {
+          sectionName: "Items",
+          itemText: "Pinned Fact",
+          description: "",
+          pinned: true,
+          pinnedSource: "gm",
+        },
+      ]
+    );
+    for (let i = 0; i < 8; i += 1) {
+      notes = applyCampaignNoteUpdates(notes, [
+        { sectionName: "Items", itemText: `Item ${i}`, description: "" },
+      ]);
+    }
+    const texts = notes[0].items.map((item) => item.text);
+    expect(notes[0].items).toHaveLength(8);
+    expect(texts).toContain("Pinned Fact");
+    expect(texts).not.toContain("Item 0");
+  });
+
+  it("spares a section holding a pinned item from section eviction", () => {
+    let notes = applyCampaignNoteUpdates(
+      [],
+      [
+        {
+          sectionName: "Established Facts",
+          itemText: "Marcus set the fire",
+          description: "",
+          pinned: true,
+          pinnedSource: "autogm",
+        },
+      ]
+    );
+    for (let i = 0; i < 8; i += 1) {
+      notes = applyCampaignNoteUpdates(notes, [
+        { sectionName: `Section ${i}`, itemText: "First", description: "" },
+      ]);
+    }
+    const names = notes.map((section) => section.name);
+    expect(notes).toHaveLength(8);
+    expect(names).toContain("Established Facts");
+    expect(names).not.toContain("Section 0");
+  });
+
+  it("stops exempting pins beyond the pinned-item budget, so pinning cannot defeat the caps", () => {
+    let notes = [];
+    for (let i = 0; i < 12; i += 1) {
+      notes = applyCampaignNoteUpdates(notes, [
+        {
+          sectionName: "Facts",
+          itemText: `Fact ${i}`,
+          description: "",
+          pinned: true,
+          pinnedSource: "gm",
+        },
+      ]);
+    }
+    // Still capped despite every item being pinned.
+    expect(notes[0].items).toHaveLength(8);
+  });
+
+  it("keeps an existing pin when a later update does not mention pinning", () => {
+    const pinned = applyCampaignNoteUpdates(
+      [],
+      [
+        {
+          sectionName: "Items",
+          itemText: "Journal",
+          description: "A leather journal.",
+          pinned: true,
+          pinnedSource: "gm",
+        },
+      ]
+    );
+    const afterUpdate = applyCampaignNoteUpdates(pinned, [
+      {
+        sectionName: "Items",
+        itemText: "Journal",
+        description: "Now water-damaged.",
+        seenByCharacter: "Alice",
+      },
+    ]);
+    expect(afterUpdate[0].items[0].pinned).toBe(true);
+    expect(afterUpdate[0].items[0].pinnedSource).toBe("gm");
+  });
+
+  it("does not relabel a GM pin as AutoGM's when AutoGM re-pins the same item", () => {
+    const pinned = applyCampaignNoteUpdates(
+      [],
+      [
+        {
+          sectionName: "Items",
+          itemText: "Journal",
+          description: "",
+          pinned: true,
+          pinnedSource: "gm",
+        },
+      ]
+    );
+    const afterAutoGm = applyCampaignNoteUpdates(pinned, [
+      {
+        sectionName: "Items",
+        itemText: "Journal",
+        description: "",
+        pinned: true,
+        pinnedSource: "autogm",
+      },
+    ]);
+    expect(afterAutoGm[0].items[0].pinnedSource).toBe("gm");
+  });
 });
 
 describe("reconcileConsolidatedNotes", () => {
@@ -289,6 +414,8 @@ describe("reconcileConsolidatedNotes", () => {
             description: "Downstream.",
             seenBy: ["Alice"],
             takenBy: null,
+            pinned: false,
+            pinnedSource: null,
           },
         ],
       },
@@ -364,5 +491,126 @@ describe("reconcileConsolidatedNotes", () => {
   it("treats a missing consolidated list as empty", () => {
     expect(reconcileConsolidatedNotes(null, [])).toEqual([]);
     expect(reconcileConsolidatedNotes(undefined, [])).toEqual([]);
+  });
+});
+
+describe("scoped consolidation", () => {
+  const notes = [
+    {
+      id: "note-1",
+      name: "Locations",
+      items: [
+        {
+          text: "Old Mill",
+          description: "Downstream.",
+          seenBy: [],
+          takenBy: null,
+        },
+      ],
+    },
+    {
+      id: "note-2",
+      name: "Items",
+      items: [
+        { text: "Rusty Key", description: "", seenBy: [], takenBy: null },
+      ],
+    },
+    {
+      id: "note-3",
+      name: "Threats",
+      items: [
+        { text: "The Hollow Man", description: "", seenBy: [], takenBy: null },
+      ],
+    },
+  ];
+
+  it("sends only the sections an update targets", () => {
+    const { scoped, scopedNames } = scopeNotesForConsolidation(notes, [
+      { sectionName: "items", itemText: "Brass Lantern" },
+    ]);
+    expect(scoped.map((s) => s.name)).toEqual(["Items"]);
+    expect([...scopedNames]).toEqual(["items"]);
+  });
+
+  it("sends nothing when the update invents a brand-new section", () => {
+    const { scoped } = scopeNotesForConsolidation(notes, [
+      { sectionName: "Clues", itemText: "A torn page" },
+    ]);
+    expect(scoped).toEqual([]);
+  });
+
+  it("puts the consolidated section back and leaves the others untouched", () => {
+    const merged = mergeConsolidatedScope({
+      consolidated: [
+        {
+          name: "Items",
+          items: [
+            {
+              text: "Rusty Key",
+              description: "It unlocks the shed.",
+              seenBy: ["Alice"],
+              takenBy: "",
+              pinned: false,
+              pinnedSource: "",
+            },
+          ],
+        },
+      ],
+      previous: notes,
+      scopedNames: new Set(["items"]),
+    });
+
+    expect(merged.map((s) => s.name)).toEqual([
+      "Locations",
+      "Items",
+      "Threats",
+    ]);
+    // Untouched sections come through unchanged, which the old whole-list
+    // rewrite could never guarantee - it asked the model to copy them.
+    expect(merged[0]).toEqual(notes[0]);
+    expect(merged[2]).toEqual(notes[2]);
+    expect(merged[1].items[0].description).toBe("It unlocks the shed.");
+    expect(merged[1].id).toBe("note-2");
+  });
+
+  it("appends a section the pass newly created", () => {
+    const merged = mergeConsolidatedScope({
+      consolidated: [
+        {
+          name: "Clues",
+          items: [
+            {
+              text: "A torn page",
+              description: "",
+              seenBy: [],
+              takenBy: "",
+              pinned: false,
+              pinnedSource: "",
+            },
+          ],
+        },
+      ],
+      previous: notes,
+      scopedNames: new Set(),
+    });
+    expect(merged.map((s) => s.name)).toEqual([
+      "Locations",
+      "Items",
+      "Threats",
+      "Clues",
+    ]);
+  });
+
+  it("keeps the original section when the pass drops one it was given", () => {
+    const merged = mergeConsolidatedScope({
+      consolidated: [],
+      previous: notes,
+      scopedNames: new Set(["items"]),
+    });
+    expect(merged.map((s) => s.name)).toEqual([
+      "Locations",
+      "Items",
+      "Threats",
+    ]);
   });
 });

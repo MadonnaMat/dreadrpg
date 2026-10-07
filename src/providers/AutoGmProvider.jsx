@@ -4,7 +4,11 @@ import { useWheel } from "../hooks/useWheel";
 import { useAi } from "../hooks/useAi";
 import { AutoGmContext } from "../contexts/AutoGmContext";
 import { MESSAGE_TYPES } from "../constants/messageTypes";
-import { AUTOGM_STATUS } from "../constants/autoGm";
+import {
+  AUTOGM_STATUS,
+  CANON_SECTION_NAME,
+  MAX_KEY_BEAT_LENGTH,
+} from "../constants/autoGm";
 import {
   autoApproveAnswers,
   getActivePullTargets,
@@ -12,8 +16,22 @@ import {
 } from "../helpers/characters";
 import {
   applyCampaignNoteUpdates,
-  reconcileConsolidatedNotes,
+  mergeConsolidatedScope,
+  scopeNotesForConsolidation,
 } from "../helpers/campaignNotes";
+import {
+  buildRelevanceQuery,
+  selectRelevantCampaignNotes,
+  countNoteItems,
+  countPinnedNoteItems,
+} from "../helpers/contextRelevance";
+import {
+  collapseRepeatedSentences,
+  isSubstantiveNarration,
+  recentGmNarration,
+  revisionIsPlausible,
+  stripEchoedPlayerAction,
+} from "../helpers/narrationGuards";
 import { latest } from "../prompts/index";
 import {
   buildAutoGmTurnContext,
@@ -22,6 +40,7 @@ import {
   buildAutoGmSelfCheckContext,
   buildAutoGmPullCheckContext,
   buildAutoGmCampaignNotesConsolidationContext,
+  buildAutoGmScenePacingContext,
 } from "../ai/promptContexts";
 import {
   autoGmTurnSchema,
@@ -35,6 +54,10 @@ import {
   autoGmCampaignNotesConsolidationSchema,
   validate as validateAutoGmCampaignNotesConsolidation,
 } from "../ai/schemas/autoGmCampaignNotesConsolidationSchema";
+import {
+  autoGmScenePacingSchema,
+  validate as validateAutoGmScenePacing,
+} from "../ai/schemas/autoGmScenePacingSchema";
 import {
   autoGmCompactionSchema,
   validate as validateAutoGmCompaction,
@@ -60,20 +83,26 @@ const TURN_LOG_LIMIT = 20;
 // folded into storySummary and reset - keeps context bounded without
 // losing track of the story (see docs/autogm-requirements.md).
 const RAW_HISTORY_COMPACTION_THRESHOLD = 20;
-// Every runPrompt call is raced against this timeout. Local in-browser
-// inference has no engine-level timeout anywhere in the promptRunner/
-// webllmEngine stack - if a single call ever genuinely hangs (a crashed
-// worker, lost GPU context, a backgrounded tab throttled by the browser)
-// rather than rejecting, every future chat message would otherwise wait
-// forever behind it in queueRef's promise chain, since a `.then()` chained
-// onto a promise that never settles never fires either. Racing against a
-// timeout guarantees the queue always eventually unblocks, even in the
-// worst case.
-const RUN_PROMPT_TIMEOUT_MS = 60000;
+// ...and a size ceiling alongside the message count, because twenty terse
+// lines and twenty long ones are wildly different amounts of context while
+// the model's window - 4096 tokens on the small tiers - is what actually
+// binds. Counting messages alone let a few long messages push the turn
+// prompt over it, which fails the turn outright. Characters rather than
+// tokens: no tokenizer is available here, and ~4 chars/token is close
+// enough for a trigger that only has to fire a little early.
+const RAW_HISTORY_CHAR_BUDGET = 4000;
 
+function historyNeedsCompaction(history) {
+  if (history.length > RAW_HISTORY_COMPACTION_THRESHOLD) return true;
+  const chars = history.reduce(
+    (total, message) => total + (message?.text?.length ?? 0),
+    0
+  );
+  return chars > RAW_HISTORY_CHAR_BUDGET;
+}
 // Turns runStructuredPrompt's own `errors` (JSON-parse failures, schema
-// validation messages, or the timeout wrapper's own message above) into one
-// readable line for the debug panel - "AutoGM couldn't generate a
+// validation messages, an engine rejection, or its per-attempt timeout) into
+// one readable line for the debug panel - "AutoGM couldn't generate a
 // response" alone gives no way to tell a timeout apart from a schema
 // mismatch apart from a completely garbled response.
 function describePromptFailure(result) {
@@ -134,26 +163,6 @@ function resolveMainPromptPull({
     pullsRequired,
     pullSkippedReason,
   };
-}
-
-function runPromptWithTimeout(runPrompt, args) {
-  return Promise.race([
-    runPrompt(args),
-    new Promise((resolve) => {
-      setTimeout(
-        () =>
-          resolve({
-            raw: "",
-            parsed: null,
-            valid: false,
-            errors: ["AutoGM's model call timed out."],
-            attempts: 0,
-            latencyMs: RUN_PROMPT_TIMEOUT_MS,
-          }),
-        RUN_PROMPT_TIMEOUT_MS
-      );
-    }),
-  ]);
 }
 
 // Runs the AutoGM mode: an AI-driven GM that narrates and adjudicates play
@@ -372,17 +381,18 @@ export function AutoGmProvider({ children }) {
   // unchanged rather than blocking narration on a second model call
   // succeeding.
   const selfCheckNarration = useCallback(
-    async (draftNarration) => {
+    async (draftNarration, triggerText, detailedNotes) => {
       const context = buildAutoGmSelfCheckContext({
         draftNarration,
         storySummary,
         rawHistory: historyRef.current,
         campaignNotes,
+        detailedNotes,
         characters,
         dangerProbability,
         awaitingReset,
       });
-      const result = await runPromptWithTimeout(runPrompt, {
+      const result = await runPrompt({
         systemPromptText: latest("autogmSelfCheck").text,
         userContent: context,
         schema: autoGmSelfCheckSchema,
@@ -396,10 +406,22 @@ export function AutoGmProvider({ children }) {
         };
       }
       const { consistent, reasoning, revisedNarration } = result.parsed;
+      // A "correction" from the small tiers regularly arrives worse than
+      // what it replaced: the prompt's own instructions restated back, the
+      // player's line re-attached, or a status report about the table. Put
+      // the revision through the same checks the draft already passed, and
+      // keep the draft whenever it doesn't hold up - losing a correction
+      // costs less than posting that.
+      const candidate = collapseRepeatedSentences(
+        stripEchoedPlayerAction(revisedNarration, triggerText)
+      );
+      const usableRevision = revisionIsPlausible(candidate, draftNarration)
+        ? candidate
+        : null;
       return {
         finalNarration: consistent
           ? draftNarration
-          : revisedNarration || draftNarration,
+          : usableRevision || draftNarration,
         reasoning,
         consistent,
       };
@@ -426,11 +448,17 @@ export function AutoGmProvider({ children }) {
   // the deterministic fuzzy-match merge so an update is never lost outright.
   const consolidateCampaignNotes = useCallback(
     async (updates) => {
-      const context = buildAutoGmCampaignNotesConsolidationContext({
+      // Only the sections these updates touch - see
+      // scopeNotesForConsolidation for why the whole list cannot be sent.
+      const { scoped, scopedNames } = scopeNotesForConsolidation(
         campaignNotes,
+        updates
+      );
+      const context = buildAutoGmCampaignNotesConsolidationContext({
+        campaignNotes: scoped,
         campaignNoteUpdates: updates,
       });
-      const result = await runPromptWithTimeout(runPrompt, {
+      const result = await runPrompt({
         systemPromptText: latest("autogmCampaignNotesConsolidation").text,
         userContent: context,
         schema: autoGmCampaignNotesConsolidationSchema,
@@ -439,7 +467,11 @@ export function AutoGmProvider({ children }) {
       if (!result.valid) {
         return applyCampaignNoteUpdates(campaignNotes, updates);
       }
-      return reconcileConsolidatedNotes(result.parsed, campaignNotes);
+      return mergeConsolidatedScope({
+        consolidated: result.parsed,
+        previous: campaignNotes,
+        scopedNames,
+      });
     },
     [campaignNotes, runPrompt]
   );
@@ -468,7 +500,7 @@ export function AutoGmProvider({ children }) {
         actorName: characterNameFor(characters, trigger.fromIdentity),
         scenario,
       });
-      const result = await runPromptWithTimeout(runPrompt, {
+      const result = await runPrompt({
         systemPromptText: latest("autogmPullCheck").text,
         userContent: context,
         schema: autoGmPullCheckSchema,
@@ -494,6 +526,65 @@ export function AutoGmProvider({ children }) {
     ]
   );
 
+  // Runs alongside the pull check, before the main turn prompt, to read what
+  // kind of move the scene wants next (keep going, tighten, wrap up). Same
+  // reasoning as checkForPull: one narrow question answered on its own beats
+  // the same judgment made implicitly inside a creative-writing response.
+  // Purely advisory - it narrows what the turn prompt has to work out for
+  // itself, and never acts on its own. Fail-soft to null, so a failed or
+  // invalid read just leaves the turn unguided rather than blocking it.
+  const checkScenePacing = useCallback(
+    async (history) => {
+      const context = buildAutoGmScenePacingContext({
+        storySummary,
+        rawHistory: history,
+        dangerProbability,
+        awaitingReset,
+      });
+      const result = await runPrompt({
+        systemPromptText: latest("autogmScenePacing").text,
+        userContent: context,
+        schema: autoGmScenePacingSchema,
+        validate: validateAutoGmScenePacing,
+      });
+      if (!result.valid) return null;
+      return result.parsed;
+    },
+    [storySummary, dangerProbability, awaitingReset, runPrompt]
+  );
+
+  // Keeps only narration that is new and is actually a response. When the
+  // whole thing was something the GM already said, one regeneration is
+  // worth it - quoting the offending line back is far more use to a small
+  // model than the standing "don't repeat yourself" rule it just ignored,
+  // and the alternatives are posting a parrot or answering with silence.
+  const resolveNarration = useCallback(
+    async (rawNarration, clean, turnContextArgs) => {
+      const usable = (text) =>
+        text && isSubstantiveNarration(text) ? text : "";
+
+      const firstPass = usable(clean(rawNarration));
+      if (!rawNarration || firstPass) {
+        return { narration: firstPass, regenerated: false };
+      }
+
+      const retry = await runPrompt({
+        systemPromptText: latest("autogmTurn").text,
+        userContent: buildAutoGmTurnContext({
+          ...turnContextArgs,
+          alreadySaid: rawNarration,
+        }),
+        schema: autoGmTurnSchema,
+        validate: validateAutoGmTurn,
+      });
+      return {
+        narration: retry.valid ? usable(clean(retry.parsed.narration)) : "",
+        regenerated: true,
+      };
+    },
+    [runPrompt]
+  );
+
   // Runs one AutoGM turn: asks the model to react to the given history
   // (ending with the message that just triggered this turn), then acts on
   // whatever it decides - posting narration, calling for a pull, restacking
@@ -503,10 +594,32 @@ export function AutoGmProvider({ children }) {
   // game state.
   const runTurn = useCallback(
     async (history, trigger) => {
+      // Strictly one model call at a time. These two are independent and an
+      // earlier version issued them together, but there is no parallelism to
+      // win: it's one model in one worker on one GPU, so the engine runs them
+      // one after another anyway - while overlapping requests on a single
+      // WebLLM engine did produce "Model request failed" in live play. Every
+      // other call in this provider is serialized; this is not the place to
+      // be the exception.
       const classifierPull = await checkForPull(trigger);
+      // Every model call is another chance for the turn to fail outright, so
+      // the pacing read is only worth one when its answer could change
+      // anything. A pull just called IS the escalation, and a frozen tower
+      // means this turn is aftermath and reactions - in both cases the
+      // advice would be ignored, so don't spend a generation producing it.
+      const skipPacing = Boolean(classifierPull) || awaitingReset;
+      const scenePacing = skipPacing ? null : await checkScenePacing(history);
 
       setThinking(AUTOGM_STATUS.THINKING);
-      const context = buildAutoGmTurnContext({
+      // Only the turn prompt gets the filtered notes. selfCheckNarration and
+      // consolidateCampaignNotes deliberately keep the full list: the first
+      // exists to catch contradictions against facts this turn never
+      // mentioned, and the second rebuilds the whole list.
+      const relevantCampaignNotes = selectRelevantCampaignNotes({
+        campaignNotes,
+        query: buildRelevanceQuery({ trigger, rawHistory: history }),
+      });
+      const turnContextArgs = {
         scenario,
         characters,
         storySummary,
@@ -514,11 +627,18 @@ export function AutoGmProvider({ children }) {
         dangerProbability,
         awaitingReset,
         designatedSpinner,
-        campaignNotes,
+        campaignNotes: relevantCampaignNotes,
         presence,
         pullJustCalled: classifierPull,
-      });
-      const result = await runPromptWithTimeout(runPrompt, {
+        pacingMove: scenePacing?.pacingMove,
+      };
+      const context = buildAutoGmTurnContext(turnContextArgs);
+      const contextStats = {
+        campaignNoteItemsIncluded: countNoteItems(relevantCampaignNotes),
+        campaignNoteItemsTotal: countNoteItems(campaignNotes),
+        pinnedIncluded: countPinnedNoteItems(relevantCampaignNotes),
+      };
+      const result = await runPrompt({
         systemPromptText: latest("autogmTurn").text,
         userContent: context,
         schema: autoGmTurnSchema,
@@ -542,6 +662,8 @@ export function AutoGmProvider({ children }) {
           awaitingResetAtTurn: awaitingReset,
           campaignNoteUpdates: [],
           pullSkippedReason: null,
+          contextStats,
+          scenePacing,
           error: reason,
         });
         return false;
@@ -549,7 +671,7 @@ export function AutoGmProvider({ children }) {
       setAutoGmError(null);
 
       const {
-        narration,
+        narration: rawNarration,
         callForPull,
         targetPlayerName,
         pullsRequired,
@@ -557,12 +679,35 @@ export function AutoGmProvider({ children }) {
         campaignNoteUpdates,
       } = result.parsed;
 
+      // Small tiers routinely open by repeating the player's own message
+      // back word for word before continuing, which reads as the GM both
+      // speaking in the player's first person and re-deciding their action.
+      // They also answer a player by restating their own previous turn, so
+      // the dedupe is seeded with what the GM recently said. Done before the
+      // self-check so it reviews what players will actually see.
+      const recentlySaid = recentGmNarration(history);
+      const clean = (text) =>
+        collapseRepeatedSentences(
+          stripEchoedPlayerAction(text, trigger?.text),
+          recentlySaid
+        );
+
+      const { narration, regenerated } = await resolveNarration(
+        rawNarration,
+        clean,
+        turnContextArgs
+      );
+
       let finalNarration = narration;
       let reasoning = null;
       let consistent = null;
       if (narration) {
         setThinking(AUTOGM_STATUS.SELF_CHECKING);
-        const checked = await selfCheckNarration(narration);
+        const checked = await selfCheckNarration(
+          narration,
+          trigger?.text,
+          relevantCampaignNotes
+        );
         finalNarration = checked.finalNarration;
         reasoning = checked.reasoning;
         consistent = checked.consistent;
@@ -618,6 +763,9 @@ export function AutoGmProvider({ children }) {
         awaitingResetAtTurn: awaitingReset,
         campaignNoteUpdates,
         pullSkippedReason,
+        contextStats,
+        scenePacing,
+        regenerated,
       });
       return true;
     },
@@ -632,6 +780,8 @@ export function AutoGmProvider({ children }) {
       presence,
       runPrompt,
       checkForPull,
+      checkScenePacing,
+      resolveNarration,
       selfCheckNarration,
       consolidateCampaignNotes,
       sendSystemChatMessage,
@@ -643,6 +793,37 @@ export function AutoGmProvider({ children }) {
     ]
   );
 
+  // Files the compaction pass's key beats into campaignNotes as pinned
+  // items, so the hard facts of a stretch about to leave rawHistory survive
+  // verbatim. They have to land somewhere outside storySummary because that
+  // summary is re-summarized every compaction, which is exactly what blurs
+  // specifics away; pinned notes are also exempt from the notes caps' FIFO
+  // eviction (see helpers/campaignNotes.js), so early-campaign canon stops
+  // aging out. Pins are deduped by the same normalized-name match every
+  // other note update uses, so a restated beat updates in place.
+  const pinKeyBeats = useCallback(
+    (keyBeats) => {
+      const beats = (keyBeats || [])
+        .filter((beat) => typeof beat === "string")
+        .map((beat) => beat.trim().slice(0, MAX_KEY_BEAT_LENGTH))
+        .filter(Boolean);
+      if (!beats.length) return;
+      setCampaignNotes((prev) =>
+        applyCampaignNoteUpdates(
+          prev,
+          beats.map((beat) => ({
+            sectionName: CANON_SECTION_NAME,
+            itemText: beat,
+            description: "",
+            pinned: true,
+            pinnedSource: "autogm",
+          }))
+        )
+      );
+    },
+    [setCampaignNotes]
+  );
+
   // Folds the retiring raw-history window into one updated running summary,
   // fail-soft: on any failure, the prior summary is kept rather than losing
   // everything compaction was meant to preserve.
@@ -652,7 +833,7 @@ export function AutoGmProvider({ children }) {
         priorSummary: storySummary,
         rawHistory: history,
       });
-      const result = await runPromptWithTimeout(runPrompt, {
+      const result = await runPrompt({
         systemPromptText: latest("autogmCompaction").text,
         userContent: context,
         schema: autoGmCompactionSchema,
@@ -664,9 +845,10 @@ export function AutoGmProvider({ children }) {
         );
         return storySummary;
       }
+      pinKeyBeats(result.parsed.keyBeats);
       return result.parsed.summary;
     },
-    [storySummary, runPrompt]
+    [storySummary, runPrompt, pinKeyBeats]
   );
 
   // Posts one additional, richer line of narration after a character is
@@ -684,7 +866,7 @@ export function AutoGmProvider({ children }) {
           rawHistory: historyRef.current,
           campaignNotes,
         });
-        const result = await runPromptWithTimeout(runPrompt, {
+        const result = await runPrompt({
           systemPromptText: latest("autogmRemovalNarration").text,
           userContent: context,
           schema: autoGmRemovalNarrationSchema,
@@ -801,10 +983,11 @@ export function AutoGmProvider({ children }) {
   // here. AutoGM's own narration is sent via sendSystemChatMessage, which
   // never invokes this handler, so there's no feedback-loop risk.
   //
-  // Once the raw window grows past RAW_HISTORY_COMPACTION_THRESHOLD
-  // messages, it's folded into storySummary and the window resets to just
-  // the message that triggered this turn - keeps the context sent to the
-  // model bounded without losing track of where the story stands.
+  // Once the raw window grows past either compaction bound (see
+  // historyNeedsCompaction) it's folded into storySummary and the window
+  // resets to just the message that triggered this turn - keeps the context
+  // sent to the model bounded without losing track of where the story
+  // stands.
   const processIncomingChat = useCallback(
     async (data) => {
       if (!isGM || !autoGmEnabled) return;
@@ -816,7 +999,7 @@ export function AutoGmProvider({ children }) {
           fromIdentity: data.fromIdentity,
         };
         let history = [...historyRef.current, trigger];
-        if (history.length > RAW_HISTORY_COMPACTION_THRESHOLD) {
+        if (historyNeedsCompaction(history)) {
           setThinking(AUTOGM_STATUS.COMPACTING);
           history = await compactHistory(history);
           historyRef.current = history;

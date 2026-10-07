@@ -352,6 +352,80 @@ describe("buildAutoGmSelfCheckContext", () => {
     });
     expect(context).toContain("Marcus steps into the dark.");
   });
+
+  describe("campaign-note detail", () => {
+    const notes = [
+      {
+        id: "n1",
+        name: "Items",
+        items: [
+          {
+            text: "Brass Lantern",
+            description: "Hangs by the yard gate.",
+            seenBy: ["Marcus"],
+            takenBy: null,
+          },
+          {
+            text: "Rusty Key",
+            description: "Under the mat, green with age.",
+            seenBy: [],
+            takenBy: "Dana",
+          },
+          {
+            text: "Marcus set the fire",
+            description: "Confessed on the 14th.",
+            seenBy: [],
+            takenBy: null,
+            pinned: true,
+          },
+        ],
+      },
+    ];
+
+    function build(detailedNotes) {
+      return buildAutoGmSelfCheckContext({
+        draftNarration: "The lantern is gone.",
+        storySummary: "",
+        rawHistory: [],
+        campaignNotes: notes,
+        detailedNotes,
+        characters: {},
+        dangerProbability: 0,
+        awaitingReset: false,
+      });
+    }
+
+    it("names every item, so a contradiction can't hide behind an omission", () => {
+      const context = build([]);
+      expect(context).toContain("Brass Lantern");
+      expect(context).toContain("Rusty Key");
+      expect(context).toContain("Marcus set the fire");
+    });
+
+    it("keeps seen/taken state for every item", () => {
+      const context = build([]);
+      expect(context).toContain("seen by: Marcus");
+      expect(context).toContain("taken by: Dana");
+    });
+
+    it("drops descriptions for items the turn didn't use", () => {
+      const context = build([]);
+      expect(context).not.toContain("Hangs by the yard gate.");
+      expect(context).not.toContain("Under the mat, green with age.");
+    });
+
+    it("keeps the description of a pinned item regardless", () => {
+      expect(build([])).toContain("Confessed on the 14th.");
+    });
+
+    it("keeps descriptions for the items the turn was given", () => {
+      const context = build([
+        { name: "Items", items: [{ text: "Brass Lantern" }] },
+      ]);
+      expect(context).toContain("Hangs by the yard gate.");
+      expect(context).not.toContain("Under the mat, green with age.");
+    });
+  });
 });
 
 describe("buildAutoGmPullCheckContext", () => {
@@ -406,6 +480,45 @@ describe("buildAutoGmCampaignNotesConsolidationContext", () => {
     expect(context).toContain("Downstream.");
     expect(context).toContain("Now flooded.");
     expect(context).toContain("Bob");
+  });
+
+  it("fills in pin fields the schema requires but older saved notes lack", () => {
+    const context = buildAutoGmCampaignNotesConsolidationContext({
+      campaignNotes: [
+        {
+          id: "note-1",
+          name: "Locations",
+          items: [{ text: "Old Mill", description: "", seenBy: [] }],
+        },
+      ],
+      campaignNoteUpdates: [],
+    });
+    expect(context).toContain('"pinned": false');
+    expect(context).toContain('"pinnedSource": ""');
+  });
+
+  it("passes an existing pin through as-is", () => {
+    const context = buildAutoGmCampaignNotesConsolidationContext({
+      campaignNotes: [
+        {
+          id: "note-1",
+          name: "Established Facts",
+          items: [
+            {
+              text: "Marcus set the fire",
+              description: "",
+              seenBy: [],
+              takenBy: null,
+              pinned: true,
+              pinnedSource: "autogm",
+            },
+          ],
+        },
+      ],
+      campaignNoteUpdates: [],
+    });
+    expect(context).toContain('"pinned": true');
+    expect(context).toContain('"pinnedSource": "autogm"');
   });
 
   it("handles missing notes and updates as empty arrays", () => {

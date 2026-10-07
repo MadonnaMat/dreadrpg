@@ -73,6 +73,23 @@ function AutoGmDebugDecisions({ entry }) {
             .join(", ")}
         </span>
       )}
+      {entry.regenerated && (
+        <span>Regenerated: first response repeated an earlier line</span>
+      )}
+      {entry.scenePacing?.pacingMove && (
+        <span>
+          Pacing: {entry.scenePacing.pacingMove}
+          {entry.scenePacing.reasoning && ` — ${entry.scenePacing.reasoning}`}
+        </span>
+      )}
+      {entry.contextStats && (
+        <span>
+          Context: {entry.contextStats.campaignNoteItemsIncluded}/
+          {entry.contextStats.campaignNoteItemsTotal} note items
+          {entry.contextStats.pinnedIncluded > 0 &&
+            ` (${entry.contextStats.pinnedIncluded} pinned)`}
+        </span>
+      )}
     </div>
   );
 }

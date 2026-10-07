@@ -1,4 +1,95 @@
 const DEFAULT_MAX_RETRIES = 2;
+// Local in-browser inference has no server to time a request out, and
+// nothing in the WebLLM stack bounds a single generation. A hung worker (a
+// lost GPU context, a tab throttled in the background) would otherwise block
+// every later call behind it forever, since WebLLM serializes generations on
+// a per-model lock. Applied per attempt rather than across the whole call:
+// sharing one budget across retries meant a slow first attempt ate it and
+// the retries it exists to allow never got a fair chance to run.
+const DEFAULT_ATTEMPT_TIMEOUT_MS = 60000;
+// A failed attempt usually means the engine is still settling, so re-firing
+// in the same tick tends to reproduce the same failure. Grows per attempt.
+const RETRY_BACKOFF_MS = 400;
+// Generation otherwise runs until the model emits a stop token or walks into
+// the end of the context window, which on the 4096-token tiers is a real
+// risk: a looping model can spend the whole remaining window and fail the
+// call instead of returning the short JSON object it was asked for. Set
+// generously - truncated JSON costs a retry - and overridable for the few
+// prompts that legitimately return a long document.
+const DEFAULT_MAX_OUTPUT_TOKENS = 1024;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Engine rejections are not reliably Errors: WebLLM's worker bridge rejects
+// with a plain string, so reading `.message` threw away the only description
+// there was and left the debug panel showing "Model request failed." for
+// every distinct cause. Handle primitives and non-Error objects too, and
+// keep the class name when it's the only thing carrying information.
+const GENERIC_FAILURE = "Model request failed.";
+
+function describeThrownObject(err) {
+  const name = err.name || err.constructor?.name || "";
+  const message = err.message || "";
+  if (message)
+    return name && name !== "Error" ? `${name}: ${message}` : message;
+
+  // Its own stringification usually beats the class name - except for the
+  // default, which says nothing at all.
+  const stringified = String(err);
+  if (stringified && stringified !== "[object Object]") return stringified;
+  return name ? `${name} (no message)` : GENERIC_FAILURE;
+}
+
+function describeThrown(err) {
+  if (err === null || err === undefined) return GENERIC_FAILURE;
+  if (typeof err === "string") return err.trim() || GENERIC_FAILURE;
+  if (typeof err !== "object") return String(err);
+  return describeThrownObject(err);
+}
+
+// The prompt didn't fit the model's context window. Re-sending it unchanged
+// can only fail the same way, and each attempt is a full generation's wait
+// before the caller gets to do the one thing that helps - send less. The
+// small tiers run a 4096-token window, so this is a routine outcome, not an
+// exotic one.
+function isContextOverflow(description) {
+  return /context.{0,12}window|exceed.{0,20}context|too many tokens/i.test(
+    description
+  );
+}
+
+async function completeWithTimeout({
+  engine,
+  messages,
+  responseFormat,
+  timeoutMs,
+  maxOutputTokens,
+}) {
+  let timer;
+  try {
+    return await Promise.race([
+      engine.chatCompletion(messages, {
+        response_format: responseFormat,
+        max_tokens: maxOutputTokens,
+      }),
+      new Promise((_resolve, reject) => {
+        timer = setTimeout(() => {
+          // Best-effort: free the per-model lock so the retry isn't queued
+          // behind the generation we just gave up on. An engine that can't
+          // be interrupted still fails safe - we just stop waiting on it.
+          try {
+            engine.interrupt?.();
+          } catch {
+            // Nothing useful to do; the timeout below is the real signal.
+          }
+          reject(new Error("Model call timed out."));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 function extractMessageContent(completion) {
   return completion?.choices?.[0]?.message?.content ?? "";
@@ -34,6 +125,8 @@ export async function runStructuredPrompt({
   schema,
   validate,
   maxRetries = DEFAULT_MAX_RETRIES,
+  attemptTimeoutMs = DEFAULT_ATTEMPT_TIMEOUT_MS,
+  maxOutputTokens = DEFAULT_MAX_OUTPUT_TOKENS,
   history,
 }) {
   const messages = history
@@ -57,17 +150,24 @@ export async function runStructuredPrompt({
 
     let completion;
     try {
-      completion = await engine.chatCompletion(messages, {
-        response_format: responseFormat,
+      completion = await completeWithTimeout({
+        engine,
+        messages,
+        responseFormat,
+        timeoutMs: attemptTimeoutMs,
+        maxOutputTokens,
       });
     } catch (err) {
       // An engine-level rejection (a worker hiccup, a transient generation
-      // failure) is exactly the kind of recoverable failure this runner
-      // exists to survive - retry it the same as an invalid-JSON or
-      // schema-validation failure, up to maxRetries, instead of giving up
-      // on the very first attempt. There's no completion to append a
-      // corrective message about, so just retry with the same messages.
-      lastErrors = [err.message || "Model request failed."];
+      // failure, a generation that outran its timeout) is exactly the kind
+      // of recoverable failure this runner exists to survive - retry it the
+      // same as an invalid-JSON or schema-validation failure, up to
+      // maxRetries, instead of giving up on the very first attempt. There's
+      // no completion to append a corrective message about, so just retry
+      // with the same messages, after letting the engine settle.
+      lastErrors = [describeThrown(err)];
+      if (isContextOverflow(lastErrors[0])) break;
+      if (attempts <= maxRetries) await sleep(RETRY_BACKOFF_MS * attempts);
       continue;
     }
 
@@ -76,7 +176,9 @@ export async function runStructuredPrompt({
 
     if (!parsedResult.ok) {
       lastErrors = [`Response was not valid JSON: ${parsedResult.error}`];
-      appendCorrection(messages, lastRaw, lastErrors);
+      appendCorrection(messages, lastRaw, lastErrors, {
+        truncated: looksTruncated(lastRaw, parsedResult.error),
+      });
       continue;
     }
 
@@ -108,10 +210,23 @@ export async function runStructuredPrompt({
   };
 }
 
-function appendCorrection(messages, lastRaw, errors) {
+// JSON that stops mid-token means generation hit its output cap, not that
+// the model misunderstood the format - and telling it to "reply again with
+// corrected JSON" invites the same overlong answer. The small tiers get
+// there by looping inside a string, so the correction that helps is "be
+// much shorter", not "be valid".
+function looksTruncated(raw, parseError) {
+  if (!raw) return false;
+  return /unterminated|unexpected end of (json|input)/i.test(parseError || "");
+}
+
+function appendCorrection(messages, lastRaw, errors, { truncated } = {}) {
+  const instruction = truncated
+    ? "Your reply was cut off because it was too long. Answer again, far more briefly - one or two short sentences at most in any text field - as ONLY valid JSON."
+    : "Reply again with ONLY corrected JSON.";
   messages.push({ role: "assistant", content: lastRaw });
   messages.push({
     role: "user",
-    content: `That response was invalid: ${errors.join("; ")}. Reply again with ONLY corrected JSON.`,
+    content: `That response was invalid: ${errors.join("; ")}. ${instruction}`,
   });
 }
