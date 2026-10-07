@@ -190,6 +190,15 @@ function formatScenePacingContext(pacingMove) {
   return hint ? `\n\nPacing read for this moment: ${hint}` : "";
 }
 
+// Quoted back when a turn's whole narration turned out to be something the
+// GM had already said. Telling it which line to avoid is far more use to a
+// small model than the standing "don't repeat yourself" rule it just
+// demonstrably ignored.
+function formatAlreadySaidContext(alreadySaid) {
+  if (!alreadySaid) return "";
+  return `\n\nYou already said this, almost word for word, in a recent turn:\n"${alreadySaid}"\nDo not say it again, and do not reword it. Respond with something that has not happened in the story yet.`;
+}
+
 // Deliberately far smaller than the turn context: pacing is a read on the
 // scene's rhythm, which the recent chat, the summary, and the tower's state
 // already carry. The scenario, roster, and campaign notes would just be
@@ -249,8 +258,9 @@ export function buildAutoGmTurnContext({
   presence,
   pullJustCalled,
   pacingMove,
+  alreadySaid,
 }) {
-  return `You are running an AutoGM turn for this Dread RPG game.${formatScenarioContext(scenario)}${formatCharacterRosterContext(characters)}${formatCampaignNotesContext(campaignNotes)}${formatStorySummaryContext(storySummary)}${formatTowerStateContext({ dangerProbability, awaitingReset, designatedSpinner })}${formatActivePullTargetsContext(characters, presence)}${formatPullJustCalledContext(pullJustCalled)}${formatScenePacingContext(pacingMove)}${formatRawHistoryContext(rawHistory)}`;
+  return `You are running an AutoGM turn for this Dread RPG game.${formatScenarioContext(scenario)}${formatCharacterRosterContext(characters)}${formatCampaignNotesContext(campaignNotes)}${formatStorySummaryContext(storySummary)}${formatTowerStateContext({ dangerProbability, awaitingReset, designatedSpinner })}${formatActivePullTargetsContext(characters, presence)}${formatPullJustCalledContext(pullJustCalled)}${formatScenePacingContext(pacingMove)}${formatAlreadySaidContext(alreadySaid)}${formatRawHistoryContext(rawHistory)}`;
 }
 
 export function buildAutoGmRemovalNarrationContext({

@@ -27,6 +27,7 @@ import {
 } from "../helpers/contextRelevance";
 import {
   collapseRepeatedSentences,
+  recentGmNarration,
   revisionIsPlausible,
   stripEchoedPlayerAction,
 } from "../helpers/narrationGuards";
@@ -585,7 +586,7 @@ export function AutoGmProvider({ children }) {
         campaignNotes,
         query: buildRelevanceQuery({ trigger, rawHistory: history }),
       });
-      const context = buildAutoGmTurnContext({
+      const turnContextArgs = {
         scenario,
         characters,
         storySummary,
@@ -597,7 +598,8 @@ export function AutoGmProvider({ children }) {
         presence,
         pullJustCalled: classifierPull,
         pacingMove: scenePacing?.pacingMove,
-      });
+      };
+      const context = buildAutoGmTurnContext(turnContextArgs);
       const contextStats = {
         campaignNoteItemsIncluded: countNoteItems(relevantCampaignNotes),
         campaignNoteItemsTotal: countNoteItems(campaignNotes),
@@ -647,10 +649,36 @@ export function AutoGmProvider({ children }) {
       // Small tiers routinely open by repeating the player's own message
       // back word for word before continuing, which reads as the GM both
       // speaking in the player's first person and re-deciding their action.
-      // Done before the self-check so it reviews what players will see.
-      const narration = collapseRepeatedSentences(
-        stripEchoedPlayerAction(rawNarration, trigger?.text)
-      );
+      // They also answer a player by restating their own previous turn, so
+      // the dedupe is seeded with what the GM recently said. Done before the
+      // self-check so it reviews what players will actually see.
+      const recentlySaid = recentGmNarration(history);
+      const clean = (text) =>
+        collapseRepeatedSentences(
+          stripEchoedPlayerAction(text, trigger?.text),
+          recentlySaid
+        );
+
+      let narration = clean(rawNarration);
+      let regenerated = false;
+      // Nothing survived, so the whole response was something the GM had
+      // already said. This is the one case worth a second generation: the
+      // alternative is posting a parrot or answering a player with silence,
+      // and quoting the offending line back is far more use to a small model
+      // than the standing "don't repeat yourself" rule it just ignored.
+      if (rawNarration && !narration) {
+        regenerated = true;
+        const retry = await runPrompt({
+          systemPromptText: latest("autogmTurn").text,
+          userContent: buildAutoGmTurnContext({
+            ...turnContextArgs,
+            alreadySaid: rawNarration,
+          }),
+          schema: autoGmTurnSchema,
+          validate: validateAutoGmTurn,
+        });
+        if (retry.valid) narration = clean(retry.parsed.narration);
+      }
 
       let finalNarration = narration;
       let reasoning = null;
@@ -719,6 +747,7 @@ export function AutoGmProvider({ children }) {
         pullSkippedReason,
         contextStats,
         scenePacing,
+        regenerated,
       });
       return true;
     },

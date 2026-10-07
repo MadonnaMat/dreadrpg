@@ -73,6 +73,9 @@ function AutoGmDebugDecisions({ entry }) {
             .join(", ")}
         </span>
       )}
+      {entry.regenerated && (
+        <span>Regenerated: first response repeated an earlier line</span>
+      )}
       {entry.scenePacing?.pacingMove && (
         <span>
           Pacing: {entry.scenePacing.pacingMove}

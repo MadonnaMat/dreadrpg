@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   collapseRepeatedSentences,
+  recentGmNarration,
   looksLikeCommentary,
   revisionIsPlausible,
   stripEchoedPlayerAction,
@@ -179,5 +180,56 @@ describe("collapseRepeatedSentences", () => {
   it("tolerates empty input", () => {
     expect(collapseRepeatedSentences("")).toBe("");
     expect(collapseRepeatedSentences(null)).toBe("");
+  });
+});
+
+describe("cross-turn repetition", () => {
+  const lastTurn =
+    "The Drifter stands near the casting hall, looking out at the rain-soaked streets.";
+
+  it("drops a sentence the GM already said on an earlier turn", () => {
+    // The live failure: asked to read a ledger, the GM restated its own
+    // previous line almost word for word.
+    expect(collapseRepeatedSentences(lastTurn, lastTurn)).toBe("");
+  });
+
+  it("keeps the genuinely new part of a partly-repeated response", () => {
+    const result = collapseRepeatedSentences(
+      `${lastTurn} The ledger's last entry breaks off mid-word.`,
+      lastTurn
+    );
+    expect(result).toBe("The ledger's last entry breaks off mid-word.");
+  });
+
+  it("leaves a response that says something new alone", () => {
+    const fresh = "A door slams somewhere below, and the water keeps rising.";
+    expect(collapseRepeatedSentences(fresh, lastTurn)).toBe(fresh);
+  });
+
+  it("does nothing without prior narration", () => {
+    expect(collapseRepeatedSentences(lastTurn, "")).toBe(lastTurn);
+  });
+});
+
+describe("recentGmNarration", () => {
+  it("takes the GM's own recent lines and ignores the players'", () => {
+    const history = [
+      { from: "GM", text: "Older GM line." },
+      { from: "Alice", text: "I open the door." },
+      { from: "GM", text: "The hinges shriek." },
+      { from: "Bob", text: "I follow." },
+      { from: "GM", text: "Something moves below." },
+    ];
+    const result = recentGmNarration(history);
+    expect(result).toContain("The hinges shriek.");
+    expect(result).toContain("Something moves below.");
+    // Bounded lookback, so an earlier beat can still be called back to.
+    expect(result).not.toContain("Older GM line.");
+    expect(result).not.toContain("I open the door.");
+  });
+
+  it("returns an empty string for an empty or missing history", () => {
+    expect(recentGmNarration([])).toBe("");
+    expect(recentGmNarration(undefined)).toBe("");
   });
 });

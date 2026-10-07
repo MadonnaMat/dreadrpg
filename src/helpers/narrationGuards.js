@@ -74,14 +74,42 @@ function overlapRatio(a, b) {
 // sentence with one word changed - several times in one response. It is
 // never deliberate, and no prompt wording reliably prevents it, so collapse
 // it on the way out.
-export function collapseRepeatedSentences(text) {
+// How many of the GM's own recent lines a new one is checked against. Two
+// is enough for the failure in play - answering a player by restating the
+// turn before - without reaching so far back that a deliberate callback to
+// something established earlier gets suppressed.
+const GM_LOOKBACK_LINES = 2;
+
+// AutoGM appends its own narration to the raw history (see AutoGmProvider),
+// so the history is also the record of what it has already said.
+export function recentGmNarration(rawHistory) {
+  return (rawHistory || [])
+    .filter((message) => message?.from === "GM" && message.text)
+    .slice(-GM_LOOKBACK_LINES)
+    .map((message) => message.text)
+    .join(" ");
+}
+
+function sentencesOf(text) {
+  // Keep the delimiter with its sentence so punctuation and spacing survive.
+  return String(text || "").match(/[^.!?]+[.!?]*\s*/g) || [];
+}
+
+// `alreadySaid` seeds the comparison with narration from earlier turns, so
+// the same check that catches a loop inside one response also catches the
+// GM answering a player by repeating what it said last turn - the form the
+// loop actually takes in play, since each response is individually fine.
+// Those sentences are only ever compared against, never emitted.
+export function collapseRepeatedSentences(text, alreadySaid = "") {
   const value = String(text || "").trim();
   if (!value) return value;
-  // Keep the delimiter with its sentence so punctuation and spacing survive.
-  const parts = value.match(/[^.!?]+[.!?]*\s*/g);
-  if (!parts || parts.length < 2) return value;
+  const parts = sentencesOf(value);
+  const prior = sentencesOf(alreadySaid)
+    .map(contentTokens)
+    .filter((tokens) => tokens.size);
+  if (parts.length < 2 && !prior.length) return value;
 
-  const keptTokens = [];
+  const keptTokens = [...prior];
   const kept = parts.filter((part) => {
     const tokens = contentTokens(part);
     if (!tokens.size) return true;

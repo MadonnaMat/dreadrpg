@@ -837,6 +837,59 @@ describe("AutoGmProvider", () => {
       });
     });
 
+    describe("cross-turn repetition", () => {
+      it("regenerates once when the whole response repeats an earlier line, and posts the new one", async () => {
+        const repeated = "The hall is silent, and the rain keeps falling.";
+        let turnCalls = 0;
+        const { deliver, chatMessages } = setupEnabled({
+          runPromptImpl: async ({ systemPromptText, userContent }) => {
+            if (systemPromptText === latest("autogmTurn").text) {
+              turnCalls += 1;
+              // First two turns say the same thing; the retry is the call
+              // that gets told what it already said.
+              if (userContent.includes("You already said this")) {
+                return validTurnResult({
+                  narration: "A hatch bangs open somewhere below.",
+                });
+              }
+              return validTurnResult({ narration: repeated });
+            }
+            if (systemPromptText === latest("autogmSelfCheck").text) {
+              return {
+                valid: true,
+                parsed: {
+                  consistent: true,
+                  reasoning: "fine",
+                  revisedNarration: "",
+                },
+              };
+            }
+            return validTurnResult();
+          },
+        });
+
+        await enable();
+        await deliver.current({ from: "Alice", text: "I listen." });
+        await waitFor(() =>
+          expect(chatMessages.some((m) => m.text === repeated)).toBe(true)
+        );
+
+        chatMessages.length = 0;
+        await deliver.current({ from: "Alice", text: "I keep listening." });
+
+        await waitFor(() =>
+          expect(chatMessages).toContainEqual(
+            expect.objectContaining({
+              text: "A hatch bangs open somewhere below.",
+            })
+          )
+        );
+        // The parrot never reaches the table.
+        expect(chatMessages.some((m) => m.text === repeated)).toBe(false);
+        expect(turnCalls).toBeGreaterThanOrEqual(3);
+      });
+    });
+
     describe("pull-check classifier", () => {
       function seedAliceAsDrifter() {
         function SeedCharacter() {
