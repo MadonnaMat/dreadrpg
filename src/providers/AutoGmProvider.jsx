@@ -534,7 +534,13 @@ export function AutoGmProvider({ children }) {
       // other call in this provider is serialized; this is not the place to
       // be the exception.
       const classifierPull = await checkForPull(trigger);
-      const scenePacing = await checkScenePacing(history);
+      // Every model call is another chance for the turn to fail outright, so
+      // the pacing read is only worth one when its answer could change
+      // anything. A pull just called IS the escalation, and a frozen tower
+      // means this turn is aftermath and reactions - in both cases the
+      // advice would be ignored, so don't spend a generation producing it.
+      const skipPacing = Boolean(classifierPull) || awaitingReset;
+      const scenePacing = skipPacing ? null : await checkScenePacing(history);
 
       setThinking(AUTOGM_STATUS.THINKING);
       // Only the turn prompt gets the filtered notes. selfCheckNarration and

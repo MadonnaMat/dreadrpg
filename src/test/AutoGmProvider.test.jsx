@@ -756,6 +756,61 @@ describe("AutoGmProvider", () => {
         expect(context).not.toContain("A pull has already been called");
       });
 
+      it("skips the pacing call entirely when a pull was just called", async () => {
+        function seedAlice() {
+          function Seed() {
+            const { setCharacters, setPresence } = usePeer();
+            useEffect(() => {
+              setCharacters({
+                "char-1": {
+                  id: "char-1",
+                  name: "The Drifter",
+                  assignedTo: "Alice",
+                },
+              });
+              setPresence({ Alice: { connected: true } });
+            }, [setCharacters, setPresence]);
+            return null;
+          }
+          return <Seed />;
+        }
+
+        const { runPrompt, deliver } = setupEnabled({
+          runPromptImpl: async ({ systemPromptText }) => {
+            if (systemPromptText === latest("autogmPullCheck").text) {
+              return {
+                valid: true,
+                parsed: { requiresPull: true, pullsRequired: 1 },
+              };
+            }
+            return validTurnResult();
+          },
+          seed: seedAlice(),
+        });
+
+        await enable();
+        await deliver.current({
+          from: "Alice",
+          text: "I kick the hatch open.",
+          fromIdentity: "Alice",
+        });
+
+        await waitFor(() =>
+          expect(runPrompt).toHaveBeenCalledWith(
+            expect.objectContaining({
+              systemPromptText: latest("autogmTurn").text,
+            })
+          )
+        );
+        // A called pull is already the escalation - spending a generation on
+        // advice the turn would ignore is just another chance to fail.
+        expect(
+          runPrompt.mock.calls
+            .map(([args]) => args.systemPromptText)
+            .filter((t) => t === latest("autogmScenePacing").text)
+        ).toHaveLength(0);
+      });
+
       it("still runs the turn when the pacing read fails or is invalid", async () => {
         const { runPrompt, deliver, chatMessages } = setupWithPacing({
           valid: false,
