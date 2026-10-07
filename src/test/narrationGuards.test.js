@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   collapseRepeatedSentences,
+  isSubstantiveNarration,
   recentGmNarration,
   looksLikeCommentary,
   revisionIsPlausible,
@@ -248,5 +249,21 @@ describe("recentGmNarration", () => {
   it("returns an empty string for an empty or missing history", () => {
     expect(recentGmNarration([])).toBe("");
     expect(recentGmNarration(undefined)).toBe("");
+  });
+});
+
+describe("isSubstantiveNarration", () => {
+  it("rejects a bare fragment", () => {
+    // What a live regeneration actually returned.
+    expect(isSubstantiveNarration("The Drifter")).toBe(false);
+    expect(isSubstantiveNarration("")).toBe(false);
+    expect(isSubstantiveNarration(null)).toBe(false);
+  });
+
+  it("accepts a genuinely terse beat", () => {
+    expect(isSubstantiveNarration("The door holds.")).toBe(true);
+    expect(
+      isSubstantiveNarration("Something heavy shifts in the dark below.")
+    ).toBe(true);
   });
 });

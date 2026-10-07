@@ -1233,7 +1233,7 @@ describe("AutoGmProvider", () => {
           if (turnCallCount === 2) {
             return { valid: false, parsed: null };
           }
-          return validTurnResult({ narration: `Response ${turnCallCount}` });
+          return validTurnResult({ narration: `Response ${turnCallCount}.` });
         },
       });
 
@@ -1241,7 +1241,7 @@ describe("AutoGmProvider", () => {
       await deliver.current({ from: "Alice", text: "first message" });
       await waitFor(() =>
         expect(chatMessages).toContainEqual(
-          expect.objectContaining({ text: "Response 1" })
+          expect.objectContaining({ text: "Response 1." })
         )
       );
 
@@ -1250,7 +1250,7 @@ describe("AutoGmProvider", () => {
 
       await waitFor(() =>
         expect(chatMessages).toContainEqual(
-          expect.objectContaining({ text: "Response 3" })
+          expect.objectContaining({ text: "Response 3." })
         )
       );
       expect(screen.getByTestId("story-summary")).toHaveTextContent(

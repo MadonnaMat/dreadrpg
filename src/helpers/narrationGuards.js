@@ -150,6 +150,21 @@ export function collapseRepeatedSentences(text, alreadySaid = "") {
   return kept.length === parts.length ? value : kept.join("").trim();
 }
 
+// A GM response has to be at least a clause. The small tiers sometimes
+// answer with a bare fragment - a live regeneration came back as just "The
+// Drifter" - which is not a repeat but is not narration either, and the
+// turn is better off saying nothing than that. A terse beat is still fine
+// as long as it's a finished sentence, which is what separates "Nothing
+// happens." from a stray name.
+const MIN_NARRATION_WORDS = 3;
+
+export function isSubstantiveNarration(text) {
+  const value = String(text || "").trim();
+  if (!value) return false;
+  if (wordsOf(value).length >= MIN_NARRATION_WORDS) return true;
+  return /[.!?]$/.test(value);
+}
+
 // How much longer than the draft a "correction" may be before we stop
 // believing it is one. The self-check is told to change as little as
 // possible for a factual fix, and to replace repetition with something new

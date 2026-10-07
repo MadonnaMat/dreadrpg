@@ -27,6 +27,7 @@ import {
 } from "../helpers/contextRelevance";
 import {
   collapseRepeatedSentences,
+  isSubstantiveNarration,
   recentGmNarration,
   revisionIsPlausible,
   stripEchoedPlayerAction,
@@ -552,6 +553,38 @@ export function AutoGmProvider({ children }) {
     [storySummary, dangerProbability, awaitingReset, runPrompt]
   );
 
+  // Keeps only narration that is new and is actually a response. When the
+  // whole thing was something the GM already said, one regeneration is
+  // worth it - quoting the offending line back is far more use to a small
+  // model than the standing "don't repeat yourself" rule it just ignored,
+  // and the alternatives are posting a parrot or answering with silence.
+  const resolveNarration = useCallback(
+    async (rawNarration, clean, turnContextArgs) => {
+      const usable = (text) =>
+        text && isSubstantiveNarration(text) ? text : "";
+
+      const firstPass = usable(clean(rawNarration));
+      if (!rawNarration || firstPass) {
+        return { narration: firstPass, regenerated: false };
+      }
+
+      const retry = await runPrompt({
+        systemPromptText: latest("autogmTurn").text,
+        userContent: buildAutoGmTurnContext({
+          ...turnContextArgs,
+          alreadySaid: rawNarration,
+        }),
+        schema: autoGmTurnSchema,
+        validate: validateAutoGmTurn,
+      });
+      return {
+        narration: retry.valid ? usable(clean(retry.parsed.narration)) : "",
+        regenerated: true,
+      };
+    },
+    [runPrompt]
+  );
+
   // Runs one AutoGM turn: asks the model to react to the given history
   // (ending with the message that just triggered this turn), then acts on
   // whatever it decides - posting narration, calling for a pull, restacking
@@ -659,26 +692,11 @@ export function AutoGmProvider({ children }) {
           recentlySaid
         );
 
-      let narration = clean(rawNarration);
-      let regenerated = false;
-      // Nothing survived, so the whole response was something the GM had
-      // already said. This is the one case worth a second generation: the
-      // alternative is posting a parrot or answering a player with silence,
-      // and quoting the offending line back is far more use to a small model
-      // than the standing "don't repeat yourself" rule it just ignored.
-      if (rawNarration && !narration) {
-        regenerated = true;
-        const retry = await runPrompt({
-          systemPromptText: latest("autogmTurn").text,
-          userContent: buildAutoGmTurnContext({
-            ...turnContextArgs,
-            alreadySaid: rawNarration,
-          }),
-          schema: autoGmTurnSchema,
-          validate: validateAutoGmTurn,
-        });
-        if (retry.valid) narration = clean(retry.parsed.narration);
-      }
+      const { narration, regenerated } = await resolveNarration(
+        rawNarration,
+        clean,
+        turnContextArgs
+      );
 
       let finalNarration = narration;
       let reasoning = null;
@@ -763,6 +781,7 @@ export function AutoGmProvider({ children }) {
       runPrompt,
       checkForPull,
       checkScenePacing,
+      resolveNarration,
       selfCheckNarration,
       consolidateCampaignNotes,
       sendSystemChatMessage,
