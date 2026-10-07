@@ -545,14 +545,15 @@ export function AutoGmProvider({ children }) {
   // game state.
   const runTurn = useCallback(
     async (history, trigger) => {
-      // Independent of each other and both needed before the turn prompt is
-      // built, so they run together rather than one after the other - these
-      // are sequential model calls on the GM's own device, where a wasted
-      // round trip is seconds of the table waiting.
-      const [classifierPull, scenePacing] = await Promise.all([
-        checkForPull(trigger),
-        checkScenePacing(history),
-      ]);
+      // Strictly one model call at a time. These two are independent and an
+      // earlier version issued them together, but there is no parallelism to
+      // win: it's one model in one worker on one GPU, so the engine runs them
+      // one after another anyway - while overlapping requests on a single
+      // WebLLM engine did produce "Model request failed" in live play. Every
+      // other call in this provider is serialized; this is not the place to
+      // be the exception.
+      const classifierPull = await checkForPull(trigger);
+      const scenePacing = await checkScenePacing(history);
 
       setThinking(AUTOGM_STATUS.THINKING);
       // Only the turn prompt gets the filtered notes. selfCheckNarration and
