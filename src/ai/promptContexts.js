@@ -233,6 +233,22 @@ export function buildAutoGmCompactionContext({ priorSummary, rawHistory }) {
   return `Update the running story summary.${priorBlock}${formatRawHistoryContext(rawHistory)}`;
 }
 
+// The consolidation schema requires every item field, and the prompt asks
+// the model to copy the pin fields through as given - so they have to
+// actually be given. Notes saved before pinning existed don't carry them,
+// and a model can't faithfully echo a field that was never in its input, so
+// fill the defaults in here rather than letting those turns fail validation.
+function withPinFields(campaignNotes) {
+  return (campaignNotes || []).map((section) => ({
+    ...section,
+    items: (section.items || []).map((item) => ({
+      ...item,
+      pinned: Boolean(item?.pinned),
+      pinnedSource: item?.pinned ? item.pinnedSource || "" : "",
+    })),
+  }));
+}
+
 // Fed as literal JSON rather than prose - this is a structured
 // transform (existing notes + an update -> the whole rebuilt list), and a
 // small local model reproduces untouched entries far more faithfully when
@@ -242,7 +258,7 @@ export function buildAutoGmCampaignNotesConsolidationContext({
   campaignNotes,
   campaignNoteUpdates,
 }) {
-  const currentJson = JSON.stringify(campaignNotes || [], null, 2);
+  const currentJson = JSON.stringify(withPinFields(campaignNotes), null, 2);
   const updatesJson = JSON.stringify(campaignNoteUpdates || [], null, 2);
   return `Current campaign notes (JSON):\n${currentJson}\n\nNew update(s) just called out this turn (JSON):\n${updatesJson}`;
 }

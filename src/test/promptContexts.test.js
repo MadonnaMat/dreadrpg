@@ -408,6 +408,45 @@ describe("buildAutoGmCampaignNotesConsolidationContext", () => {
     expect(context).toContain("Bob");
   });
 
+  it("fills in pin fields the schema requires but older saved notes lack", () => {
+    const context = buildAutoGmCampaignNotesConsolidationContext({
+      campaignNotes: [
+        {
+          id: "note-1",
+          name: "Locations",
+          items: [{ text: "Old Mill", description: "", seenBy: [] }],
+        },
+      ],
+      campaignNoteUpdates: [],
+    });
+    expect(context).toContain('"pinned": false');
+    expect(context).toContain('"pinnedSource": ""');
+  });
+
+  it("passes an existing pin through as-is", () => {
+    const context = buildAutoGmCampaignNotesConsolidationContext({
+      campaignNotes: [
+        {
+          id: "note-1",
+          name: "Established Facts",
+          items: [
+            {
+              text: "Marcus set the fire",
+              description: "",
+              seenBy: [],
+              takenBy: null,
+              pinned: true,
+              pinnedSource: "autogm",
+            },
+          ],
+        },
+      ],
+      campaignNoteUpdates: [],
+    });
+    expect(context).toContain('"pinned": true');
+    expect(context).toContain('"pinnedSource": "autogm"');
+  });
+
   it("handles missing notes and updates as empty arrays", () => {
     const context = buildAutoGmCampaignNotesConsolidationContext({
       campaignNotes: null,
