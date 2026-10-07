@@ -73,6 +73,12 @@ function AutoGmDebugDecisions({ entry }) {
             .join(", ")}
         </span>
       )}
+      {entry.scenePacing?.pacingMove && (
+        <span>
+          Pacing: {entry.scenePacing.pacingMove}
+          {entry.scenePacing.reasoning && ` — ${entry.scenePacing.reasoning}`}
+        </span>
+      )}
       {entry.contextStats && (
         <span>
           Context: {entry.contextStats.campaignNoteItemsIncluded}/

@@ -133,6 +133,39 @@ function formatPullJustCalledContext(pullJustCalled) {
   return `\n\nA pull has already been called for ${targetPlayerName} because of the action they just declared (${pullsRequired} ${pullWord} required) - this is already handled, do not set "callForPull" yourself this turn. Just narrate the tension of the moment leading into it; do not narrate the outcome of the pull (success, decline, or collapse) - that will be resolved and narrated separately once it's actually pulled.`;
 }
 
+// The scene-pacing pass's read on what the moment calls for (see
+// autogm-scene-pacing.v1.md), so the turn prompt isn't inferring pacing from
+// scratch while also writing prose. Advisory in both directions: "continue"
+// adds nothing at all, and "call_for_pull" is worded as a suggestion rather
+// than a decision, since the pull-check pass - not this one - is what
+// actually calls pulls (see formatPullJustCalledContext above).
+const SCENE_PACING_HINTS = {
+  escalate:
+    "The scene has been running slack: consider tightening it now with a new complication, a sign the threat is closer, or a cost coming due.",
+  wrap_scene:
+    "This beat looks like it has given what it has to give: consider moving toward a transition or resolution rather than holding the table in it.",
+  call_for_pull:
+    'The fiction may have reached real physical stakes. This is a suggestion only, not a pull that has been called - decide for yourself whether to set "callForPull" this turn.',
+};
+
+function formatScenePacingContext(pacingMove) {
+  const hint = SCENE_PACING_HINTS[pacingMove];
+  return hint ? `\n\nPacing read for this moment: ${hint}` : "";
+}
+
+// Deliberately far smaller than the turn context: pacing is a read on the
+// scene's rhythm, which the recent chat, the summary, and the tower's state
+// already carry. The scenario, roster, and campaign notes would just be
+// weight on a cheap classification call.
+export function buildAutoGmScenePacingContext({
+  storySummary,
+  rawHistory,
+  dangerProbability,
+  awaitingReset,
+}) {
+  return `Judge the pacing of this Dread RPG scene.${formatStorySummaryContext(storySummary)}${formatTowerStateContext({ dangerProbability, awaitingReset, designatedSpinner: null })}${formatRawHistoryContext(rawHistory)}`;
+}
+
 export function buildScenarioGenerationContext({ premise }) {
   return `Generate a Dread RPG scenario based on this premise:\n\n${premise}`;
 }
@@ -178,8 +211,9 @@ export function buildAutoGmTurnContext({
   campaignNotes,
   presence,
   pullJustCalled,
+  pacingMove,
 }) {
-  return `You are running an AutoGM turn for this Dread RPG game.${formatScenarioContext(scenario)}${formatCharacterRosterContext(characters)}${formatCampaignNotesContext(campaignNotes)}${formatStorySummaryContext(storySummary)}${formatTowerStateContext({ dangerProbability, awaitingReset, designatedSpinner })}${formatActivePullTargetsContext(characters, presence)}${formatPullJustCalledContext(pullJustCalled)}${formatRawHistoryContext(rawHistory)}`;
+  return `You are running an AutoGM turn for this Dread RPG game.${formatScenarioContext(scenario)}${formatCharacterRosterContext(characters)}${formatCampaignNotesContext(campaignNotes)}${formatStorySummaryContext(storySummary)}${formatTowerStateContext({ dangerProbability, awaitingReset, designatedSpinner })}${formatActivePullTargetsContext(characters, presence)}${formatPullJustCalledContext(pullJustCalled)}${formatScenePacingContext(pacingMove)}${formatRawHistoryContext(rawHistory)}`;
 }
 
 export function buildAutoGmRemovalNarrationContext({

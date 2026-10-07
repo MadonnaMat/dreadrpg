@@ -9,6 +9,10 @@ import { validate as validateAutoGmCompaction } from "../ai/schemas/autoGmCompac
 import { validate as validateAutoGmSelfCheck } from "../ai/schemas/autoGmSelfCheckSchema";
 import { validate as validateAutoGmPullCheck } from "../ai/schemas/autoGmPullCheckSchema";
 import { validate as validateAutoGmCampaignNotesConsolidation } from "../ai/schemas/autoGmCampaignNotesConsolidationSchema";
+import {
+  validate as validateAutoGmScenePacing,
+  PACING_MOVES,
+} from "../ai/schemas/autoGmScenePacingSchema";
 
 describe("scenarioSchema.validate", () => {
   const validScenario = {
@@ -484,5 +488,47 @@ describe("autoGmCampaignNotesConsolidationSchema.validate", () => {
   it("rejects a non-array top level", () => {
     expect(validateAutoGmCampaignNotesConsolidation(null).valid).toBe(false);
     expect(validateAutoGmCampaignNotesConsolidation({}).valid).toBe(false);
+  });
+});
+
+describe("autoGmScenePacingSchema.validate", () => {
+  it("accepts every pacing move the prompt may return", () => {
+    PACING_MOVES.forEach((pacingMove) => {
+      expect(
+        validateAutoGmScenePacing({ pacingMove, reasoning: "Because." })
+      ).toEqual({ valid: true, errors: [] });
+    });
+  });
+
+  it("accepts an empty reasoning string", () => {
+    expect(
+      validateAutoGmScenePacing({ pacingMove: "continue", reasoning: "" }).valid
+    ).toBe(true);
+  });
+
+  it("rejects a pacing move outside the enum, which the schema alone won't catch", () => {
+    const result = validateAutoGmScenePacing({
+      pacingMove: "improvise",
+      reasoning: "Felt right.",
+    });
+    expect(result.valid).toBe(false);
+    expect(result.errors.join(" ")).toContain("pacingMove");
+  });
+
+  it("rejects a missing pacing move", () => {
+    expect(validateAutoGmScenePacing({ reasoning: "Because." }).valid).toBe(
+      false
+    );
+  });
+
+  it("rejects a non-string reasoning", () => {
+    expect(
+      validateAutoGmScenePacing({ pacingMove: "escalate", reasoning: 3 }).valid
+    ).toBe(false);
+  });
+
+  it("rejects a non-object", () => {
+    expect(validateAutoGmScenePacing(null).valid).toBe(false);
+    expect(validateAutoGmScenePacing([]).valid).toBe(false);
   });
 });

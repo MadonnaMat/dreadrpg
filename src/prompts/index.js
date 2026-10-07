@@ -10,6 +10,7 @@ import autogmRemovalNarrationV1 from "./autogm-removal-narration.v1.md?raw";
 import autogmCompactionV1 from "./autogm-compaction.v1.md?raw";
 import autogmCompactionV2 from "./autogm-compaction.v2.md?raw";
 import autogmSelfCheckV1 from "./autogm-self-check.v1.md?raw";
+import autogmScenePacingV1 from "./autogm-scene-pacing.v1.md?raw";
 
 // Versioned system-prompt registry. Product code always uses latest();
 // the dev-only prompt-testing harness can pick any version to compare
@@ -31,6 +32,7 @@ const REGISTRY = {
     { version: 2, text: autogmCompactionV2 },
   ],
   autogmSelfCheck: [{ version: 1, text: autogmSelfCheckV1 }],
+  autogmScenePacing: [{ version: 1, text: autogmScenePacingV1 }],
 };
 
 export function versionsFor(name) {

@@ -660,6 +660,128 @@ describe("AutoGmProvider", () => {
       });
     });
 
+    describe("scene-pacing classifier", () => {
+      function setupWithPacing(pacingResult) {
+        return setupEnabled({
+          runPromptImpl: async ({ systemPromptText }) => {
+            if (systemPromptText === latest("autogmScenePacing").text) {
+              return pacingResult;
+            }
+            return validTurnResult();
+          },
+        });
+      }
+
+      async function turnContextAfter(runPrompt, deliver) {
+        await enable();
+        await deliver.current({ from: "Alice", text: "I keep searching." });
+        await waitFor(() =>
+          expect(runPrompt).toHaveBeenCalledWith(
+            expect.objectContaining({
+              systemPromptText: latest("autogmTurn").text,
+            })
+          )
+        );
+        return runPrompt.mock.calls
+          .map(([args]) => args)
+          .find((args) => args.systemPromptText === latest("autogmTurn").text)
+          .userContent;
+      }
+
+      it("asks only about the scene's rhythm, not the whole game state", async () => {
+        const { runPrompt, deliver } = setupWithPacing({
+          valid: true,
+          parsed: { pacingMove: "continue", reasoning: "Scene is working." },
+        });
+
+        await enable();
+        await deliver.current({ from: "Alice", text: "I keep searching." });
+
+        await waitFor(() =>
+          expect(runPrompt).toHaveBeenCalledWith(
+            expect.objectContaining({
+              systemPromptText: latest("autogmScenePacing").text,
+            })
+          )
+        );
+        const pacingCall = runPrompt.mock.calls
+          .map(([args]) => args)
+          .find(
+            (args) => args.systemPromptText === latest("autogmScenePacing").text
+          );
+        expect(pacingCall.userContent).toContain("Tower state");
+        expect(pacingCall.userContent).toContain("I keep searching.");
+        // The expensive blocks belong to the turn prompt, not this one.
+        expect(pacingCall.userContent).not.toContain("Scenario:");
+        expect(pacingCall.userContent).not.toContain("private campaign notes");
+      });
+
+      it("adds nothing to the turn prompt when the scene should just continue", async () => {
+        const { runPrompt, deliver } = setupWithPacing({
+          valid: true,
+          parsed: { pacingMove: "continue", reasoning: "Scene is working." },
+        });
+        const context = await turnContextAfter(runPrompt, deliver);
+        expect(context).not.toContain("Pacing read for this moment");
+      });
+
+      it("passes an escalate read to the turn prompt as a hint", async () => {
+        const { runPrompt, deliver } = setupWithPacing({
+          valid: true,
+          parsed: { pacingMove: "escalate", reasoning: "Gone quiet." },
+        });
+        const context = await turnContextAfter(runPrompt, deliver);
+        expect(context).toContain("Pacing read for this moment");
+        expect(context).toContain("tightening it now");
+      });
+
+      it("passes a wrap_scene read to the turn prompt as a hint", async () => {
+        const { runPrompt, deliver } = setupWithPacing({
+          valid: true,
+          parsed: { pacingMove: "wrap_scene", reasoning: "Beat is spent." },
+        });
+        const context = await turnContextAfter(runPrompt, deliver);
+        expect(context).toContain("transition or resolution");
+      });
+
+      it("frames a call_for_pull read as advice, not a pull already called", async () => {
+        const { runPrompt, deliver } = setupWithPacing({
+          valid: true,
+          parsed: { pacingMove: "call_for_pull", reasoning: "Real stakes." },
+        });
+        const context = await turnContextAfter(runPrompt, deliver);
+        expect(context).toContain("suggestion only");
+        // The authoritative "a pull has been called" wording belongs to the
+        // pull-check pass alone, which found nothing here.
+        expect(context).not.toContain("A pull has already been called");
+      });
+
+      it("still runs the turn when the pacing read fails or is invalid", async () => {
+        const { runPrompt, deliver, chatMessages } = setupWithPacing({
+          valid: false,
+          parsed: null,
+        });
+
+        await enable();
+        await deliver.current({ from: "Alice", text: "I keep searching." });
+
+        await waitFor(() =>
+          expect(chatMessages).toContainEqual(
+            expect.objectContaining({
+              text: "The floor creaks beneath your feet.",
+              fromBot: true,
+            })
+          )
+        );
+        const context = runPrompt.mock.calls
+          .map(([args]) => args)
+          .find(
+            (args) => args.systemPromptText === latest("autogmTurn").text
+          ).userContent;
+        expect(context).not.toContain("Pacing read for this moment");
+      });
+    });
+
     describe("pull-check classifier", () => {
       function seedAliceAsDrifter() {
         function SeedCharacter() {
@@ -990,9 +1112,15 @@ describe("AutoGmProvider", () => {
               },
             };
           }
-          // Only autogmTurn calls reach here - counted separately from
-          // compaction/self-check so the "second call fails" below means
-          // the second *turn*, not whichever call happens to land second.
+          if (systemPromptText === latest("autogmScenePacing").text) {
+            return {
+              valid: true,
+              parsed: { pacingMove: "continue", reasoning: "fine" },
+            };
+          }
+          // Only autogmTurn calls reach here - counted separately from the
+          // other passes so the "second call fails" below means the second
+          // *turn*, not whichever call happens to land second.
           turnCallCount += 1;
           if (turnCallCount === 2) {
             return { valid: false, parsed: null };
@@ -1032,8 +1160,17 @@ describe("AutoGmProvider", () => {
 
       await new Promise((resolve) => setTimeout(resolve, 10));
       // Only the one failed turn call - no compaction call was wasted on a
-      // single-message window with nothing meaningful to shrink.
-      expect(runPrompt).toHaveBeenCalledTimes(1);
+      // single-message window with nothing meaningful to shrink. Counted by
+      // prompt rather than in total, since the pacing read runs every turn.
+      const turnCalls = runPrompt.mock.calls
+        .map(([args]) => args.systemPromptText)
+        .filter((text) => text === latest("autogmTurn").text);
+      expect(turnCalls).toHaveLength(1);
+      expect(
+        runPrompt.mock.calls
+          .map(([args]) => args.systemPromptText)
+          .filter((text) => text === latest("autogmCompaction").text)
+      ).toHaveLength(0);
     });
 
     it("posts a fallback chat line when both the original and recompacted attempts fail", async () => {

@@ -32,6 +32,7 @@ import {
   buildAutoGmSelfCheckContext,
   buildAutoGmPullCheckContext,
   buildAutoGmCampaignNotesConsolidationContext,
+  buildAutoGmScenePacingContext,
 } from "../ai/promptContexts";
 import {
   autoGmTurnSchema,
@@ -45,6 +46,10 @@ import {
   autoGmCampaignNotesConsolidationSchema,
   validate as validateAutoGmCampaignNotesConsolidation,
 } from "../ai/schemas/autoGmCampaignNotesConsolidationSchema";
+import {
+  autoGmScenePacingSchema,
+  validate as validateAutoGmScenePacing,
+} from "../ai/schemas/autoGmScenePacingSchema";
 import {
   autoGmCompactionSchema,
   validate as validateAutoGmCompaction,
@@ -504,6 +509,33 @@ export function AutoGmProvider({ children }) {
     ]
   );
 
+  // Runs alongside the pull check, before the main turn prompt, to read what
+  // kind of move the scene wants next (keep going, tighten, wrap up). Same
+  // reasoning as checkForPull: one narrow question answered on its own beats
+  // the same judgment made implicitly inside a creative-writing response.
+  // Purely advisory - it narrows what the turn prompt has to work out for
+  // itself, and never acts on its own. Fail-soft to null, so a failed or
+  // invalid read just leaves the turn unguided rather than blocking it.
+  const checkScenePacing = useCallback(
+    async (history) => {
+      const context = buildAutoGmScenePacingContext({
+        storySummary,
+        rawHistory: history,
+        dangerProbability,
+        awaitingReset,
+      });
+      const result = await runPromptWithTimeout(runPrompt, {
+        systemPromptText: latest("autogmScenePacing").text,
+        userContent: context,
+        schema: autoGmScenePacingSchema,
+        validate: validateAutoGmScenePacing,
+      });
+      if (!result.valid) return null;
+      return result.parsed;
+    },
+    [storySummary, dangerProbability, awaitingReset, runPrompt]
+  );
+
   // Runs one AutoGM turn: asks the model to react to the given history
   // (ending with the message that just triggered this turn), then acts on
   // whatever it decides - posting narration, calling for a pull, restacking
@@ -513,7 +545,14 @@ export function AutoGmProvider({ children }) {
   // game state.
   const runTurn = useCallback(
     async (history, trigger) => {
-      const classifierPull = await checkForPull(trigger);
+      // Independent of each other and both needed before the turn prompt is
+      // built, so they run together rather than one after the other - these
+      // are sequential model calls on the GM's own device, where a wasted
+      // round trip is seconds of the table waiting.
+      const [classifierPull, scenePacing] = await Promise.all([
+        checkForPull(trigger),
+        checkScenePacing(history),
+      ]);
 
       setThinking(AUTOGM_STATUS.THINKING);
       // Only the turn prompt gets the filtered notes. selfCheckNarration and
@@ -539,6 +578,7 @@ export function AutoGmProvider({ children }) {
         campaignNotes: relevantCampaignNotes,
         presence,
         pullJustCalled: classifierPull,
+        pacingMove: scenePacing?.pacingMove,
       });
       const contextStats = {
         campaignNoteItemsIncluded: countNoteItems(relevantCampaignNotes),
@@ -570,6 +610,7 @@ export function AutoGmProvider({ children }) {
           campaignNoteUpdates: [],
           pullSkippedReason: null,
           contextStats,
+          scenePacing,
           error: reason,
         });
         return false;
@@ -647,6 +688,7 @@ export function AutoGmProvider({ children }) {
         campaignNoteUpdates,
         pullSkippedReason,
         contextStats,
+        scenePacing,
       });
       return true;
     },
@@ -661,6 +703,7 @@ export function AutoGmProvider({ children }) {
       presence,
       runPrompt,
       checkForPull,
+      checkScenePacing,
       selfCheckNarration,
       consolidateCampaignNotes,
       sendSystemChatMessage,

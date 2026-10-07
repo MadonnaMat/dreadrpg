@@ -109,6 +109,51 @@ describe("AutoGmDebugPanel", () => {
     ).toBeInTheDocument();
   });
 
+  it("renders the scene-pacing read and its reasoning", () => {
+    setState({
+      turnLog: [
+        {
+          id: "turn-1",
+          kind: "turn",
+          trigger: { from: "Alice", text: "I keep searching." },
+          draftNarration: "Nothing yet.",
+          finalNarration: "Nothing yet.",
+          campaignNoteUpdates: [],
+          scenePacing: {
+            pacingMove: "escalate",
+            reasoning: "The room has been searched three times.",
+          },
+        },
+      ],
+    });
+    render(<AutoGmDebugPanel />);
+
+    expect(
+      screen.getByText(
+        /Pacing: escalate — The room has been searched three times\./
+      )
+    ).toBeInTheDocument();
+  });
+
+  it("omits the pacing line when the read failed", () => {
+    setState({
+      turnLog: [
+        {
+          id: "turn-1",
+          kind: "turn",
+          trigger: { from: "Alice", text: "I wait." },
+          draftNarration: "Silence.",
+          finalNarration: "Silence.",
+          campaignNoteUpdates: [],
+          scenePacing: null,
+        },
+      ],
+    });
+    render(<AutoGmDebugPanel />);
+
+    expect(screen.queryByText(/Pacing:/)).not.toBeInTheDocument();
+  });
+
   it("omits the pinned count when no pinned canon was included", () => {
     setState({
       turnLog: [
