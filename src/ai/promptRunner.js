@@ -18,21 +18,26 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 // there was and left the debug panel showing "Model request failed." for
 // every distinct cause. Handle primitives and non-Error objects too, and
 // keep the class name when it's the only thing carrying information.
-function describeThrown(err) {
-  if (err === null || err === undefined) return "Model request failed.";
-  if (typeof err === "string") return err.trim() || "Model request failed.";
-  if (typeof err !== "object") return String(err);
+const GENERIC_FAILURE = "Model request failed.";
 
+function describeThrownObject(err) {
   const name = err.name || err.constructor?.name || "";
   const message = err.message || "";
-  if (message && name && name !== "Error") return `${name}: ${message}`;
-  if (message) return message;
+  if (message)
+    return name && name !== "Error" ? `${name}: ${message}` : message;
 
-  // A non-Error object: its own stringification usually beats the class name
-  // ("[object Object]" is the one case where it doesn't).
+  // Its own stringification usually beats the class name - except for the
+  // default, which says nothing at all.
   const stringified = String(err);
   if (stringified && stringified !== "[object Object]") return stringified;
-  return name ? `${name} (no message)` : "Model request failed.";
+  return name ? `${name} (no message)` : GENERIC_FAILURE;
+}
+
+function describeThrown(err) {
+  if (err === null || err === undefined) return GENERIC_FAILURE;
+  if (typeof err === "string") return err.trim() || GENERIC_FAILURE;
+  if (typeof err !== "object") return String(err);
+  return describeThrownObject(err);
 }
 
 async function completeWithTimeout({
