@@ -1,4 +1,59 @@
 const DEFAULT_MAX_RETRIES = 2;
+// Local in-browser inference has no server to time a request out, and
+// nothing in the WebLLM stack bounds a single generation. A hung worker (a
+// lost GPU context, a tab throttled in the background) would otherwise block
+// every later call behind it forever, since WebLLM serializes generations on
+// a per-model lock. Applied per attempt rather than across the whole call:
+// sharing one budget across retries meant a slow first attempt ate it and
+// the retries it exists to allow never got a fair chance to run.
+const DEFAULT_ATTEMPT_TIMEOUT_MS = 60000;
+// A failed attempt usually means the engine is still settling, so re-firing
+// in the same tick tends to reproduce the same failure. Grows per attempt.
+const RETRY_BACKOFF_MS = 400;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Engine rejections reach us with an empty `message` often enough that
+// "Model request failed." was all the debug panel could ever show, which is
+// useless for telling a timeout from a lost GPU from a bad response format.
+// Keep the class name when that's the only thing carrying information.
+function describeThrown(err) {
+  if (!err) return "Model request failed.";
+  const name = err.name || err.constructor?.name || "";
+  const message = err.message || "";
+  if (message && name && name !== "Error") return `${name}: ${message}`;
+  if (message) return message;
+  return name ? `${name} (no message)` : "Model request failed.";
+}
+
+async function completeWithTimeout({
+  engine,
+  messages,
+  responseFormat,
+  timeoutMs,
+}) {
+  let timer;
+  try {
+    return await Promise.race([
+      engine.chatCompletion(messages, { response_format: responseFormat }),
+      new Promise((_resolve, reject) => {
+        timer = setTimeout(() => {
+          // Best-effort: free the per-model lock so the retry isn't queued
+          // behind the generation we just gave up on. An engine that can't
+          // be interrupted still fails safe - we just stop waiting on it.
+          try {
+            engine.interrupt?.();
+          } catch {
+            // Nothing useful to do; the timeout below is the real signal.
+          }
+          reject(new Error("Model call timed out."));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 function extractMessageContent(completion) {
   return completion?.choices?.[0]?.message?.content ?? "";
@@ -34,6 +89,7 @@ export async function runStructuredPrompt({
   schema,
   validate,
   maxRetries = DEFAULT_MAX_RETRIES,
+  attemptTimeoutMs = DEFAULT_ATTEMPT_TIMEOUT_MS,
   history,
 }) {
   const messages = history
@@ -57,17 +113,22 @@ export async function runStructuredPrompt({
 
     let completion;
     try {
-      completion = await engine.chatCompletion(messages, {
-        response_format: responseFormat,
+      completion = await completeWithTimeout({
+        engine,
+        messages,
+        responseFormat,
+        timeoutMs: attemptTimeoutMs,
       });
     } catch (err) {
       // An engine-level rejection (a worker hiccup, a transient generation
-      // failure) is exactly the kind of recoverable failure this runner
-      // exists to survive - retry it the same as an invalid-JSON or
-      // schema-validation failure, up to maxRetries, instead of giving up
-      // on the very first attempt. There's no completion to append a
-      // corrective message about, so just retry with the same messages.
-      lastErrors = [err.message || "Model request failed."];
+      // failure, a generation that outran its timeout) is exactly the kind
+      // of recoverable failure this runner exists to survive - retry it the
+      // same as an invalid-JSON or schema-validation failure, up to
+      // maxRetries, instead of giving up on the very first attempt. There's
+      // no completion to append a corrective message about, so just retry
+      // with the same messages, after letting the engine settle.
+      lastErrors = [describeThrown(err)];
+      if (attempts <= maxRetries) await sleep(RETRY_BACKOFF_MS * attempts);
       continue;
     }
 

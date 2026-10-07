@@ -75,20 +75,9 @@ const TURN_LOG_LIMIT = 20;
 // folded into storySummary and reset - keeps context bounded without
 // losing track of the story (see docs/autogm-requirements.md).
 const RAW_HISTORY_COMPACTION_THRESHOLD = 20;
-// Every runPrompt call is raced against this timeout. Local in-browser
-// inference has no engine-level timeout anywhere in the promptRunner/
-// webllmEngine stack - if a single call ever genuinely hangs (a crashed
-// worker, lost GPU context, a backgrounded tab throttled by the browser)
-// rather than rejecting, every future chat message would otherwise wait
-// forever behind it in queueRef's promise chain, since a `.then()` chained
-// onto a promise that never settles never fires either. Racing against a
-// timeout guarantees the queue always eventually unblocks, even in the
-// worst case.
-const RUN_PROMPT_TIMEOUT_MS = 60000;
-
 // Turns runStructuredPrompt's own `errors` (JSON-parse failures, schema
-// validation messages, or the timeout wrapper's own message above) into one
-// readable line for the debug panel - "AutoGM couldn't generate a
+// validation messages, an engine rejection, or its per-attempt timeout) into
+// one readable line for the debug panel - "AutoGM couldn't generate a
 // response" alone gives no way to tell a timeout apart from a schema
 // mismatch apart from a completely garbled response.
 function describePromptFailure(result) {
@@ -149,26 +138,6 @@ function resolveMainPromptPull({
     pullsRequired,
     pullSkippedReason,
   };
-}
-
-function runPromptWithTimeout(runPrompt, args) {
-  return Promise.race([
-    runPrompt(args),
-    new Promise((resolve) => {
-      setTimeout(
-        () =>
-          resolve({
-            raw: "",
-            parsed: null,
-            valid: false,
-            errors: ["AutoGM's model call timed out."],
-            attempts: 0,
-            latencyMs: RUN_PROMPT_TIMEOUT_MS,
-          }),
-        RUN_PROMPT_TIMEOUT_MS
-      );
-    }),
-  ]);
 }
 
 // Runs the AutoGM mode: an AI-driven GM that narrates and adjudicates play
@@ -397,7 +366,7 @@ export function AutoGmProvider({ children }) {
         dangerProbability,
         awaitingReset,
       });
-      const result = await runPromptWithTimeout(runPrompt, {
+      const result = await runPrompt({
         systemPromptText: latest("autogmSelfCheck").text,
         userContent: context,
         schema: autoGmSelfCheckSchema,
@@ -445,7 +414,7 @@ export function AutoGmProvider({ children }) {
         campaignNotes,
         campaignNoteUpdates: updates,
       });
-      const result = await runPromptWithTimeout(runPrompt, {
+      const result = await runPrompt({
         systemPromptText: latest("autogmCampaignNotesConsolidation").text,
         userContent: context,
         schema: autoGmCampaignNotesConsolidationSchema,
@@ -483,7 +452,7 @@ export function AutoGmProvider({ children }) {
         actorName: characterNameFor(characters, trigger.fromIdentity),
         scenario,
       });
-      const result = await runPromptWithTimeout(runPrompt, {
+      const result = await runPrompt({
         systemPromptText: latest("autogmPullCheck").text,
         userContent: context,
         schema: autoGmPullCheckSchema,
@@ -524,7 +493,7 @@ export function AutoGmProvider({ children }) {
         dangerProbability,
         awaitingReset,
       });
-      const result = await runPromptWithTimeout(runPrompt, {
+      const result = await runPrompt({
         systemPromptText: latest("autogmScenePacing").text,
         userContent: context,
         schema: autoGmScenePacingSchema,
@@ -582,7 +551,7 @@ export function AutoGmProvider({ children }) {
         campaignNoteItemsTotal: countNoteItems(campaignNotes),
         pinnedIncluded: countPinnedNoteItems(relevantCampaignNotes),
       };
-      const result = await runPromptWithTimeout(runPrompt, {
+      const result = await runPrompt({
         systemPromptText: latest("autogmTurn").text,
         userContent: context,
         schema: autoGmTurnSchema,
@@ -752,7 +721,7 @@ export function AutoGmProvider({ children }) {
         priorSummary: storySummary,
         rawHistory: history,
       });
-      const result = await runPromptWithTimeout(runPrompt, {
+      const result = await runPrompt({
         systemPromptText: latest("autogmCompaction").text,
         userContent: context,
         schema: autoGmCompactionSchema,
@@ -785,7 +754,7 @@ export function AutoGmProvider({ children }) {
           rawHistory: historyRef.current,
           campaignNotes,
         });
-        const result = await runPromptWithTimeout(runPrompt, {
+        const result = await runPrompt({
           systemPromptText: latest("autogmRemovalNarration").text,
           userContent: context,
           schema: autoGmRemovalNarrationSchema,

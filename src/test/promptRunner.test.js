@@ -211,3 +211,113 @@ describe("runStructuredPrompt", () => {
     expect(typeof result.latencyMs).toBe("number");
   });
 });
+
+describe("runStructuredPrompt attempt timeouts", () => {
+  it("gives up on a generation that outruns its timeout and says so", async () => {
+    const engine = {
+      // Never settles - the exact case nothing in the WebLLM stack bounds.
+      chatCompletion: vi.fn(() => new Promise(() => {})),
+      interrupt: vi.fn(),
+    };
+
+    const result = await runStructuredPrompt({
+      engine,
+      systemPromptText: "system",
+      userContent: "user",
+      schema: { type: "object" },
+      validate: passthroughValidate,
+      maxRetries: 0,
+      attemptTimeoutMs: 20,
+    });
+
+    expect(result.valid).toBe(false);
+    expect(result.errors.join(" ")).toMatch(/timed out/i);
+  });
+
+  it("interrupts the abandoned generation so the next call isn't queued behind it", async () => {
+    const engine = {
+      chatCompletion: vi.fn(() => new Promise(() => {})),
+      interrupt: vi.fn(),
+    };
+
+    await runStructuredPrompt({
+      engine,
+      systemPromptText: "system",
+      userContent: "user",
+      schema: { type: "object" },
+      validate: passthroughValidate,
+      maxRetries: 0,
+      attemptTimeoutMs: 20,
+    });
+
+    expect(engine.interrupt).toHaveBeenCalled();
+  });
+
+  it("times out each attempt separately rather than sharing one budget", async () => {
+    let calls = 0;
+    const engine = {
+      chatCompletion: vi.fn(() => {
+        calls += 1;
+        // First attempt hangs; a shared budget would leave nothing for the
+        // retry, which is the whole point of retrying.
+        if (calls === 1) return new Promise(() => {});
+        return Promise.resolve(completionWith('{"answer":"recovered"}'));
+      }),
+      interrupt: vi.fn(),
+    };
+
+    const result = await runStructuredPrompt({
+      engine,
+      systemPromptText: "system",
+      userContent: "user",
+      schema: { type: "object" },
+      validate: passthroughValidate,
+      attemptTimeoutMs: 20,
+    });
+
+    expect(result).toMatchObject({
+      valid: true,
+      parsed: { answer: "recovered" },
+    });
+    expect(engine.chatCompletion).toHaveBeenCalledTimes(2);
+  });
+
+  it("survives an engine with no interrupt support", async () => {
+    const engine = { chatCompletion: vi.fn(() => new Promise(() => {})) };
+    const result = await runStructuredPrompt({
+      engine,
+      systemPromptText: "system",
+      userContent: "user",
+      schema: { type: "object" },
+      validate: passthroughValidate,
+      maxRetries: 0,
+      attemptTimeoutMs: 20,
+    });
+    expect(result.valid).toBe(false);
+  });
+
+  it("names the error class when a rejection carries no message", async () => {
+    class DeviceLostError extends Error {
+      constructor() {
+        super("");
+        this.name = "DeviceLostError";
+      }
+    }
+    const engine = {
+      chatCompletion: vi.fn().mockRejectedValue(new DeviceLostError()),
+    };
+
+    const result = await runStructuredPrompt({
+      engine,
+      systemPromptText: "system",
+      userContent: "user",
+      schema: { type: "object" },
+      validate: passthroughValidate,
+      maxRetries: 0,
+    });
+
+    // "Model request failed." told us nothing; the class name is the only
+    // thing distinguishing a lost GPU from a bad response format.
+    expect(result.errors.join(" ")).toContain("DeviceLostError");
+  });
+});
