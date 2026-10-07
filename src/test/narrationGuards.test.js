@@ -135,12 +135,29 @@ describe("revisionIsPlausible", () => {
 
 describe("collapseRepeatedSentences", () => {
   it("collapses a sentence the model looped on", () => {
-    // Verbatim from a live 1B opening turn.
+    // Verbatim from a live 1B opening turn. Every sentence opens "The
+    // Drifter is standing", which is the loop even where the tails differ,
+    // so only the first survives.
     const looped =
       "The Drifter is standing near the casting hall, looking out into the rain. The Drifter is standing near the sub-level, checking the water level. The Drifter is standing near the sub-level, checking the water level. The Drifter is standing near the sub-level, checking the water level.";
     expect(collapseRepeatedSentences(looped)).toBe(
-      "The Drifter is standing near the casting hall, looking out into the rain. The Drifter is standing near the sub-level, checking the water level."
+      "The Drifter is standing near the casting hall, looking out into the rain."
     );
+  });
+
+  it("collapses sentences that share an opening but diverge after it", () => {
+    // Also verbatim from a live opening - too little word overlap to catch
+    // by threshold, but three runs at the same sentence all the same.
+    const looped =
+      "The Drifter is standing near the furnace, their eyes fixed on the entrance. The Drifter is standing at the edge, a small flashlight casting eerie shadows on the walls. The Drifter is standing at the edge of the foundry, with the Drifter nearby.";
+    expect(collapseRepeatedSentences(looped)).toBe(
+      "The Drifter is standing near the furnace, their eyes fixed on the entrance."
+    );
+  });
+
+  it("leaves sentences that merely start with the same two words", () => {
+    const text = "The door opens slowly. The air smells of rust and oil.";
+    expect(collapseRepeatedSentences(text)).toBe(text);
   });
 
   it("ignores casing and punctuation when matching duplicates", () => {

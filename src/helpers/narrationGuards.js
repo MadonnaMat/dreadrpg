@@ -58,8 +58,26 @@ const SENTENCE_OVERLAP_LIMIT = 0.6;
 // coincidence ("The door opens." / "The hatch opens.") and are left alone.
 const MIN_SENTENCE_TOKENS = 6;
 
+// The other shape the loop takes: same opening, different tail ("The
+// Drifter is standing near the furnace..." / "The Drifter is standing at
+// the edge..."). Those score too low on word overlap to catch by threshold
+// without also catching ordinary prose, but two sentences in one short
+// response opening on the same four words is the loop every time.
+const SHARED_OPENING_WORDS = 4;
+
+function wordsOf(sentence) {
+  return normalize(sentence).split(" ").filter(Boolean);
+}
+
 function contentTokens(sentence) {
-  return new Set(normalize(sentence).split(" ").filter(Boolean));
+  return new Set(wordsOf(sentence));
+}
+
+function sharesOpening(a, b) {
+  if (a.length < SHARED_OPENING_WORDS || b.length < SHARED_OPENING_WORDS) {
+    return false;
+  }
+  return a.slice(0, SHARED_OPENING_WORDS).every((word, i) => word === b[i]);
 }
 
 function overlapRatio(a, b) {
@@ -70,10 +88,6 @@ function overlapRatio(a, b) {
   return shared / (a.size + b.size - shared);
 }
 
-// Small models fall into loops, emitting the same sentence - or the same
-// sentence with one word changed - several times in one response. It is
-// never deliberate, and no prompt wording reliably prevents it, so collapse
-// it on the way out.
 // How many of the GM's own recent lines a new one is checked against. Two
 // is enough for the failure in play - answering a player by restating the
 // turn before - without reaching so far back that a deliberate callback to
@@ -95,6 +109,10 @@ function sentencesOf(text) {
   return String(text || "").match(/[^.!?]+[.!?]*\s*/g) || [];
 }
 
+// Small models fall into loops, emitting the same sentence - or one barely
+// reworded - several times in a response. It is never deliberate and no
+// prompt wording reliably prevents it, so collapse it on the way out.
+//
 // `alreadySaid` seeds the comparison with narration from earlier turns, so
 // the same check that catches a loop inside one response also catches the
 // GM answering a player by repeating what it said last turn - the form the
@@ -105,23 +123,28 @@ export function collapseRepeatedSentences(text, alreadySaid = "") {
   if (!value) return value;
   const parts = sentencesOf(value);
   const prior = sentencesOf(alreadySaid)
-    .map(contentTokens)
-    .filter((tokens) => tokens.size);
+    .map((sentence) => ({
+      tokens: contentTokens(sentence),
+      words: wordsOf(sentence),
+    }))
+    .filter((entry) => entry.tokens.size);
   if (parts.length < 2 && !prior.length) return value;
 
   const keptTokens = [...prior];
   const kept = parts.filter((part) => {
     const tokens = contentTokens(part);
+    const words = wordsOf(part);
     if (!tokens.size) return true;
     const duplicate = keptTokens.some(
       (earlier) =>
-        (earlier.size >= MIN_SENTENCE_TOKENS &&
+        overlapRatio(tokens, earlier.tokens) === 1 ||
+        sharesOpening(words, earlier.words) ||
+        (earlier.tokens.size >= MIN_SENTENCE_TOKENS &&
           tokens.size >= MIN_SENTENCE_TOKENS &&
-          overlapRatio(tokens, earlier) >= SENTENCE_OVERLAP_LIMIT) ||
-        overlapRatio(tokens, earlier) === 1
+          overlapRatio(tokens, earlier.tokens) >= SENTENCE_OVERLAP_LIMIT)
     );
     if (duplicate) return false;
-    keptTokens.push(tokens);
+    keptTokens.push({ tokens, words });
     return true;
   });
   return kept.length === parts.length ? value : kept.join("").trim();
