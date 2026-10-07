@@ -25,7 +25,7 @@ import {
   countPinnedNoteItems,
 } from "../helpers/contextRelevance";
 import {
-  looksLikeCommentary,
+  revisionIsPlausible,
   stripEchoedPlayerAction,
 } from "../helpers/narrationGuards";
 import { latest } from "../prompts/index";
@@ -360,7 +360,7 @@ export function AutoGmProvider({ children }) {
   // unchanged rather than blocking narration on a second model call
   // succeeding.
   const selfCheckNarration = useCallback(
-    async (draftNarration) => {
+    async (draftNarration, triggerText) => {
       const context = buildAutoGmSelfCheckContext({
         draftNarration,
         storySummary,
@@ -384,14 +384,16 @@ export function AutoGmProvider({ children }) {
         };
       }
       const { consistent, reasoning, revisedNarration } = result.parsed;
-      // The prompt forbids commentary in revisedNarration in plain words and
-      // the small tiers write it anyway ("I revise the draft to..."), which
-      // then goes to the table as the GM's own voice. Falling back to the
-      // draft loses the correction but never shows players stage directions.
-      const usableRevision =
-        revisedNarration && !looksLikeCommentary(revisedNarration)
-          ? revisedNarration
-          : null;
+      // A "correction" from the small tiers regularly arrives worse than
+      // what it replaced: the prompt's own instructions restated back, the
+      // player's line re-attached, or a status report about the table. Put
+      // the revision through the same checks the draft already passed, and
+      // keep the draft whenever it doesn't hold up - losing a correction
+      // costs less than posting that.
+      const candidate = stripEchoedPlayerAction(revisedNarration, triggerText);
+      const usableRevision = revisionIsPlausible(candidate, draftNarration)
+        ? candidate
+        : null;
       return {
         finalNarration: consistent
           ? draftNarration
@@ -621,7 +623,7 @@ export function AutoGmProvider({ children }) {
       let consistent = null;
       if (narration) {
         setThinking(AUTOGM_STATUS.SELF_CHECKING);
-        const checked = await selfCheckNarration(narration);
+        const checked = await selfCheckNarration(narration, trigger?.text);
         finalNarration = checked.finalNarration;
         reasoning = checked.reasoning;
         consistent = checked.consistent;

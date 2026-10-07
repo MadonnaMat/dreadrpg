@@ -22,10 +22,38 @@ const COMMENTARY_PATTERNS = [
   /\bi\s+add(ed)?\s+the following\b/i,
 ];
 
+// Talking about the table's situation rather than the fiction. The
+// self-check pass in particular likes to append a status report to its
+// "corrected" narration.
+const META_PATTERNS = [
+  /\bthe players are (stuck|waiting)\b/i,
+  /\bthe game is waiting\b/i,
+  /\bwaiting for (them|the players) to (make a move|act|respond)\b/i,
+  /\b(this|the) (scene|turn|response) (needs|should|must)\b/i,
+];
+
 export function looksLikeCommentary(text) {
   const value = String(text || "").trim();
   if (!value) return false;
-  return COMMENTARY_PATTERNS.some((pattern) => pattern.test(value));
+  return [...COMMENTARY_PATTERNS, ...META_PATTERNS].some((pattern) =>
+    pattern.test(value)
+  );
+}
+
+// How much longer than the draft a "correction" may be before we stop
+// believing it is one. The self-check is told to change as little as
+// possible for a factual fix, and to replace repetition with something new
+// - neither justifies several times the length, which in practice meant it
+// had appended its own commentary or restated the prompt back.
+const MAX_REVISION_GROWTH = 2.5;
+
+export function revisionIsPlausible(revision, draft) {
+  const revised = String(revision || "").trim();
+  const original = String(draft || "").trim();
+  if (!revised) return false;
+  if (looksLikeCommentary(revised)) return false;
+  if (!original) return true;
+  return revised.length <= original.length * MAX_REVISION_GROWTH;
 }
 
 function normalize(text) {

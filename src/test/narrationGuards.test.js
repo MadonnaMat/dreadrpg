@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   looksLikeCommentary,
+  revisionIsPlausible,
   stripEchoedPlayerAction,
 } from "../helpers/narrationGuards";
 
@@ -92,5 +93,40 @@ describe("stripEchoedPlayerAction", () => {
 
   it("tolerates missing input", () => {
     expect(stripEchoedPlayerAction(null, action)).toBe("");
+  });
+});
+
+describe("revisionIsPlausible", () => {
+  const draft = "The hatch gives way with a shriek of rust.";
+
+  it("accepts a focused correction", () => {
+    expect(
+      revisionIsPlausible("The hatch gives way with a groan of rust.", draft)
+    ).toBe(true);
+  });
+
+  it("rejects a revision that reports on the table instead of the fiction", () => {
+    // Appended verbatim by the self-check in a live 1B session.
+    expect(
+      revisionIsPlausible(
+        "The yard is quiet. The players are stuck waiting for something new to happen, and the game is waiting for them to make a move.",
+        draft
+      )
+    ).toBe(false);
+  });
+
+  it("rejects a revision that balloons well past the draft", () => {
+    expect(
+      revisionIsPlausible(`${draft} ${"and more. ".repeat(40)}`, draft)
+    ).toBe(false);
+  });
+
+  it("rejects an empty revision", () => {
+    expect(revisionIsPlausible("", draft)).toBe(false);
+    expect(revisionIsPlausible(null, draft)).toBe(false);
+  });
+
+  it("accepts anything non-empty when there is no draft to compare against", () => {
+    expect(revisionIsPlausible("Something happens.", "")).toBe(true);
   });
 });
