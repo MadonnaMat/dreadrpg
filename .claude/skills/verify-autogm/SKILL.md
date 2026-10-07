@@ -26,10 +26,16 @@ Chromium has no `navigator.gpu` at all; headed Chrome needs
 `--enable-unsafe-webgpu`:
 
 ```js
-const b = await chromium.launch({ channel: "chrome", headless: false,
-  args: ["--enable-unsafe-webgpu"] });
-const a = await (await b.newPage()).evaluate(async () =>
-  (await navigator.gpu?.requestAdapter())?.features.has("shader-f16"));
+const b = await chromium.launch({
+  channel: "chrome",
+  headless: false,
+  args: ["--enable-unsafe-webgpu"],
+});
+const a = await (
+  await b.newPage()
+).evaluate(async () =>
+  (await navigator.gpu?.requestAdapter())?.features.has("shader-f16")
+);
 ```
 
 `false` means the model path can't run here, full stop. (Under WSL, WSLg
@@ -38,7 +44,7 @@ reported no f16.)
 
 ## Without a model: drive the real prompt builders
 
-Most of what goes wrong with context changes is visible *before* inference -
+Most of what goes wrong with context changes is visible _before_ inference -
 and this is the check that actually catches filtering bugs, because unit
 tests use short invented queries that hide them. Run the real modules over a
 realistic mid-campaign fixture (full notes, a cast, a long story summary,
