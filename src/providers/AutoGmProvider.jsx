@@ -25,6 +25,7 @@ import {
   countPinnedNoteItems,
 } from "../helpers/contextRelevance";
 import {
+  collapseRepeatedSentences,
   revisionIsPlausible,
   stripEchoedPlayerAction,
 } from "../helpers/narrationGuards";
@@ -390,7 +391,9 @@ export function AutoGmProvider({ children }) {
       // the revision through the same checks the draft already passed, and
       // keep the draft whenever it doesn't hold up - losing a correction
       // costs less than posting that.
-      const candidate = stripEchoedPlayerAction(revisedNarration, triggerText);
+      const candidate = collapseRepeatedSentences(
+        stripEchoedPlayerAction(revisedNarration, triggerText)
+      );
       const usableRevision = revisionIsPlausible(candidate, draftNarration)
         ? candidate
         : null;
@@ -616,7 +619,9 @@ export function AutoGmProvider({ children }) {
       // back word for word before continuing, which reads as the GM both
       // speaking in the player's first person and re-deciding their action.
       // Done before the self-check so it reviews what players will see.
-      const narration = stripEchoedPlayerAction(rawNarration, trigger?.text);
+      const narration = collapseRepeatedSentences(
+        stripEchoedPlayerAction(rawNarration, trigger?.text)
+      );
 
       let finalNarration = narration;
       let reasoning = null;

@@ -40,6 +40,36 @@ export function looksLikeCommentary(text) {
   );
 }
 
+function normalize(text) {
+  return String(text || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// Small models fall into loops, emitting the same sentence several times in
+// one response ("The Drifter is standing near the sub-level, checking the
+// water level." three times over). It is never deliberate, and no prompt
+// wording reliably prevents it, so collapse it on the way out.
+export function collapseRepeatedSentences(text) {
+  const value = String(text || "").trim();
+  if (!value) return value;
+  // Keep the delimiter with its sentence so punctuation and spacing survive.
+  const parts = value.match(/[^.!?]+[.!?]*\s*/g);
+  if (!parts || parts.length < 2) return value;
+
+  const seen = new Set();
+  const kept = parts.filter((part) => {
+    const key = normalize(part);
+    if (!key) return true;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return kept.length === parts.length ? value : kept.join("").trim();
+}
+
 // How much longer than the draft a "correction" may be before we stop
 // believing it is one. The self-check is told to change as little as
 // possible for a factual fix, and to replace repetition with something new
@@ -54,14 +84,6 @@ export function revisionIsPlausible(revision, draft) {
   if (looksLikeCommentary(revised)) return false;
   if (!original) return true;
   return revised.length <= original.length * MAX_REVISION_GROWTH;
-}
-
-function normalize(text) {
-  return String(text || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 // The model frequently opens its narration by restating the player's own

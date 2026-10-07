@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  collapseRepeatedSentences,
   looksLikeCommentary,
   revisionIsPlausible,
   stripEchoedPlayerAction,
@@ -128,5 +129,38 @@ describe("revisionIsPlausible", () => {
 
   it("accepts anything non-empty when there is no draft to compare against", () => {
     expect(revisionIsPlausible("Something happens.", "")).toBe(true);
+  });
+});
+
+describe("collapseRepeatedSentences", () => {
+  it("collapses a sentence the model looped on", () => {
+    // Verbatim from a live 1B opening turn.
+    const looped =
+      "The Drifter is standing near the casting hall, looking out into the rain. The Drifter is standing near the sub-level, checking the water level. The Drifter is standing near the sub-level, checking the water level. The Drifter is standing near the sub-level, checking the water level.";
+    expect(collapseRepeatedSentences(looped)).toBe(
+      "The Drifter is standing near the casting hall, looking out into the rain. The Drifter is standing near the sub-level, checking the water level."
+    );
+  });
+
+  it("ignores casing and punctuation when matching duplicates", () => {
+    expect(collapseRepeatedSentences("The door opens. the door opens!")).toBe(
+      "The door opens."
+    );
+  });
+
+  it("leaves distinct sentences alone", () => {
+    const text = "The door opens. Something moves. The light fails.";
+    expect(collapseRepeatedSentences(text)).toBe(text);
+  });
+
+  it("leaves a single sentence alone", () => {
+    expect(collapseRepeatedSentences("The door opens.")).toBe(
+      "The door opens."
+    );
+  });
+
+  it("tolerates empty input", () => {
+    expect(collapseRepeatedSentences("")).toBe("");
+    expect(collapseRepeatedSentences(null)).toBe("");
   });
 });
