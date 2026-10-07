@@ -101,8 +101,35 @@ callForPull: boolean, pullsRequired?: number }`).
   snapshot.
 - **Compaction**: a plain message-count threshold (20 raw messages), not a
   token estimate — folds into a rolling `storySummary` via a dedicated
-  `autogm-compaction.v1` prompt call. See `AutoGmProvider.jsx`'s
+  `autogm-compaction` prompt call. See `AutoGmProvider.jsx`'s
   `RAW_HISTORY_COMPACTION_THRESHOLD`.
+- **Pinned canon** (added later): the rolling summary alone proved lossy —
+  it is re-summarized every compaction, which blurs away exactly the
+  specifics a horror game can't afford to lose, and campaign notes evict
+  oldest-first at their caps. Campaign-note items can now be _pinned_,
+  which exempts them from that eviction and from the turn-context filtering
+  below. Pins come from the GM by hand or from compaction's `keyBeats`
+  (`autogm-compaction.v2`), in one list tagged by origin. The exemption is
+  itself capped (`MAX_PINNED_ITEMS`), so pinning can't reintroduce
+  unbounded context.
+- **Turn-context filtering** (added later): the turn prompt now receives
+  only the campaign notes that overlap the turn's own words, plus all
+  pinned items, rather than the whole list every turn
+  (`src/helpers/contextRelevance.js`). Deliberately keyword scoring, not
+  embeddings or a vector store: the corpus is a few dozen short items,
+  where both pick the same handful, and a second model would compete for
+  the device memory WebLLM already strains. The roster and scenario are
+  _not_ filtered — both are a few lines, and pull targeting reads the full
+  roster regardless.
+- **Scene pacing** (added later): a narrow classifier
+  (`autogm-scene-pacing.v1`) picks one of `continue` / `escalate` /
+  `call_for_pull` / `wrap_scene` from just the summary, tower state and
+  recent chat, and the turn prompt is told the read instead of inferring it
+  while also writing prose. Advisory only, fail-soft to no hint, and run
+  concurrently with the pull check. Chosen over a tool-calling agent loop
+  deliberately: the 1B–3B tiers handle a narrow single-question classifier
+  far more reliably than free-form tool selection, which is the same
+  lesson that produced `checkForPull`.
 - **Confirmed**: AutoGM's LLM calls only ever run on the host's browser,
   matching the GM-hub topology used everywhere else.
 - **Pause/intervene**: the Admin Panel's "Disable AutoGM" toggle turns it
