@@ -296,6 +296,42 @@ describe("runStructuredPrompt attempt timeouts", () => {
     expect(result.valid).toBe(false);
   });
 
+  it("keeps the text when the engine rejects with a plain string", async () => {
+    // WebLLM's worker bridge does exactly this, and reading .message off it
+    // discarded the only description of what actually went wrong.
+    const engine = {
+      chatCompletion: vi
+        .fn()
+        .mockRejectedValue("WebGPU device was lost during generation"),
+    };
+
+    const result = await runStructuredPrompt({
+      engine,
+      systemPromptText: "system",
+      userContent: "user",
+      schema: { type: "object" },
+      validate: passthroughValidate,
+      maxRetries: 0,
+    });
+
+    expect(result.errors.join(" ")).toContain("WebGPU device was lost");
+  });
+
+  it("falls back to something readable for an empty or odd rejection", async () => {
+    for (const thrown of ["", null, undefined, 42]) {
+      const engine = { chatCompletion: vi.fn().mockRejectedValue(thrown) };
+      const result = await runStructuredPrompt({
+        engine,
+        systemPromptText: "system",
+        userContent: "user",
+        schema: { type: "object" },
+        validate: passthroughValidate,
+        maxRetries: 0,
+      });
+      expect(result.errors.join(" ").trim().length).toBeGreaterThan(0);
+    }
+  });
+
   it("names the error class when a rejection carries no message", async () => {
     class DeviceLostError extends Error {
       constructor() {

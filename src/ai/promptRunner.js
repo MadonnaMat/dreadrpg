@@ -13,16 +13,25 @@ const RETRY_BACKOFF_MS = 400;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Engine rejections reach us with an empty `message` often enough that
-// "Model request failed." was all the debug panel could ever show, which is
-// useless for telling a timeout from a lost GPU from a bad response format.
-// Keep the class name when that's the only thing carrying information.
+// Engine rejections are not reliably Errors: WebLLM's worker bridge rejects
+// with a plain string, so reading `.message` threw away the only description
+// there was and left the debug panel showing "Model request failed." for
+// every distinct cause. Handle primitives and non-Error objects too, and
+// keep the class name when it's the only thing carrying information.
 function describeThrown(err) {
-  if (!err) return "Model request failed.";
+  if (err === null || err === undefined) return "Model request failed.";
+  if (typeof err === "string") return err.trim() || "Model request failed.";
+  if (typeof err !== "object") return String(err);
+
   const name = err.name || err.constructor?.name || "";
   const message = err.message || "";
   if (message && name && name !== "Error") return `${name}: ${message}`;
   if (message) return message;
+
+  // A non-Error object: its own stringification usually beats the class name
+  // ("[object Object]" is the one case where it doesn't).
+  const stringified = String(err);
+  if (stringified && stringified !== "[object Object]") return stringified;
   return name ? `${name} (no message)` : "Model request failed.";
 }
 
