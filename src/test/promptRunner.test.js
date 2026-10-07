@@ -332,6 +332,51 @@ describe("runStructuredPrompt attempt timeouts", () => {
     }
   });
 
+  it("does not retry a context-window overflow", async () => {
+    // Re-sending the same oversized prompt can only fail the same way, and
+    // each attempt costs a full generation before the caller can react by
+    // sending less. This is routine on the 4096-token small tier.
+    const engine = {
+      chatCompletion: vi
+        .fn()
+        .mockRejectedValue("ContextWindowSizeExceededError: 5200 > 4096"),
+    };
+
+    const result = await runStructuredPrompt({
+      engine,
+      systemPromptText: "system",
+      userContent: "user",
+      schema: { type: "object" },
+      validate: passthroughValidate,
+    });
+
+    expect(result.valid).toBe(false);
+    expect(engine.chatCompletion).toHaveBeenCalledTimes(1);
+    expect(result.errors.join(" ")).toContain("ContextWindowSizeExceeded");
+  });
+
+  it("still retries ordinary engine failures", async () => {
+    let calls = 0;
+    const engine = {
+      chatCompletion: vi.fn(() => {
+        calls += 1;
+        if (calls === 1) return Promise.reject("transient worker hiccup");
+        return Promise.resolve(completionWith('{"ok":true}'));
+      }),
+    };
+
+    const result = await runStructuredPrompt({
+      engine,
+      systemPromptText: "system",
+      userContent: "user",
+      schema: { type: "object" },
+      validate: passthroughValidate,
+    });
+
+    expect(result.valid).toBe(true);
+    expect(engine.chatCompletion).toHaveBeenCalledTimes(2);
+  });
+
   it("names the error class when a rejection carries no message", async () => {
     class DeviceLostError extends Error {
       constructor() {

@@ -40,6 +40,17 @@ function describeThrown(err) {
   return describeThrownObject(err);
 }
 
+// The prompt didn't fit the model's context window. Re-sending it unchanged
+// can only fail the same way, and each attempt is a full generation's wait
+// before the caller gets to do the one thing that helps - send less. The
+// small tiers run a 4096-token window, so this is a routine outcome, not an
+// exotic one.
+function isContextOverflow(description) {
+  return /context.{0,12}window|exceed.{0,20}context|too many tokens/i.test(
+    description
+  );
+}
+
 async function completeWithTimeout({
   engine,
   messages,
@@ -142,6 +153,7 @@ export async function runStructuredPrompt({
       // no completion to append a corrective message about, so just retry
       // with the same messages, after letting the engine settle.
       lastErrors = [describeThrown(err)];
+      if (isContextOverflow(lastErrors[0])) break;
       if (attempts <= maxRetries) await sleep(RETRY_BACKOFF_MS * attempts);
       continue;
     }
