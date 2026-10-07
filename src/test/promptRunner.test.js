@@ -212,6 +212,58 @@ describe("runStructuredPrompt", () => {
   });
 });
 
+describe("runStructuredPrompt truncation", () => {
+  it("tells the model it was cut off, rather than just that it was invalid", async () => {
+    let correction = null;
+    const engine = {
+      chatCompletion: vi.fn(async (messages) => {
+        const last = messages[messages.length - 1];
+        if (last.role === "user" && /invalid/.test(last.content)) {
+          correction = last.content;
+          return completionWith('{"ok":true}');
+        }
+        // Generation hit its cap mid-string.
+        return completionWith('{"narration":"The hall is dark and the');
+      }),
+    };
+
+    const result = await runStructuredPrompt({
+      engine,
+      systemPromptText: "system",
+      userContent: "user",
+      schema: { type: "object" },
+      validate: passthroughValidate,
+    });
+
+    expect(result.valid).toBe(true);
+    expect(correction).toMatch(/cut off|briefly/i);
+  });
+
+  it("uses the plain correction for JSON that is merely malformed", async () => {
+    let correction = null;
+    const engine = {
+      chatCompletion: vi.fn(async (messages) => {
+        const last = messages[messages.length - 1];
+        if (last.role === "user" && /invalid/.test(last.content)) {
+          correction = last.content;
+          return completionWith('{"ok":true}');
+        }
+        return completionWith("not json at all");
+      }),
+    };
+
+    await runStructuredPrompt({
+      engine,
+      systemPromptText: "system",
+      userContent: "user",
+      schema: { type: "object" },
+      validate: passthroughValidate,
+    });
+
+    expect(correction).not.toMatch(/cut off/i);
+  });
+});
+
 describe("runStructuredPrompt attempt timeouts", () => {
   it("gives up on a generation that outruns its timeout and says so", async () => {
     const engine = {

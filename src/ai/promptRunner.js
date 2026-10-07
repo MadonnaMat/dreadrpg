@@ -176,7 +176,9 @@ export async function runStructuredPrompt({
 
     if (!parsedResult.ok) {
       lastErrors = [`Response was not valid JSON: ${parsedResult.error}`];
-      appendCorrection(messages, lastRaw, lastErrors);
+      appendCorrection(messages, lastRaw, lastErrors, {
+        truncated: looksTruncated(lastRaw, parsedResult.error),
+      });
       continue;
     }
 
@@ -208,10 +210,23 @@ export async function runStructuredPrompt({
   };
 }
 
-function appendCorrection(messages, lastRaw, errors) {
+// JSON that stops mid-token means generation hit its output cap, not that
+// the model misunderstood the format - and telling it to "reply again with
+// corrected JSON" invites the same overlong answer. The small tiers get
+// there by looping inside a string, so the correction that helps is "be
+// much shorter", not "be valid".
+function looksTruncated(raw, parseError) {
+  if (!raw) return false;
+  return /unterminated|unexpected end of (json|input)/i.test(parseError || "");
+}
+
+function appendCorrection(messages, lastRaw, errors, { truncated } = {}) {
+  const instruction = truncated
+    ? "Your reply was cut off because it was too long. Answer again, far more briefly - one or two short sentences at most in any text field - as ONLY valid JSON."
+    : "Reply again with ONLY corrected JSON.";
   messages.push({ role: "assistant", content: lastRaw });
   messages.push({
     role: "user",
-    content: `That response was invalid: ${errors.join("; ")}. Reply again with ONLY corrected JSON.`,
+    content: `That response was invalid: ${errors.join("; ")}. ${instruction}`,
   });
 }
