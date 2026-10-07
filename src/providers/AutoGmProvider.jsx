@@ -24,6 +24,10 @@ import {
   countNoteItems,
   countPinnedNoteItems,
 } from "../helpers/contextRelevance";
+import {
+  looksLikeCommentary,
+  stripEchoedPlayerAction,
+} from "../helpers/narrationGuards";
 import { latest } from "../prompts/index";
 import {
   buildAutoGmTurnContext,
@@ -380,10 +384,18 @@ export function AutoGmProvider({ children }) {
         };
       }
       const { consistent, reasoning, revisedNarration } = result.parsed;
+      // The prompt forbids commentary in revisedNarration in plain words and
+      // the small tiers write it anyway ("I revise the draft to..."), which
+      // then goes to the table as the GM's own voice. Falling back to the
+      // draft loses the correction but never shows players stage directions.
+      const usableRevision =
+        revisedNarration && !looksLikeCommentary(revisedNarration)
+          ? revisedNarration
+          : null;
       return {
         finalNarration: consistent
           ? draftNarration
-          : revisedNarration || draftNarration,
+          : usableRevision || draftNarration,
         reasoning,
         consistent,
       };
@@ -584,13 +596,19 @@ export function AutoGmProvider({ children }) {
       setAutoGmError(null);
 
       const {
-        narration,
+        narration: rawNarration,
         callForPull,
         targetPlayerName,
         pullsRequired,
         readyToRestack,
         campaignNoteUpdates,
       } = result.parsed;
+
+      // Small tiers routinely open by repeating the player's own message
+      // back word for word before continuing, which reads as the GM both
+      // speaking in the player's first person and re-deciding their action.
+      // Done before the self-check so it reviews what players will see.
+      const narration = stripEchoedPlayerAction(rawNarration, trigger?.text);
 
       let finalNarration = narration;
       let reasoning = null;
