@@ -16,7 +16,8 @@ import {
 } from "../helpers/characters";
 import {
   applyCampaignNoteUpdates,
-  reconcileConsolidatedNotes,
+  mergeConsolidatedScope,
+  scopeNotesForConsolidation,
 } from "../helpers/campaignNotes";
 import {
   buildRelevanceQuery,
@@ -80,6 +81,23 @@ const TURN_LOG_LIMIT = 20;
 // folded into storySummary and reset - keeps context bounded without
 // losing track of the story (see docs/autogm-requirements.md).
 const RAW_HISTORY_COMPACTION_THRESHOLD = 20;
+// ...and a size ceiling alongside the message count, because twenty terse
+// lines and twenty long ones are wildly different amounts of context while
+// the model's window - 4096 tokens on the small tiers - is what actually
+// binds. Counting messages alone let a few long messages push the turn
+// prompt over it, which fails the turn outright. Characters rather than
+// tokens: no tokenizer is available here, and ~4 chars/token is close
+// enough for a trigger that only has to fire a little early.
+const RAW_HISTORY_CHAR_BUDGET = 4000;
+
+function historyNeedsCompaction(history) {
+  if (history.length > RAW_HISTORY_COMPACTION_THRESHOLD) return true;
+  const chars = history.reduce(
+    (total, message) => total + (message?.text?.length ?? 0),
+    0
+  );
+  return chars > RAW_HISTORY_CHAR_BUDGET;
+}
 // Turns runStructuredPrompt's own `errors` (JSON-parse failures, schema
 // validation messages, an engine rejection, or its per-attempt timeout) into
 // one readable line for the debug panel - "AutoGM couldn't generate a
@@ -427,8 +445,14 @@ export function AutoGmProvider({ children }) {
   // the deterministic fuzzy-match merge so an update is never lost outright.
   const consolidateCampaignNotes = useCallback(
     async (updates) => {
-      const context = buildAutoGmCampaignNotesConsolidationContext({
+      // Only the sections these updates touch - see
+      // scopeNotesForConsolidation for why the whole list cannot be sent.
+      const { scoped, scopedNames } = scopeNotesForConsolidation(
         campaignNotes,
+        updates
+      );
+      const context = buildAutoGmCampaignNotesConsolidationContext({
+        campaignNotes: scoped,
         campaignNoteUpdates: updates,
       });
       const result = await runPrompt({
@@ -440,7 +464,11 @@ export function AutoGmProvider({ children }) {
       if (!result.valid) {
         return applyCampaignNoteUpdates(campaignNotes, updates);
       }
-      return reconcileConsolidatedNotes(result.parsed, campaignNotes);
+      return mergeConsolidatedScope({
+        consolidated: result.parsed,
+        previous: campaignNotes,
+        scopedNames,
+      });
     },
     [campaignNotes, runPrompt]
   );
@@ -902,10 +930,11 @@ export function AutoGmProvider({ children }) {
   // here. AutoGM's own narration is sent via sendSystemChatMessage, which
   // never invokes this handler, so there's no feedback-loop risk.
   //
-  // Once the raw window grows past RAW_HISTORY_COMPACTION_THRESHOLD
-  // messages, it's folded into storySummary and the window resets to just
-  // the message that triggered this turn - keeps the context sent to the
-  // model bounded without losing track of where the story stands.
+  // Once the raw window grows past either compaction bound (see
+  // historyNeedsCompaction) it's folded into storySummary and the window
+  // resets to just the message that triggered this turn - keeps the context
+  // sent to the model bounded without losing track of where the story
+  // stands.
   const processIncomingChat = useCallback(
     async (data) => {
       if (!isGM || !autoGmEnabled) return;
@@ -917,7 +946,7 @@ export function AutoGmProvider({ children }) {
           fromIdentity: data.fromIdentity,
         };
         let history = [...historyRef.current, trigger];
-        if (history.length > RAW_HISTORY_COMPACTION_THRESHOLD) {
+        if (historyNeedsCompaction(history)) {
           setThinking(AUTOGM_STATUS.COMPACTING);
           history = await compactHistory(history);
           historyRef.current = history;

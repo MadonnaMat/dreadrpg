@@ -1,8 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
-  generateSectionId,
   applyCampaignNoteUpdates,
+  generateSectionId,
+  mergeConsolidatedScope,
   reconcileConsolidatedNotes,
+  scopeNotesForConsolidation,
 } from "../helpers/campaignNotes";
 
 describe("generateSectionId", () => {
@@ -489,5 +491,126 @@ describe("reconcileConsolidatedNotes", () => {
   it("treats a missing consolidated list as empty", () => {
     expect(reconcileConsolidatedNotes(null, [])).toEqual([]);
     expect(reconcileConsolidatedNotes(undefined, [])).toEqual([]);
+  });
+});
+
+describe("scoped consolidation", () => {
+  const notes = [
+    {
+      id: "note-1",
+      name: "Locations",
+      items: [
+        {
+          text: "Old Mill",
+          description: "Downstream.",
+          seenBy: [],
+          takenBy: null,
+        },
+      ],
+    },
+    {
+      id: "note-2",
+      name: "Items",
+      items: [
+        { text: "Rusty Key", description: "", seenBy: [], takenBy: null },
+      ],
+    },
+    {
+      id: "note-3",
+      name: "Threats",
+      items: [
+        { text: "The Hollow Man", description: "", seenBy: [], takenBy: null },
+      ],
+    },
+  ];
+
+  it("sends only the sections an update targets", () => {
+    const { scoped, scopedNames } = scopeNotesForConsolidation(notes, [
+      { sectionName: "items", itemText: "Brass Lantern" },
+    ]);
+    expect(scoped.map((s) => s.name)).toEqual(["Items"]);
+    expect([...scopedNames]).toEqual(["items"]);
+  });
+
+  it("sends nothing when the update invents a brand-new section", () => {
+    const { scoped } = scopeNotesForConsolidation(notes, [
+      { sectionName: "Clues", itemText: "A torn page" },
+    ]);
+    expect(scoped).toEqual([]);
+  });
+
+  it("puts the consolidated section back and leaves the others untouched", () => {
+    const merged = mergeConsolidatedScope({
+      consolidated: [
+        {
+          name: "Items",
+          items: [
+            {
+              text: "Rusty Key",
+              description: "It unlocks the shed.",
+              seenBy: ["Alice"],
+              takenBy: "",
+              pinned: false,
+              pinnedSource: "",
+            },
+          ],
+        },
+      ],
+      previous: notes,
+      scopedNames: new Set(["items"]),
+    });
+
+    expect(merged.map((s) => s.name)).toEqual([
+      "Locations",
+      "Items",
+      "Threats",
+    ]);
+    // Untouched sections come through unchanged, which the old whole-list
+    // rewrite could never guarantee - it asked the model to copy them.
+    expect(merged[0]).toEqual(notes[0]);
+    expect(merged[2]).toEqual(notes[2]);
+    expect(merged[1].items[0].description).toBe("It unlocks the shed.");
+    expect(merged[1].id).toBe("note-2");
+  });
+
+  it("appends a section the pass newly created", () => {
+    const merged = mergeConsolidatedScope({
+      consolidated: [
+        {
+          name: "Clues",
+          items: [
+            {
+              text: "A torn page",
+              description: "",
+              seenBy: [],
+              takenBy: "",
+              pinned: false,
+              pinnedSource: "",
+            },
+          ],
+        },
+      ],
+      previous: notes,
+      scopedNames: new Set(),
+    });
+    expect(merged.map((s) => s.name)).toEqual([
+      "Locations",
+      "Items",
+      "Threats",
+      "Clues",
+    ]);
+  });
+
+  it("keeps the original section when the pass drops one it was given", () => {
+    const merged = mergeConsolidatedScope({
+      consolidated: [],
+      previous: notes,
+      scopedNames: new Set(["items"]),
+    });
+    expect(merged.map((s) => s.name)).toEqual([
+      "Locations",
+      "Items",
+      "Threats",
+    ]);
   });
 });

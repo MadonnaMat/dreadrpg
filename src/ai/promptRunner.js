@@ -10,6 +10,13 @@ const DEFAULT_ATTEMPT_TIMEOUT_MS = 60000;
 // A failed attempt usually means the engine is still settling, so re-firing
 // in the same tick tends to reproduce the same failure. Grows per attempt.
 const RETRY_BACKOFF_MS = 400;
+// Generation otherwise runs until the model emits a stop token or walks into
+// the end of the context window, which on the 4096-token tiers is a real
+// risk: a looping model can spend the whole remaining window and fail the
+// call instead of returning the short JSON object it was asked for. Set
+// generously - truncated JSON costs a retry - and overridable for the few
+// prompts that legitimately return a long document.
+const DEFAULT_MAX_OUTPUT_TOKENS = 1024;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -56,11 +63,15 @@ async function completeWithTimeout({
   messages,
   responseFormat,
   timeoutMs,
+  maxOutputTokens,
 }) {
   let timer;
   try {
     return await Promise.race([
-      engine.chatCompletion(messages, { response_format: responseFormat }),
+      engine.chatCompletion(messages, {
+        response_format: responseFormat,
+        max_tokens: maxOutputTokens,
+      }),
       new Promise((_resolve, reject) => {
         timer = setTimeout(() => {
           // Best-effort: free the per-model lock so the retry isn't queued
@@ -115,6 +126,7 @@ export async function runStructuredPrompt({
   validate,
   maxRetries = DEFAULT_MAX_RETRIES,
   attemptTimeoutMs = DEFAULT_ATTEMPT_TIMEOUT_MS,
+  maxOutputTokens = DEFAULT_MAX_OUTPUT_TOKENS,
   history,
 }) {
   const messages = history
@@ -143,6 +155,7 @@ export async function runStructuredPrompt({
         messages,
         responseFormat,
         timeoutMs: attemptTimeoutMs,
+        maxOutputTokens,
       });
     } catch (err) {
       // An engine-level rejection (a worker hiccup, a transient generation

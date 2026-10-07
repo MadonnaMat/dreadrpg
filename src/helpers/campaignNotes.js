@@ -162,6 +162,59 @@ export function reconcileConsolidatedNotes(consolidated, previous) {
   });
 }
 
+// The consolidation pass used to be handed the entire notes list as JSON,
+// twice over (current + updates). At a full 8x8 set that alone exceeds the
+// 4096-token window the small tiers run, so the call could not succeed at
+// exactly the moment the notes were worth consolidating. It only ever needs
+// the sections an update actually targets - everything else it was asked to
+// copy through untouched, which is both the bulk of the payload and a thing
+// small models do badly.
+//
+// Returns the sections to send and the set of normalized names they cover,
+// which mergeConsolidatedScope needs to put the result back.
+export function scopeNotesForConsolidation(campaignNotes, updates) {
+  const targeted = new Set(
+    (updates || []).map((update) => normalize(update.sectionName))
+  );
+  const scoped = (campaignNotes || []).filter((section) =>
+    targeted.has(normalize(section.name))
+  );
+  return { scoped, scopedNames: new Set(scoped.map((s) => normalize(s.name))) };
+}
+
+// Puts a scoped consolidation back into the full list. Sections that weren't
+// sent are kept exactly as they were - which is strictly safer than the old
+// whole-list rewrite, where the prompt had to beg the model not to drop or
+// reword the entries it wasn't asked to touch.
+export function mergeConsolidatedScope({
+  consolidated,
+  previous,
+  scopedNames,
+}) {
+  const reconciled = reconcileConsolidatedNotes(consolidated, previous);
+  const byName = new Map(
+    reconciled.map((section) => [normalize(section.name), section])
+  );
+  const used = new Set();
+
+  const merged = (previous || []).map((section) => {
+    const key = normalize(section.name);
+    if (!scopedNames.has(key)) return section;
+    const next = byName.get(key);
+    if (!next) return section; // the pass dropped it; keep what we had
+    used.add(key);
+    return next;
+  });
+
+  // A genuinely new section the pass introduced for an update that matched
+  // nothing existing.
+  reconciled.forEach((section) => {
+    if (!used.has(normalize(section.name))) merged.push(section);
+  });
+
+  return capNotes(merged);
+}
+
 // Applies AutoGM's parsed `campaignNoteUpdates` (each `{sectionName,
 // itemText, description, seenByCharacter, takenByCharacter}`) onto the
 // current campaignNotes array: upserts an item into a matching section (by
