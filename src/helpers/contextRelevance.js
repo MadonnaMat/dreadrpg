@@ -28,6 +28,16 @@ const MIN_TOKEN_LENGTH = 3;
 // it outranks a cold match at the same overlap - but only once it matches at
 // all, or everything already seen would come along every turn.
 const ESTABLISHED_BONUS = 1;
+// What the player just said is stronger evidence of what this turn is about
+// than the lines around it, so its words count for more.
+const TRIGGER_TOKEN_WEIGHT = 2;
+const HISTORY_TOKEN_WEIGHT = 1;
+// One word in common is usually coincidence, not relevance ("cut open from
+// the inside" matching "look inside"), and letting those through was enough
+// to keep most of the notes on every turn. Set to the trigger weight, this
+// reads as: either one word the player actually just said, or two from the
+// surrounding chatter.
+const MIN_RELEVANCE_SCORE = TRIGGER_TOKEN_WEIGHT;
 
 const STOPWORDS = new Set([
   "the",
@@ -130,18 +140,47 @@ export function scoreKeywordOverlap(queryText, candidateText) {
   return overlap(tokenSet(queryText), tokenSet(candidateText));
 }
 
-// What "relevant to this turn" is measured against: what was just said, the
-// couple of lines before it, and the running summary. Weighted only by
-// repetition - a word that shows up in both the trigger and the summary
-// naturally counts twice in the token set's favor.
-export function buildRelevanceQuery({ trigger, storySummary, rawHistory }) {
-  const tail = (rawHistory || [])
-    .slice(-QUERY_HISTORY_LOOKBACK)
-    .map((message) => `${message.from} ${message.text}`)
-    .join(" ");
-  return [trigger?.text || "", tail, storySummary || ""]
-    .filter(Boolean)
-    .join(" ");
+// What "relevant to this turn" is measured against: what was just said, and
+// the couple of lines immediately before it.
+//
+// Deliberately NOT the rolling story summary. The summary describes the
+// whole game so far, so it name-drops most of the notes by construction -
+// folding it in made nearly everything match and turned the filtering into
+// a no-op (a pure small-talk turn scored the same notes as one about the
+// furnace). Relevance has to be anchored to what is happening *now*. The
+// summary isn't lost by this: it's sent to the model as its own block in
+// the turn prompt regardless - it just doesn't get to pick the notes.
+export function buildRelevanceQuery({ trigger, rawHistory }) {
+  return {
+    trigger: trigger?.text || "",
+    recent: (rawHistory || [])
+      .slice(-QUERY_HISTORY_LOOKBACK)
+      .map((message) => `${message.from} ${message.text}`)
+      .join(" "),
+  };
+}
+
+// Token -> weight for one turn's query. Also accepts a plain string, which
+// is treated as trigger text, so callers with nothing but words to match on
+// (and the unit tests) don't have to build the split shape.
+function queryWeights(query) {
+  const { trigger, recent } =
+    typeof query === "string" ? { trigger: query, recent: "" } : query || {};
+  const weights = new Map();
+  tokenSet(recent).forEach((token) => weights.set(token, HISTORY_TOKEN_WEIGHT));
+  // Set second, so a word in both counts at the higher trigger weight.
+  tokenSet(trigger).forEach((token) =>
+    weights.set(token, TRIGGER_TOKEN_WEIGHT)
+  );
+  return weights;
+}
+
+function weightedOverlap(weights, candidateTokens) {
+  let score = 0;
+  candidateTokens.forEach((token) => {
+    score += weights.get(token) || 0;
+  });
+  return score;
 }
 
 // The character roster is deliberately NOT filtered. It costs one short line
@@ -162,7 +201,7 @@ export function selectRelevantCampaignNotes({
   maxItems = MAX_RELEVANT_NOTE_ITEMS,
 }) {
   const sections = campaignNotes || [];
-  const queryTokens = tokenSet(query);
+  const weights = queryWeights(query);
   const keep = new Set();
   const candidates = [];
 
@@ -173,11 +212,11 @@ export function selectRelevantCampaignNotes({
         keep.add(key);
         return;
       }
-      const score = overlap(
-        queryTokens,
+      const score = weightedOverlap(
+        weights,
         tokenSet(`${item?.text || ""} ${item?.description || ""}`)
       );
-      if (!score) return;
+      if (score < MIN_RELEVANCE_SCORE) return;
       const established = Boolean(item?.seenBy?.length || item?.takenBy);
       candidates.push({
         key,

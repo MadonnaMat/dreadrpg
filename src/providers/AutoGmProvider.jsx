@@ -561,11 +561,7 @@ export function AutoGmProvider({ children }) {
       // mentioned, and the second rebuilds the whole list.
       const relevantCampaignNotes = selectRelevantCampaignNotes({
         campaignNotes,
-        query: buildRelevanceQuery({
-          trigger,
-          storySummary,
-          rawHistory: history,
-        }),
+        query: buildRelevanceQuery({ trigger, rawHistory: history }),
       });
       const context = buildAutoGmTurnContext({
         scenario,

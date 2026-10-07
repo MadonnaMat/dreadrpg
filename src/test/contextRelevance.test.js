@@ -47,10 +47,9 @@ describe("scoreKeywordOverlap", () => {
 });
 
 describe("buildRelevanceQuery", () => {
-  it("combines the trigger, recent history, and the story summary", () => {
+  it("separates the trigger from the recent lines around it", () => {
     const query = buildRelevanceQuery({
       trigger: { text: "I pry open the furnace" },
-      storySummary: "The group reached the foundry.",
       rawHistory: [
         { from: "Alice", text: "oldest line" },
         { from: "Bob", text: "second line" },
@@ -58,15 +57,25 @@ describe("buildRelevanceQuery", () => {
         { from: "Bob", text: "fourth line" },
       ],
     });
-    expect(query).toContain("furnace");
-    expect(query).toContain("foundry");
-    expect(query).toContain("fourth line");
+    expect(query.trigger).toContain("furnace");
+    expect(query.recent).toContain("fourth line");
     // Only the last few lines are in scope, so the window stays bounded.
-    expect(query).not.toContain("oldest line");
+    expect(query.recent).not.toContain("oldest line");
+  });
+
+  it("leaves the story summary out entirely", () => {
+    // The summary describes the whole game, so it name-drops most of the
+    // notes - including it made nearly everything match every turn.
+    const query = buildRelevanceQuery({
+      trigger: { text: "I pry open the furnace" },
+      storySummary: "The group reached the foundry and found a lantern.",
+      rawHistory: [],
+    });
+    expect(JSON.stringify(query)).not.toContain("lantern");
   });
 
   it("tolerates missing pieces", () => {
-    expect(buildRelevanceQuery({})).toBe("");
+    expect(buildRelevanceQuery({})).toEqual({ trigger: "", recent: "" });
   });
 });
 
@@ -166,6 +175,41 @@ describe("selectRelevantCampaignNotes", () => {
       maxItems: 1,
     });
     expect(result[0].items[0].seenBy).toEqual(["Marcus"]);
+  });
+
+  it("weighs what the player just said above the chatter around it", () => {
+    const result = selectRelevantCampaignNotes({
+      campaignNotes: [
+        {
+          id: "note-1",
+          name: "Locations",
+          items: [item("Old Mill"), item("Lighthouse")],
+        },
+      ],
+      query: { trigger: "I search the mill", recent: "Bob: the lighthouse" },
+      maxItems: 5,
+    });
+    // One word from the trigger clears the bar; one from recent chat alone
+    // doesn't, so ambient mentions don't drag everything along.
+    expect(result[0].items.map((i) => i.text)).toEqual(["Old Mill"]);
+  });
+
+  it("needs more than one coincidental word from recent chat", () => {
+    const result = selectRelevantCampaignNotes({
+      campaignNotes: [
+        {
+          id: "note-1",
+          name: "Locations",
+          items: [
+            item("Loading Yard", { description: "Cut open from the inside." }),
+          ],
+        },
+      ],
+      // "inside" appears, but only as passing chatter - this is the exact
+      // false match that made filtering a no-op before.
+      query: { trigger: "I wait by the car", recent: "Bob: it is dark inside" },
+    });
+    expect(result).toEqual([]);
   });
 
   it("returns nothing when the turn matches nothing and nothing is pinned", () => {
