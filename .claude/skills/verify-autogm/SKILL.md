@@ -19,6 +19,42 @@ If this environment has no WebGPU or can't download a model, say so and stop
 rather than reporting the change as verified. Unit tests passing is not
 verification of a prompt change.
 
+**Check WebGPU before planning a session.** Every tier is a `q4f16_1` build,
+which needs the `shader-f16` WebGPU feature - a browser can expose a working
+adapter and still not have it, and WebLLM will refuse to load. Headless
+Chromium has no `navigator.gpu` at all; headed Chrome needs
+`--enable-unsafe-webgpu`:
+
+```js
+const b = await chromium.launch({ channel: "chrome", headless: false,
+  args: ["--enable-unsafe-webgpu"] });
+const a = await (await b.newPage()).evaluate(async () =>
+  (await navigator.gpu?.requestAdapter())?.features.has("shader-f16"));
+```
+
+`false` means the model path can't run here, full stop. (Under WSL, WSLg
+gives you `DISPLAY` so headed Chrome works, but the D3D12 adapter has
+reported no f16.)
+
+## Without a model: drive the real prompt builders
+
+Most of what goes wrong with context changes is visible *before* inference -
+and this is the check that actually catches filtering bugs, because unit
+tests use short invented queries that hide them. Run the real modules over a
+realistic mid-campaign fixture (full notes, a cast, a long story summary,
+several turns of history) and print prompt sizes and which notes survived:
+
+```bash
+./node_modules/.bin/vite-node path/to/harness.mjs   # not plain node:
+                                                    # sources use extensionless imports
+```
+
+Compare a turn focused on a location, one on an item, and one that's pure
+small talk. **They must produce visibly different note sets.** If they come
+out the same, relevance is matching on something ambient rather than on the
+turn - that is exactly the bug this harness caught once already (the query
+was including the whole story summary, so everything matched every turn).
+
 ## Setup
 
 1. `npm run dev`, open `localhost:5173/dreadrpg/`, **Create Game** as GM.
